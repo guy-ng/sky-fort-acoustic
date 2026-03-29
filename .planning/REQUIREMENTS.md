@@ -14,10 +14,10 @@
 
 ### Beamforming
 
-- [ ] **BF-01**: Service produces a beamforming spatial map (SRP-PHAT) from 16-channel audio in real time
-- [ ] **BF-02**: Beamforming frequency band is configurable at runtime (default 100-2000 Hz for drone detection)
-- [ ] **BF-03**: Service calculates peak azimuth and elevation (pan/tilt degrees) from beamforming map
-- [ ] **BF-04**: Service applies adaptive noise threshold (percentile-based calibration with configurable margin) to filter false detections
+- [x] **BF-01**: Service produces a beamforming spatial map (SRP-PHAT) from 16-channel audio in real time
+- [x] **BF-02**: Beamforming frequency band is configurable at runtime (default 100-2000 Hz for drone detection)
+- [x] **BF-03**: Service calculates peak azimuth and elevation (pan/tilt degrees) from beamforming map
+- [x] **BF-04**: Service applies adaptive noise threshold (percentile-based calibration with configurable margin) to filter false detections
 
 ### Classification
 
@@ -90,10 +90,10 @@
 | AUD-01 | Phase 1 | Complete |
 | AUD-02 | Phase 1 | Complete |
 | AUD-03 | Phase 1 | Complete |
-| BF-01 | Phase 1 | Pending |
-| BF-02 | Phase 1 | Pending |
-| BF-03 | Phase 1 | Pending |
-| BF-04 | Phase 1 | Pending |
+| BF-01 | Phase 1 | Complete |
+| BF-02 | Phase 1 | Complete |
+| BF-03 | Phase 1 | Complete |
+| BF-04 | Phase 1 | Complete |
 | INF-01 | Phase 1 | Complete |
 | INF-02 | Phase 2 | Pending |
 | INF-03 | Phase 1 | Complete |
