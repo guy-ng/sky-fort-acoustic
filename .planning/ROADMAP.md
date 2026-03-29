@@ -23,7 +23,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 ### Phase 1: Audio Capture, Beamforming, and Infrastructure
 **Goal**: The service captures 16-channel audio from the UMA-16v2 and produces a real-time beamforming spatial map inside a Docker container
 **Depends on**: Nothing (first phase)
-**Requirements**: AUD-01, AUD-02, AUD-03, BF-01, BF-02, BF-03, BF-04, INF-01, INF-02, INF-03, INF-04
+**Requirements**: AUD-01, AUD-02, AUD-03, BF-01, BF-02, BF-03, BF-04, INF-01, INF-03, INF-04
 **Success Criteria** (what must be TRUE):
   1. Service starts in Docker, detects the UMA-16v2 device, and logs its presence (or logs a clear error if absent)
   2. 16-channel audio streams continuously at 48kHz without buffer overflows or dropped frames
@@ -40,7 +40,7 @@ Plans:
 ### Phase 2: REST API and Live Monitoring UI
 **Goal**: Users can see a live beamforming heatmap and target state through a web browser
 **Depends on**: Phase 1
-**Requirements**: API-01, API-02, API-03, UI-01, UI-02, UI-03, UI-08
+**Requirements**: API-01, API-02, API-03, UI-01, UI-02, UI-03, UI-08, INF-02
 **Success Criteria** (what must be TRUE):
   1. Opening the web UI in a browser shows a live-updating beamforming heatmap (WebSocket, not polling)
   2. REST endpoint returns the current beamforming map on demand (image or JSON)

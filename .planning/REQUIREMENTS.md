@@ -95,7 +95,7 @@
 | BF-03 | Phase 1 | Pending |
 | BF-04 | Phase 1 | Pending |
 | INF-01 | Phase 1 | Pending |
-| INF-02 | Phase 1 | Pending |
+| INF-02 | Phase 2 | Pending |
 | INF-03 | Phase 1 | Pending |
 | INF-04 | Phase 1 | Pending |
 | API-01 | Phase 2 | Pending |
