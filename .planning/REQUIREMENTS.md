@@ -8,9 +8,9 @@
 
 ### Audio Capture
 
-- [ ] **AUD-01**: Service captures real-time 16-channel audio from UMA-16v2 at 48kHz using callback-based streaming (not blocking)
-- [ ] **AUD-02**: Audio capture runs continuously in a dedicated thread with a ring buffer for downstream consumers
-- [ ] **AUD-03**: Service detects and reports UMA-16v2 device presence/absence at startup and during operation
+- [x] **AUD-01**: Service captures real-time 16-channel audio from UMA-16v2 at 48kHz using callback-based streaming (not blocking)
+- [x] **AUD-02**: Audio capture runs continuously in a dedicated thread with a ring buffer for downstream consumers
+- [x] **AUD-03**: Service detects and reports UMA-16v2 device presence/absence at startup and during operation
 
 ### Beamforming
 
@@ -60,9 +60,9 @@
 
 ### Infrastructure
 
-- [ ] **INF-01**: Service runs in a single Docker container with USB passthrough for UMA-16v2
+- [x] **INF-01**: Service runs in a single Docker container with USB passthrough for UMA-16v2
 - [ ] **INF-02**: Dockerfile uses multi-stage build (Python backend + React frontend)
-- [ ] **INF-03**: Service configurable via environment variables (device, ports, model path, ZMQ endpoint, frequency band)
+- [x] **INF-03**: Service configurable via environment variables (device, ports, model path, ZMQ endpoint, frequency band)
 - [ ] **INF-04**: Service includes health check endpoint reporting device status and pipeline state
 
 ## v2 Requirements (Deferred)
@@ -87,16 +87,16 @@
 
 | REQ-ID | Phase | Status |
 |--------|-------|--------|
-| AUD-01 | Phase 1 | Pending |
-| AUD-02 | Phase 1 | Pending |
-| AUD-03 | Phase 1 | Pending |
+| AUD-01 | Phase 1 | Complete |
+| AUD-02 | Phase 1 | Complete |
+| AUD-03 | Phase 1 | Complete |
 | BF-01 | Phase 1 | Pending |
 | BF-02 | Phase 1 | Pending |
 | BF-03 | Phase 1 | Pending |
 | BF-04 | Phase 1 | Pending |
-| INF-01 | Phase 1 | Pending |
+| INF-01 | Phase 1 | Complete |
 | INF-02 | Phase 2 | Pending |
-| INF-03 | Phase 1 | Pending |
+| INF-03 | Phase 1 | Complete |
 | INF-04 | Phase 1 | Pending |
 | API-01 | Phase 2 | Pending |
 | API-02 | Phase 2 | Pending |
