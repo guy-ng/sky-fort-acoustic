@@ -30,12 +30,12 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. Beamforming produces an updating spatial map with a visible peak when a sound source is present
   4. Peak azimuth and elevation (pan/tilt degrees) are calculated and logged for the strongest source
   5. Configuration via environment variables controls device selection, frequency band, and service ports
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 01-01: Project scaffolding, Docker setup, and audio capture
-- [ ] 01-02: SRP-PHAT beamforming engine with peak detection and noise gate
-- [ ] 01-03: Integration, health check, and end-to-end validation
+- [ ] 01-01-PLAN.md — Project scaffolding, Docker setup, config, device detection, audio capture pipeline with ring buffer and simulator
+- [ ] 01-02-PLAN.md — SRP-PHAT beamforming engine (geometry, GCC-PHAT, 2D spatial map) with peak detection and noise gate
+- [ ] 01-03-PLAN.md — Integration: FastAPI app with health endpoint, beamforming pipeline wiring, end-to-end validation
 
 ### Phase 2: REST API and Live Monitoring UI
 **Goal**: Users can see a live beamforming heatmap and target state through a web browser
@@ -107,7 +107,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Audio Capture, Beamforming, and Infrastructure | 0/3 | Not started | - |
+| 1. Audio Capture, Beamforming, and Infrastructure | 0/3 | Planned | - |
 | 2. REST API and Live Monitoring UI | 0/2 | Not started | - |
 | 3. CNN Classification and Target Tracking | 0/3 | Not started | - |
 | 4. Recording and Playback | 0/2 | Not started | - |
