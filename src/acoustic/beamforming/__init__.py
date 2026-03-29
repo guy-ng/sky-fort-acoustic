@@ -6,6 +6,8 @@ from src.acoustic.beamforming.geometry import (
     build_mic_positions,
     build_steering_vectors_2d,
 )
+from src.acoustic.beamforming.peak import detect_peak_with_threshold
+from src.acoustic.beamforming.srp_phat import srp_phat_2d
 
 __all__ = [
     "SPACING",
@@ -13,4 +15,6 @@ __all__ = [
     "build_steering_vectors_2d",
     "prepare_fft",
     "gcc_phat_from_fft",
+    "srp_phat_2d",
+    "detect_peak_with_threshold",
 ]
