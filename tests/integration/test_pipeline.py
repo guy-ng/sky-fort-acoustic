@@ -5,7 +5,6 @@ from __future__ import annotations
 import time
 
 import numpy as np
-import pytest
 
 from acoustic.audio.capture import AudioRingBuffer
 from acoustic.audio.simulator import SimulatedAudioSource
