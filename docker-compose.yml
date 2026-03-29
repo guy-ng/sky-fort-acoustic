@@ -1,0 +1,12 @@
+services:
+  acoustic:
+    build: .
+    ports:
+      - "8000:8000"
+    devices:
+      - /dev/snd:/dev/snd
+    volumes:
+      - /dev/bus/usb:/dev/bus/usb
+    environment:
+      - ACOUSTIC_AUDIO_SOURCE=simulated
+    privileged: true
