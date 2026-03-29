@@ -67,7 +67,7 @@
 
 ## v2 Requirements (Deferred)
 
-- Multi-array support — multiple UMA-16v2 arrays for triangulation
+- Multi-array support -- multiple UMA-16v2 arrays for triangulation
 - Range estimation from multiple arrays
 - Model hot-swap without service restart
 - Automatic model retraining on new data
@@ -75,17 +75,50 @@
 
 ## Out of Scope
 
-- PTZ camera control — separate service, publish bearing over ZMQ instead
-- Visual/YOLO drone detection — acoustic-only service
-- Stereo camera triangulation — separate POC concern
-- BLE scanning — unrelated POC tool
-- Video tagging — separate POC component
-- Audio playback through speakers — creates feedback loops with mic array
-- Range estimation from single array — single planar array cannot reliably estimate distance
+- PTZ camera control -- separate service, publish bearing over ZMQ instead
+- Visual/YOLO drone detection -- acoustic-only service
+- Stereo camera triangulation -- separate POC concern
+- BLE scanning -- unrelated POC tool
+- Video tagging -- separate POC component
+- Audio playback through speakers -- creates feedback loops with mic array
+- Range estimation from single array -- single planar array cannot reliably estimate distance
 
 ## Traceability
 
-<!-- Filled by roadmap creation -->
-
 | REQ-ID | Phase | Status |
 |--------|-------|--------|
+| AUD-01 | Phase 1 | Pending |
+| AUD-02 | Phase 1 | Pending |
+| AUD-03 | Phase 1 | Pending |
+| BF-01 | Phase 1 | Pending |
+| BF-02 | Phase 1 | Pending |
+| BF-03 | Phase 1 | Pending |
+| BF-04 | Phase 1 | Pending |
+| INF-01 | Phase 1 | Pending |
+| INF-02 | Phase 1 | Pending |
+| INF-03 | Phase 1 | Pending |
+| INF-04 | Phase 1 | Pending |
+| API-01 | Phase 2 | Pending |
+| API-02 | Phase 2 | Pending |
+| API-03 | Phase 2 | Pending |
+| UI-01 | Phase 2 | Pending |
+| UI-02 | Phase 2 | Pending |
+| UI-03 | Phase 2 | Pending |
+| UI-08 | Phase 2 | Pending |
+| CLS-01 | Phase 3 | Pending |
+| CLS-02 | Phase 3 | Pending |
+| CLS-03 | Phase 3 | Pending |
+| CLS-04 | Phase 3 | Pending |
+| TRK-01 | Phase 3 | Pending |
+| TRK-02 | Phase 3 | Pending |
+| TRK-03 | Phase 3 | Pending |
+| TRK-04 | Phase 3 | Pending |
+| TRK-05 | Phase 3 | Pending |
+| UI-04 | Phase 4 | Pending |
+| UI-05 | Phase 4 | Pending |
+| UI-06 | Phase 4 | Pending |
+| UI-07 | Phase 4 | Pending |
+| TRN-01 | Phase 5 | Pending |
+| TRN-02 | Phase 5 | Pending |
+| TRN-03 | Phase 5 | Pending |
+| TRN-04 | Phase 5 | Pending |
