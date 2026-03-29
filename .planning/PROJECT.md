@@ -47,13 +47,15 @@ Reliably detect and classify drones acoustically in real time, publishing target
 - **Key POC files to extract from**: `radar_gui_all_mics_fast_drone.py` (beamforming core), `POC_Recorder.py` (recording logic), `unified_drone_collection_web_gui.py` (web orchestration patterns)
 - **Audio libraries in POC**: `sounddevice` for capture, `acoular` for beamforming, `numpy` for DSP
 - **Mic array**: UMA-16v2 — 4x4 uniform rectangular array, 42mm spacing, 16 USB channels at 48kHz
-- **Training data**: Will come from recordings made through the service (not the existing `data/` folder)
+- **Training data**: Existing labeled recordings in `audio-data/data/` (background, drone, other categories with JSON metadata). New recordings from the web UI will add to this
+- **audio-data/ and POC-code/ are excluded from git** — large/legacy assets kept local only
 - **Downstream consumers**: Other services subscribe to ZeroMQ for target tracking data
 
 ## Constraints
 
 - **Hardware**: UMA-16v2 mic array must be accessible from Docker (USB passthrough)
-- **Runtime**: Python, single Docker container
+- **Runtime**: Python backend, single Docker container
+- **Web UI**: React app (Vite + TypeScript + Tailwind CSS) — consistent with sky-fort-dashboard
 - **Messaging**: ZeroMQ for event publishing (PUB/SUB pattern)
 - **Real-time**: Audio processing must keep up with 48kHz 16-channel stream
 - **Deployment**: Must run independently — no dependency on other POC components
