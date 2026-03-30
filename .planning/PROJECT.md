@@ -12,12 +12,12 @@ Reliably detect and classify drones acoustically in real time, publishing target
 
 ### Validated
 
-(None yet — ship to validate)
+- [x] Real-time 16-channel audio capture from UMA-16v2 mic array — Validated in Phase 1
+- [x] Beamforming processing to produce spatial sound map (beamforming map) — Validated in Phase 1
+- [x] Dockerized deployment (single container, independent service) — Validated in Phase 1
 
 ### Active
 
-- [ ] Real-time 16-channel audio capture from UMA-16v2 mic array
-- [ ] Beamforming processing to produce spatial sound map (beamforming map)
 - [ ] CNN-based drone classification (drone type identification from audio)
 - [ ] Doppler-based speed estimation for detected targets
 - [ ] Pan and tilt degree calculation for detected targets
@@ -30,7 +30,6 @@ Reliably detect and classify drones acoustically in real time, publishing target
 - [ ] Web UI: play back recordings through full processing pipeline (simulate live)
 - [ ] Web UI: attach metadata to recordings (labels, notes, conditions)
 - [ ] CNN training pipeline using labeled recordings
-- [ ] Dockerized deployment (single container, independent service)
 
 ### Out of Scope
 
@@ -88,4 +87,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-29 after initialization*
+*Last updated: 2026-03-30 after Phase 1 completion*
