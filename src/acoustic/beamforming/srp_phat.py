@@ -8,8 +8,8 @@ import itertools
 
 import numpy as np
 
-from src.acoustic.beamforming.gcc_phat import gcc_phat_from_fft, prepare_fft
-from src.acoustic.beamforming.geometry import build_steering_vectors_2d
+from acoustic.beamforming.gcc_phat import gcc_phat_from_fft, prepare_fft
+from acoustic.beamforming.geometry import build_steering_vectors_2d
 
 
 def srp_phat_2d(

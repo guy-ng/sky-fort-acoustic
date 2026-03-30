@@ -3,8 +3,8 @@
 import numpy as np
 import numpy.testing as npt
 
-from src.acoustic.beamforming.geometry import build_mic_positions
-from src.acoustic.beamforming.srp_phat import srp_phat_2d
+from acoustic.beamforming.geometry import build_mic_positions
+from acoustic.beamforming.srp_phat import srp_phat_2d
 
 
 def _generate_plane_wave(

@@ -2,8 +2,8 @@
 
 import numpy as np
 
-from src.acoustic.beamforming.peak import detect_peak_with_threshold
-from src.acoustic.types import PeakDetection
+from acoustic.beamforming.peak import detect_peak_with_threshold
+from acoustic.types import PeakDetection
 
 
 def _make_map_with_peak(

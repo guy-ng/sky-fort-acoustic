@@ -3,7 +3,7 @@
 import numpy as np
 import numpy.testing as npt
 
-from src.acoustic.beamforming.geometry import (
+from acoustic.beamforming.geometry import (
     SPACING,
     build_mic_positions,
     build_steering_vectors_2d,

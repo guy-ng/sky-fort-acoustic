@@ -7,7 +7,7 @@ as a detection.
 
 import numpy as np
 
-from src.acoustic.types import PeakDetection
+from acoustic.types import PeakDetection
 
 
 def detect_peak_with_threshold(

@@ -3,7 +3,7 @@
 import numpy as np
 import numpy.testing as npt
 
-from src.acoustic.beamforming.gcc_phat import gcc_phat_from_fft, prepare_fft
+from acoustic.beamforming.gcc_phat import gcc_phat_from_fft, prepare_fft
 
 
 class TestPrepareFFT:
