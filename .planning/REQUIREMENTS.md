@@ -42,14 +42,14 @@
 
 ### Web UI
 
-- [ ] **UI-01**: React app (Vite + TypeScript + Tailwind) displays live beamforming heatmap updated via WebSocket
-- [ ] **UI-02**: Web UI shows active target overlay on heatmap (markers with class, speed, bearing, target ID)
-- [ ] **UI-03**: Web UI displays target details panel (speed, pan/tilt degrees, class, target ID)
+- [x] **UI-01**: React app (Vite + TypeScript + Tailwind) displays live beamforming heatmap updated via WebSocket
+- [x] **UI-02**: Web UI shows active target overlay on heatmap (markers with class, speed, bearing, target ID)
+- [x] **UI-03**: Web UI displays target details panel (speed, pan/tilt degrees, class, target ID)
 - [ ] **UI-04**: Web UI provides controls to start/stop recording of raw 16-channel audio
 - [ ] **UI-05**: Web UI lists available recordings with metadata (label, date, duration, notes)
 - [ ] **UI-06**: Web UI plays back recordings through full processing pipeline (simulates live detection)
 - [ ] **UI-07**: Web UI allows attaching/editing metadata on recordings (drone type, distance, conditions, notes)
-- [ ] **UI-08**: Web UI consistent with sky-fort-dashboard styling (React 19, Tailwind 4, same component patterns)
+- [x] **UI-08**: Web UI consistent with sky-fort-dashboard styling (React 19, Tailwind 4, same component patterns)
 
 ### Training
 
@@ -101,10 +101,10 @@
 | API-01 | Phase 2 | Complete |
 | API-02 | Phase 2 | Complete |
 | API-03 | Phase 2 | Complete |
-| UI-01 | Phase 2 | Pending |
-| UI-02 | Phase 2 | Pending |
-| UI-03 | Phase 2 | Pending |
-| UI-08 | Phase 2 | Pending |
+| UI-01 | Phase 2 | Complete |
+| UI-02 | Phase 2 | Complete |
+| UI-03 | Phase 2 | Complete |
+| UI-08 | Phase 2 | Complete |
 | CLS-01 | Phase 3 | Pending |
 | CLS-02 | Phase 3 | Pending |
 | CLS-03 | Phase 3 | Pending |
