@@ -35,7 +35,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 Plans:
 - [x] 01-01-PLAN.md — Project scaffolding, Docker setup, config, device detection, audio capture pipeline with ring buffer and simulator
 - [x] 01-02-PLAN.md — SRP-PHAT beamforming engine (geometry, GCC-PHAT, 2D spatial map) with peak detection and noise gate
-- [ ] 01-03-PLAN.md — Integration: FastAPI app with health endpoint, beamforming pipeline wiring, end-to-end validation
+- [x] 01-03-PLAN.md — Integration: FastAPI app with health endpoint, beamforming pipeline wiring, end-to-end validation
 
 ### Phase 2: REST API and Live Monitoring UI
 **Goal**: Users can see a live beamforming heatmap and target state through a web browser
@@ -107,7 +107,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Audio Capture, Beamforming, and Infrastructure | 2/3 | In Progress | - |
+| 1. Audio Capture, Beamforming, and Infrastructure | 3/3 | Complete | 2026-03-30 |
 | 2. REST API and Live Monitoring UI | 0/2 | Not started | - |
 | 3. CNN Classification and Target Tracking | 0/3 | Not started | - |
 | 4. Recording and Playback | 0/2 | Not started | - |

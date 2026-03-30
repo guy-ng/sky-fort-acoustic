@@ -63,7 +63,7 @@
 - [x] **INF-01**: Service runs in a single Docker container with USB passthrough for UMA-16v2
 - [ ] **INF-02**: Dockerfile uses multi-stage build (Python backend + React frontend)
 - [x] **INF-03**: Service configurable via environment variables (device, ports, model path, ZMQ endpoint, frequency band)
-- [ ] **INF-04**: Service includes health check endpoint reporting device status and pipeline state
+- [x] **INF-04**: Service includes health check endpoint reporting device status and pipeline state
 
 ## v2 Requirements (Deferred)
 
@@ -97,7 +97,7 @@
 | INF-01 | Phase 1 | Complete |
 | INF-02 | Phase 2 | Pending |
 | INF-03 | Phase 1 | Complete |
-| INF-04 | Phase 1 | Pending |
+| INF-04 | Phase 1 | Complete |
 | API-01 | Phase 2 | Pending |
 | API-02 | Phase 2 | Pending |
 | API-03 | Phase 2 | Pending |
