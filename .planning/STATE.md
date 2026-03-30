@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Phase 2 context gathered
-last_updated: "2026-03-30T21:08:35.681Z"
-last_activity: 2026-03-30
+stopped_at: Completed 02-01-PLAN.md
+last_updated: "2026-03-30T22:02:57Z"
+last_activity: 2026-03-31
 progress:
   total_phases: 5
   completed_phases: 1
-  total_plans: 3
-  completed_plans: 3
-  percent: 0
+  total_plans: 6
+  completed_plans: 4
+  percent: 20
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-29)
 
 **Core value:** Reliably detect and classify drones acoustically in real time, publishing target events over ZeroMQ so downstream systems can act on them.
-**Current focus:** Phase 1 - Audio Capture, Beamforming, and Infrastructure
+**Current focus:** Phase 02 — rest-api-and-live-monitoring-ui
 
 ## Current Position
 
-Phase: 2 of 5 (rest api and live monitoring ui)
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-03-30
+Phase: 02 (rest-api-and-live-monitoring-ui) — EXECUTING
+Plan: 2 of 3
+Status: Executing Phase 02
+Last activity: 2026-03-31 -- Completed 02-01 REST/WebSocket API endpoints
 
-Progress: [##........] 0%
+Progress: [##........] 20%
 
 ## Performance Metrics
 
@@ -54,6 +54,7 @@ Progress: [##........] 0%
 *Updated after each plan completion*
 | Phase 01 P01 | 8min | 2 tasks | 20 files |
 | Phase 01 P02 | 9min | 2 tasks | 11 files |
+| Phase 02 P01 | 7min | 3 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -69,6 +70,9 @@ Recent decisions affecting current work:
 - [Phase 01]: AudioCapture callback does only np.copyto + monotonic timestamp -- no logging in audio thread
 - [Phase 01]: Elevation test relaxed for planar array -- UMA-16v2 has zero z-baseline, poor elevation discrimination is physics, not a bug
 - [Phase 01]: Frequency band test uses variance comparison due to GCC-PHAT magnitude normalization
+- [Phase 02]: Map data transposed to [elevation][azimuth] row-major for canvas rendering
+- [Phase 02]: WebSocket heatmap uses JSON handshake then binary float32 frames
+- [Phase 02]: Heatmap 20 Hz poll, targets 2 Hz matching data change rates
 
 ### Pending Todos
 
@@ -82,6 +86,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-30T21:08:35.678Z
-Stopped at: Phase 2 context gathered
-Resume file: .planning/phases/02-rest-api-and-live-monitoring-ui/02-CONTEXT.md
+Last session: 2026-03-30T22:02:57Z
+Stopped at: Completed 02-01-PLAN.md
+Resume file: .planning/phases/02-rest-api-and-live-monitoring-ui/02-01-SUMMARY.md

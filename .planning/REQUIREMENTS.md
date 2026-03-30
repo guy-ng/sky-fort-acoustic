@@ -36,9 +36,9 @@
 
 ### API
 
-- [ ] **API-01**: REST endpoint serves current beamforming map (image or JSON grid)
-- [ ] **API-02**: REST endpoint serves list of active targets with current state (ID, class, speed, pan, tilt)
-- [ ] **API-03**: WebSocket endpoint streams beamforming map updates to connected clients in real time
+- [x] **API-01**: REST endpoint serves current beamforming map (image or JSON grid)
+- [x] **API-02**: REST endpoint serves list of active targets with current state (ID, class, speed, pan, tilt)
+- [x] **API-03**: WebSocket endpoint streams beamforming map updates to connected clients in real time
 
 ### Web UI
 
@@ -98,9 +98,9 @@
 | INF-02 | Phase 2 | Pending |
 | INF-03 | Phase 1 | Complete |
 | INF-04 | Phase 1 | Complete |
-| API-01 | Phase 2 | Pending |
-| API-02 | Phase 2 | Pending |
-| API-03 | Phase 2 | Pending |
+| API-01 | Phase 2 | Complete |
+| API-02 | Phase 2 | Complete |
+| API-03 | Phase 2 | Complete |
 | UI-01 | Phase 2 | Pending |
 | UI-02 | Phase 2 | Pending |
 | UI-03 | Phase 2 | Pending |

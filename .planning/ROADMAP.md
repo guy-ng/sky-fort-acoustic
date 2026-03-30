@@ -50,7 +50,7 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 02-01-PLAN.md — Backend REST endpoints, WebSocket streaming, Pydantic models, and integration tests
+- [x] 02-01-PLAN.md — Backend REST endpoints, WebSocket streaming, Pydantic models, and integration tests
 - [ ] 02-02-PLAN.md — React web UI scaffold with live beamforming heatmap, target overlay, and dashboard layout
 - [ ] 02-03-PLAN.md — Multi-stage Dockerfile and end-to-end human verification
 
@@ -109,7 +109,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Audio Capture, Beamforming, and Infrastructure | 3/3 | Complete | 2026-03-30 |
-| 2. REST API and Live Monitoring UI | 0/3 | Not started | - |
+| 2. REST API and Live Monitoring UI | 1/3 | In Progress|  |
 | 3. CNN Classification and Target Tracking | 0/3 | Not started | - |
 | 4. Recording and Playback | 0/2 | Not started | - |
 | 5. CNN Training Pipeline | 0/2 | Not started | - |
