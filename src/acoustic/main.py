@@ -9,6 +9,9 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
+from acoustic.api.routes import router as api_router
+from acoustic.api.static import mount_static
+from acoustic.api.websocket import router as ws_router
 from acoustic.audio.capture import AudioCapture, AudioRingBuffer
 from acoustic.audio.device import detect_uma16v2
 from acoustic.audio.simulator import SimulatedAudioSource
@@ -142,6 +145,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Sky Fort Acoustic Service", lifespan=lifespan)
+app.include_router(api_router)
+app.include_router(ws_router)
 
 
 @app.get("/health")
@@ -157,3 +162,7 @@ async def health():
         "overflow_count": capture.ring.overflow_count,
         "last_frame_time": capture.last_frame_time,
     }
+
+
+# SPA static mount MUST be last -- catch-all route would shadow API routes
+mount_static(app)
