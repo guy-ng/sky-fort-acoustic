@@ -1,3 +1,12 @@
+# Stage 1: Build React frontend
+FROM node:22-slim AS frontend-build
+WORKDIR /web
+COPY web/package.json web/package-lock.json ./
+RUN npm ci
+COPY web/ .
+RUN npm run build
+
+# Stage 2: Python runtime with built frontend
 FROM python:3.11-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -10,6 +19,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY src/ src/
+COPY --from=frontend-build /web/dist /app/web/dist
 
 ENV PYTHONPATH=/app/src
 
