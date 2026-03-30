@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import uuid
 from dataclasses import dataclass
 
 import numpy as np
@@ -39,3 +40,22 @@ class HealthStatus:
     pipeline_running: bool
     overflow_count: int
     last_frame_time: float | None
+
+
+# Placeholder target ID used until real CNN classification in Phase 3
+PLACEHOLDER_TARGET_ID = str(uuid.UUID("00000000-0000-0000-0000-000000000001"))
+
+
+def placeholder_target_from_peak(peak: PeakDetection) -> dict:
+    """Generate a placeholder target from peak detection data.
+
+    Real CNN classification replaces this in Phase 3.
+    """
+    return {
+        "id": PLACEHOLDER_TARGET_ID,
+        "class_label": "unknown",
+        "speed_mps": None,
+        "az_deg": peak.az_deg,
+        "el_deg": peak.el_deg,
+        "confidence": min(peak.power / (peak.threshold * 2), 1.0),
+    }
