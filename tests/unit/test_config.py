@@ -11,6 +11,15 @@ from acoustic.config import AcousticSettings
 class TestAcousticSettingsDefaults:
     """Verify AcousticSettings returns correct defaults with no env vars."""
 
+    def setup_method(self):
+        """Clear any ACOUSTIC_ env vars that may leak from other test modules."""
+        self._saved = {
+            k: os.environ.pop(k) for k in list(os.environ) if k.startswith("ACOUSTIC_")
+        }
+
+    def teardown_method(self):
+        os.environ.update(self._saved)
+
     def test_default_sample_rate(self):
         s = AcousticSettings()
         assert s.sample_rate == 48000
