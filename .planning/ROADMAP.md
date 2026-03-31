@@ -68,7 +68,7 @@ Plans:
 
 Plans:
 - [ ] 03-01-PLAN.md — ONNX CNN inference with mel-spectrogram preprocessing, hysteresis state machine, config extensions, and unit tests
-- [ ] 03-02-PLAN.md — Target tracker with UUID lifecycle, WebSocket event broadcaster, event schema, and unit tests
+- [x] 03-02-PLAN.md — Target tracker with UUID lifecycle, WebSocket event broadcaster, event schema, and unit tests
 - [ ] 03-03-PLAN.md — Pipeline integration: CNN worker thread, tracker wiring, /ws/events endpoint, placeholder swap to real data, end-to-end verification
 
 ### Phase 4: Recording and Playback
@@ -110,6 +110,6 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 |-------|----------------|--------|-----------|
 | 1. Audio Capture, Beamforming, and Infrastructure | 3/3 | Complete | 2026-03-30 |
 | 2. REST API and Live Monitoring UI | 1/3 | In Progress|  |
-| 3. CNN Classification and Target Tracking | 0/3 | Not started | - |
+| 3. CNN Classification and Target Tracking | 1/3 | In Progress|  |
 | 4. Recording and Playback | 0/2 | Not started | - |
 | 5. CNN Training Pipeline | 0/2 | Not started | - |
