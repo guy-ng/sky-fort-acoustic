@@ -1,4 +1,4 @@
-"""WebSocket endpoints for live heatmap and target streaming."""
+"""WebSocket endpoints for live heatmap, target, and status streaming."""
 
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ import numpy as np
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from acoustic.api.models import HeatmapHandshake
+from acoustic.audio.monitor import DeviceMonitor
 from acoustic.types import placeholder_target_from_peak
 
 logger = logging.getLogger(__name__)
@@ -87,3 +88,39 @@ async def ws_targets(websocket: WebSocket) -> None:
             await asyncio.sleep(0.5)  # 2 Hz -- targets change slowly
     except (WebSocketDisconnect, RuntimeError):
         logger.debug("Targets WebSocket client disconnected")
+
+
+@router.websocket("/ws/status")
+async def ws_status(websocket: WebSocket) -> None:
+    """Push device status changes to clients in real time.
+
+    Protocol:
+    1. On connect, immediately sends current device status as JSON
+    2. On each state change, sends updated status:
+       {"device_detected": bool, "device_name": str|null, "scanning": bool}
+    """
+    await websocket.accept()
+    monitor: DeviceMonitor = websocket.app.state.device_monitor
+    queue = monitor.subscribe()
+
+    try:
+        # Send current state immediately
+        current = monitor.current_status()
+        await websocket.send_json({
+            "device_detected": current.detected,
+            "device_name": current.name,
+            "scanning": current.scanning,
+        })
+
+        # Stream state changes
+        while True:
+            status = await queue.get()
+            await websocket.send_json({
+                "device_detected": status.detected,
+                "device_name": status.name,
+                "scanning": status.scanning,
+            })
+    except (WebSocketDisconnect, RuntimeError):
+        logger.debug("Status WebSocket client disconnected")
+    finally:
+        monitor.unsubscribe(queue)
