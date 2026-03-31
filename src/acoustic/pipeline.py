@@ -46,6 +46,12 @@ class BeamformingPipeline:
             settings.el_range + settings.el_resolution,
             settings.el_resolution,
         )
+        # Pre-compute origin distance mask for normalization (avoid per-frame meshgrid)
+        az_mesh, el_mesh = np.meshgrid(
+            self._az_grid_deg, self._el_grid_deg, indexing="ij"
+        )
+        self._origin_dist = np.sqrt(az_mesh**2 + el_mesh**2)
+
         self.latest_map: np.ndarray | None = None
         self.latest_peak: PeakDetection | None = None
         self._running = False
@@ -59,6 +65,34 @@ class BeamformingPipeline:
         self._mono_buffer: list[np.ndarray] = []
         self._mono_buffer_samples: int = 0
         self._cnn_segment_samples: int = int(settings.sample_rate * 2.0)
+
+    def _normalize_map(self, srp_map: np.ndarray) -> np.ndarray:
+        """Apply dB conversion, origin suppression, and top-dB masking (POC logic).
+
+        Returns a [0, 1] normalized map where only the top mask_threshold_db
+        of energy is visible and the broadside origin artifact is suppressed.
+        """
+        # Step 1: Convert to dB scale
+        db_map = 10.0 * np.log10(np.maximum(srp_map, 1e-20))
+
+        # Step 2: Suppress origin artifact
+        db_map[self._origin_dist < self._settings.ignore_origin_deg] = -np.inf
+
+        # Step 3: Top-N-dB masking
+        finite_vals = db_map[np.isfinite(db_map)]
+        if len(finite_vals) == 0:
+            return np.zeros_like(srp_map)
+        db_max = float(np.max(finite_vals))
+        thresh = db_max - self._settings.mask_threshold_db
+
+        # Normalize to [0, 1] within the top-dB window
+        denom = self._settings.mask_threshold_db
+        if denom <= 0:
+            denom = 1.0
+        result = (db_map - thresh) / denom
+        result = np.clip(result, 0.0, 1.0)
+
+        return result
 
     def process_chunk(self, chunk: np.ndarray) -> PeakDetection | None:
         """Run SRP-PHAT beamforming on a single audio chunk.
@@ -83,7 +117,7 @@ class BeamformingPipeline:
             fmax=self._settings.freq_max,
         )
 
-        self.latest_map = srp_map
+        self.latest_map = self._normalize_map(srp_map)
 
         peak = detect_peak_with_threshold(
             srp_map=srp_map,
