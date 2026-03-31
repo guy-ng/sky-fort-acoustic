@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-03-29)
 Phase: 03 (cnn-classification-and-target-tracking) — EXECUTING
 Plan: 3 of 3 (Wave 1 complete, Wave 2 pending)
 Status: Phase complete — ready for verification
-Last activity: 2026-03-31
+Last activity: 2026-04-01 - Completed quick task 260401-0fb: Beamforming map focus on drone data
 
 Progress: [##........] 20%
 
