@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 03-01-PLAN.md
-last_updated: "2026-03-31T16:33:41.896Z"
+stopped_at: Completed 03-01 and 03-02 (Wave 1)
+last_updated: "2026-03-31T16:35:00.000Z"
 last_activity: 2026-03-31
 progress:
   total_phases: 5
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-03-29)
 ## Current Position
 
 Phase: 03 (cnn-classification-and-target-tracking) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3 (Wave 1 complete, Wave 2 pending)
 Status: Ready to execute
 Last activity: 2026-03-31
 
@@ -57,6 +57,7 @@ Progress: [##........] 20%
 | Phase 02 P01 | 7min | 3 tasks | 11 files |
 | Phase 02 P02 | 8min | 2 tasks | 28 files |
 | Phase 03 P01 | 6min | 1 tasks | 9 files |
+| Phase 03 P02 | 5m19s | 1 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -80,6 +81,9 @@ Recent decisions affecting current work:
 - [Phase 03]: Used librosa for mel-spectrogram to match POC parameters exactly
 - [Phase 03]: ONNX Runtime for inference (lighter than PyTorch, model-agnostic)
 - [Phase 03]: Binary drone/not-drone only -- CLS-02 multi-class deferred to milestone 2
+- [Phase 03]: WebSocket broadcast via asyncio.Queue, not ZeroMQ PUB/SUB (per D-10)
+- [Phase 03]: Single-target tracking for Phase 3; multi-target is future enhancement
+- [Phase 03]: speed_mps always None -- Doppler deferred to milestone 2 (per D-07)
 
 ### Pending Todos
 
@@ -100,6 +104,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-31T16:33:41.892Z
-Stopped at: Completed 03-01-PLAN.md
+Last session: 2026-03-31T16:35:00.000Z
+Stopped at: Completed 03-01 and 03-02 (Wave 1)
 Resume file: None

@@ -68,7 +68,7 @@ Plans:
 
 Plans:
 - [x] 03-01-PLAN.md — ONNX CNN inference with mel-spectrogram preprocessing, hysteresis state machine, config extensions, and unit tests
-- [ ] 03-02-PLAN.md — Target tracker with UUID lifecycle, WebSocket event broadcaster, event schema, and unit tests
+- [x] 03-02-PLAN.md — Target tracker with UUID lifecycle, WebSocket event broadcaster, event schema, and unit tests
 - [ ] 03-03-PLAN.md — Pipeline integration: CNN worker thread, tracker wiring, /ws/events endpoint, placeholder swap to real data, end-to-end verification
 
 ### Phase 4: Recording and Playback
