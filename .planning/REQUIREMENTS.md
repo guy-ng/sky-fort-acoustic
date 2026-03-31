@@ -30,8 +30,8 @@
 
 - [x] **TRK-01**: Service assigns a unique target ID (UUID) on first detection and maintains it until target is lost (timeout)
 - [ ] **TRK-02**: Service estimates target speed via Doppler frequency shift analysis
-- [ ] **TRK-03**: Service publishes initial detection event with target ID and drone class via dedicated `/ws/events` WebSocket
-- [ ] **TRK-04**: Service publishes periodic update events with speed, pan degree, and tilt degree per target via `/ws/events` WebSocket
+- [x] **TRK-03**: Service publishes initial detection event with target ID and drone class via dedicated `/ws/events` WebSocket
+- [x] **TRK-04**: Service publishes periodic update events with speed, pan degree, and tilt degree per target via `/ws/events` WebSocket
 - [x] **TRK-05**: Event WebSocket uses JSON message schema with defined event types (new, update, lost)
 
 ### API
@@ -111,8 +111,8 @@
 | CLS-04 | Phase 3 | Complete |
 | TRK-01 | Phase 3 | Complete |
 | TRK-02 | Phase 3 | Pending |
-| TRK-03 | Phase 3 | Pending |
-| TRK-04 | Phase 3 | Pending |
+| TRK-03 | Phase 3 | Complete |
+| TRK-04 | Phase 3 | Complete |
 | TRK-05 | Phase 3 | Complete |
 | UI-04 | Phase 4 | Pending |
 | UI-05 | Phase 4 | Pending |
