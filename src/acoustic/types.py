@@ -49,7 +49,7 @@ PLACEHOLDER_TARGET_ID = str(uuid.UUID("00000000-0000-0000-0000-000000000001"))
 def placeholder_target_from_peak(peak: PeakDetection) -> dict:
     """Generate a placeholder target from peak detection data.
 
-    Real CNN classification replaces this in Phase 3.
+    Fallback when CNN is not available. Real targets come from TargetTracker.
     """
     return {
         "id": PLACEHOLDER_TARGET_ID,

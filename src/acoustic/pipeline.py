@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import threading
 import time
+from typing import TYPE_CHECKING
 
 import numpy as np
 
@@ -13,7 +14,12 @@ from acoustic.beamforming.geometry import build_mic_positions
 from acoustic.beamforming.peak import detect_peak_with_threshold
 from acoustic.beamforming.srp_phat import srp_phat_2d
 from acoustic.config import AcousticSettings
-from acoustic.types import PeakDetection
+from acoustic.types import PeakDetection, placeholder_target_from_peak
+
+if TYPE_CHECKING:
+    from acoustic.classification.state_machine import DetectionStateMachine
+    from acoustic.classification.worker import CNNWorker
+    from acoustic.tracking.tracker import TargetTracker
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +27,13 @@ logger = logging.getLogger(__name__)
 class BeamformingPipeline:
     """Runs SRP-PHAT beamforming on audio chunks from a ring buffer in a background thread."""
 
-    def __init__(self, settings: AcousticSettings) -> None:
+    def __init__(
+        self,
+        settings: AcousticSettings,
+        cnn_worker: CNNWorker | None = None,
+        state_machine: DetectionStateMachine | None = None,
+        tracker: TargetTracker | None = None,
+    ) -> None:
         self._settings = settings
         self._mic_positions = build_mic_positions()
         self._az_grid_deg = np.arange(
@@ -39,6 +51,14 @@ class BeamformingPipeline:
         self._running = False
         self._thread: threading.Thread | None = None
         self._last_process_time: float | None = None
+
+        # CNN classification integration (optional)
+        self._cnn_worker = cnn_worker
+        self._state_machine = state_machine
+        self._tracker = tracker
+        self._mono_buffer: list[np.ndarray] = []
+        self._mono_buffer_samples: int = 0
+        self._cnn_segment_samples: int = int(settings.sample_rate * 2.0)
 
     def process_chunk(self, chunk: np.ndarray) -> PeakDetection | None:
         """Run SRP-PHAT beamforming on a single audio chunk.
@@ -84,12 +104,47 @@ class BeamformingPipeline:
             chunk = ring_buffer.read()
             if chunk is not None:
                 try:
-                    self.process_chunk(chunk)
+                    peak = self.process_chunk(chunk)
+                    self._process_cnn(chunk, peak)
                 except Exception:
                     logger.exception("Error processing chunk in pipeline")
             else:
                 time.sleep(0.01)
         logger.info("Beamforming pipeline thread stopped")
+
+    def _process_cnn(self, chunk: np.ndarray, peak: PeakDetection | None) -> None:
+        """Feed audio to CNN worker on peak detection and process results."""
+        if self._cnn_worker is None:
+            return
+
+        if peak is not None:
+            # Accumulate mono audio for CNN segment
+            mono = chunk.mean(axis=1).astype(np.float32)
+            self._mono_buffer.append(mono)
+            self._mono_buffer_samples += len(mono)
+
+            if self._mono_buffer_samples >= self._cnn_segment_samples:
+                segment = np.concatenate(self._mono_buffer)[-self._cnn_segment_samples:]
+                self._cnn_worker.push(segment, peak.az_deg, peak.el_deg)
+                self._mono_buffer.clear()
+                self._mono_buffer_samples = 0
+        else:
+            # No peak -- reset accumulation
+            self._mono_buffer.clear()
+            self._mono_buffer_samples = 0
+
+        # Check for CNN results
+        result = self._cnn_worker.get_latest()
+        if result is not None and self._state_machine is not None:
+            from acoustic.classification.state_machine import DetectionState
+
+            state = self._state_machine.update(result.drone_probability)
+            if state == DetectionState.CONFIRMED and self._tracker is not None:
+                self._tracker.update(result.az_deg, result.el_deg, result.drone_probability)
+
+        # Tick tracker for TTL expiry
+        if self._tracker is not None:
+            self._tracker.tick()
 
     def start(self, ring_buffer: AudioRingBuffer) -> None:
         """Start the background beamforming thread."""
@@ -121,6 +176,17 @@ class BeamformingPipeline:
         self.clear_state()
         self.start(ring_buffer)
         logger.info("Pipeline restarted with new ring buffer")
+
+    @property
+    def latest_targets(self) -> list[dict]:
+        """Return current target states from tracker, or placeholder fallback."""
+        if self._tracker is not None:
+            return self._tracker.get_target_states()
+        # Fallback when CNN is not available
+        peak = self.latest_peak
+        if peak is not None:
+            return [placeholder_target_from_peak(peak)]
+        return []
 
     @property
     def running(self) -> bool:
