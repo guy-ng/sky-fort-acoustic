@@ -35,6 +35,13 @@ class AcousticSettings(BaseSettings):
     noise_percentile: float = 95.0
     noise_margin: float = 1.5
 
+    # CNN classification
+    cnn_model_path: str = "models/uav_melspec_cnn.onnx"
+    cnn_enter_threshold: float = 0.80
+    cnn_exit_threshold: float = 0.40
+    cnn_confirm_hits: int = 2
+    cnn_target_ttl: float = 5.0  # seconds before target marked lost
+
     # Server
     host: str = "0.0.0.0"
     port: int = 8000
