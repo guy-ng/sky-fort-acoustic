@@ -5,7 +5,7 @@ milestone_name: milestone
 status: executing
 stopped_at: Phase 3 context gathered
 last_updated: "2026-03-31T12:09:42.650Z"
-last_activity: 2026-03-31 -- Completed Wave 1 (02-01 API + 02-02 React UI)
+last_activity: 2026-03-31 -- Completed quick task 260331-mok: Device disconnect overlay on heatmap
 progress:
   total_phases: 5
   completed_phases: 1
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-03-29)
 Phase: 02 (rest-api-and-live-monitoring-ui) — EXECUTING
 Plan: 2 of 3 (Wave 1 complete, Wave 2 pending)
 Status: Executing Phase 02
-Last activity: 2026-03-31 -- Completed Wave 1 (02-01 API + 02-02 React UI)
+Last activity: 2026-03-31 -- Completed quick task 260331-mok: Device disconnect overlay on heatmap
 
 Progress: [##........] 20%
 
@@ -86,6 +86,12 @@ None yet.
 - Doppler speed estimation feasibility uncertain (UMA-16v2 aperture may be too small -- validate during Phase 3)
 - UMA-16v2 channel mapping needs empirical verification (tap test) before beamforming work
 - Callback-based capture not yet proven with UMA-16v2 (prototype early in Phase 1)
+
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 260331-mok | Device disconnect overlay on heatmap | 2026-03-31 | c020721 | [260331-mok-device-state-and-reconnect-ws-disconnect](./quick/260331-mok-device-state-and-reconnect-ws-disconnect/) |
 
 ## Session Continuity
 
