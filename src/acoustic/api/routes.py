@@ -8,7 +8,6 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
 from acoustic.api.models import BeamformingMapResponse, TargetState
-from acoustic.types import placeholder_target_from_peak
 
 logger = logging.getLogger(__name__)
 
@@ -62,13 +61,8 @@ async def get_map(request: Request) -> BeamformingMapResponse | JSONResponse:
 async def get_targets(request: Request) -> list[dict]:
     """Return current detected targets as a JSON array.
 
-    In Phase 2, returns 0 or 1 placeholder targets based on peak detection.
-    Real CNN classification replaces this in Phase 3.
+    Returns real targets from TargetTracker when CNN is enabled,
+    or placeholder targets from peak detection as fallback.
     """
     pipeline = request.app.state.pipeline
-
-    if pipeline.latest_peak is not None:
-        target = placeholder_target_from_peak(pipeline.latest_peak)
-        return [target]
-
-    return []
+    return pipeline.latest_targets

@@ -1,4 +1,4 @@
-"""WebSocket endpoints for live heatmap, target, and status streaming."""
+"""WebSocket endpoints for live heatmap, target, event, and status streaming."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from acoustic.api.models import HeatmapHandshake
 from acoustic.audio.monitor import DeviceMonitor
-from acoustic.types import placeholder_target_from_peak
+from acoustic.tracking.events import EventBroadcaster
 
 logger = logging.getLogger(__name__)
 
@@ -121,12 +121,8 @@ async def ws_targets(websocket: WebSocket) -> None:
             if device_ok:
                 try:
                     pipeline = websocket.app.state.pipeline
-                    peak = pipeline.latest_peak
-                    if peak is not None:
-                        target = placeholder_target_from_peak(peak)
-                        await websocket.send_json([target])
-                    else:
-                        await websocket.send_json([])
+                    targets = pipeline.latest_targets
+                    await websocket.send_json(targets)
                 except (WebSocketDisconnect, RuntimeError):
                     raise
                 except Exception:
@@ -137,6 +133,31 @@ async def ws_targets(websocket: WebSocket) -> None:
         logger.debug("Targets WebSocket client disconnected")
     finally:
         monitor.unsubscribe(status_queue)
+
+
+@router.websocket("/ws/events")
+async def ws_events(websocket: WebSocket) -> None:
+    """Stream detection events (new, update, lost) to external consumers.
+
+    Separate from /ws/targets which streams current target state for the UI.
+    This endpoint broadcasts detection lifecycle events as they occur.
+    """
+    await websocket.accept()
+    broadcaster: EventBroadcaster | None = getattr(websocket.app.state, "event_broadcaster", None)
+    if broadcaster is None:
+        # CNN not initialized -- close with reason
+        await websocket.close(code=1011, reason="Event broadcasting not available")
+        return
+
+    queue = broadcaster.subscribe()
+    try:
+        while True:
+            event_data = await queue.get()
+            await websocket.send_json(event_data)
+    except (WebSocketDisconnect, RuntimeError):
+        logger.debug("Events WebSocket client disconnected")
+    finally:
+        broadcaster.unsubscribe(queue)
 
 
 @router.websocket("/ws/status")
