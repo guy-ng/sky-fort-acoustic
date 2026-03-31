@@ -125,6 +125,7 @@ class BeamformingPipeline:
             el_grid_deg=self._el_grid_deg,
             percentile=self._settings.noise_percentile,
             margin=self._settings.noise_margin,
+            ignore_origin_deg=self._settings.ignore_origin_deg,
         )
         self.latest_peak = peak
         self._last_process_time = time.monotonic()

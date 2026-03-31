@@ -48,21 +48,14 @@ export const HeatmapCanvas = forwardRef<HeatmapCanvasHandle, HeatmapCanvasProps>
 
       if (floats.length < expectedLen) return
 
-      // Find min/max for normalization
-      let min = Infinity
-      let max = -Infinity
-      for (let i = 0; i < expectedLen; i++) {
-        const v = floats[i]
-        if (v < min) min = v
-        if (v > max) max = v
-      }
-
-      const range = max - min || 1
+      // Backend sends pre-normalized [0,1] values (dB + origin suppression + top-dB masking)
       const pixels = imageDataRef.current.data
       const lut = colormapLut.current
 
       for (let i = 0; i < expectedLen; i++) {
-        const normalized = (floats[i] - min) / range
+        const v = floats[i]
+        // Squared normalization for visual contrast (POC uses alpha**2)
+        const normalized = v * v
         const lutIdx = Math.round(normalized * 255) * 3
         const pixIdx = i * 4
         pixels[pixIdx] = lut[lutIdx]

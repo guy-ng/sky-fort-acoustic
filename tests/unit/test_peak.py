@@ -88,3 +88,27 @@ class TestDetectPeak:
         result_50 = detect_peak_with_threshold(srp_map, az_grid, el_grid,
                                                 percentile=50.0, margin=1.0)
         assert result_50 is not None
+
+    def test_origin_suppressed(self):
+        """Peak at origin (0,0) is ignored when ignore_origin_deg is set."""
+        srp_map = np.ones((181, 91)) * 0.01
+        az_grid = np.arange(-90, 91, 1.0)
+        el_grid = np.arange(-45, 46, 1.0)
+        # Put strongest peak at origin
+        srp_map[90, 45] = 10.0
+        # Put secondary peak away from origin
+        srp_map[130, 60] = 5.0
+
+        # Without suppression: finds origin peak
+        peak = detect_peak_with_threshold(srp_map, az_grid, el_grid, percentile=50, margin=1.0)
+        assert peak is not None
+        assert peak.az_deg == 0.0
+        assert peak.el_deg == 0.0
+
+        # With suppression: skips origin, finds secondary peak
+        peak = detect_peak_with_threshold(
+            srp_map, az_grid, el_grid, percentile=50, margin=1.0, ignore_origin_deg=3.5
+        )
+        assert peak is not None
+        assert peak.az_deg == 40.0
+        assert peak.el_deg == 15.0

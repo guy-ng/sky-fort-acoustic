@@ -16,6 +16,7 @@ def detect_peak_with_threshold(
     el_grid_deg: np.ndarray,
     percentile: float = 95.0,
     margin: float = 1.5,
+    ignore_origin_deg: float = 0.0,
 ) -> PeakDetection | None:
     """Detect the strongest peak in the SRP map if it exceeds the noise threshold.
 
@@ -31,11 +32,18 @@ def detect_peak_with_threshold(
         el_grid_deg: 1D array of elevation angles in degrees
         percentile: percentile of the map to use as noise floor (0-100)
         margin: multiplier applied to the percentile value
+        ignore_origin_deg: suppress peaks within this angular radius of (0,0)
 
     Returns:
         PeakDetection with azimuth, elevation, power, and threshold, or None
         if the peak is below the noise threshold.
     """
+    if ignore_origin_deg > 0:
+        az_mesh, el_mesh = np.meshgrid(az_grid_deg, el_grid_deg, indexing="ij")
+        origin_dist = np.sqrt(az_mesh**2 + el_mesh**2)
+        srp_map = srp_map.copy()
+        srp_map[origin_dist < ignore_origin_deg] = 0.0
+
     threshold = np.percentile(srp_map, percentile) * margin
     max_val = float(np.max(srp_map))
 
