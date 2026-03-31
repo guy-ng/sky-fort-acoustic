@@ -14,7 +14,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [ ] **Phase 1: Audio Capture, Beamforming, and Infrastructure** - Reliable 16-channel audio capture with real-time beamforming in a Docker container
 - [ ] **Phase 2: REST API and Live Monitoring UI** - Visual feedback on beamforming output via WebSocket-driven React app
-- [ ] **Phase 3: CNN Classification and Target Tracking** - Drone detection intelligence with ZeroMQ event publishing
+- [ ] **Phase 3: CNN Classification and Target Tracking** - Drone detection intelligence with WebSocket event publishing
 - [ ] **Phase 4: Recording and Playback** - Capture field audio with metadata and replay through the full pipeline
 - [ ] **Phase 5: CNN Training Pipeline** - In-service model training from labeled recordings
 
@@ -55,21 +55,21 @@ Plans:
 - [ ] 02-03-PLAN.md — Multi-stage Dockerfile and end-to-end human verification
 
 ### Phase 3: CNN Classification and Target Tracking
-**Goal**: The service detects drones from audio using a binary CNN classifier, assigns persistent target IDs, and publishes tracking events over ZeroMQ
+**Goal**: The service detects drones from audio using a binary CNN classifier, assigns persistent target IDs, and publishes tracking events over a dedicated `/ws/events` WebSocket
 **Depends on**: Phase 2 (visual validation needed for tuning)
 **Requirements**: CLS-01, CLS-02, CLS-03, CLS-04, TRK-01, TRK-02, TRK-03, TRK-04, TRK-05
 **Success Criteria** (what must be TRUE):
   1. When a drone is present, the CNN classifies it as drone/not-drone and a target ID appears in the web UI within seconds
   2. Target ID persists across consecutive detections and disappears only after the source is lost (5s timeout)
   3. Detection does not flicker -- the hysteresis state machine prevents rapid on/off transitions
-  4. ZeroMQ subscribers receive detection events (new target), periodic updates (bearing), and lost events
+  4. `/ws/events` WebSocket subscribers receive detection events (new target), periodic updates (bearing), and lost events
   5. CNN model loads from a configurable file path at startup
 **Plans**: 3 plans
 
 Plans:
 - [ ] 03-01-PLAN.md — ONNX CNN inference with mel-spectrogram preprocessing, hysteresis state machine, config extensions, and unit tests
-- [ ] 03-02-PLAN.md — Target tracker with UUID lifecycle, ZeroMQ PUB/SUB publisher, event schema, and integration tests
-- [ ] 03-03-PLAN.md — Pipeline integration: CNN worker thread, tracker wiring, endpoint swap from placeholder to real data, end-to-end verification
+- [ ] 03-02-PLAN.md — Target tracker with UUID lifecycle, WebSocket event broadcaster, event schema, and unit tests
+- [ ] 03-03-PLAN.md — Pipeline integration: CNN worker thread, tracker wiring, /ws/events endpoint, placeholder swap to real data, end-to-end verification
 
 ### Phase 4: Recording and Playback
 **Goal**: Users can record raw 16-channel audio from the web UI, attach metadata, and replay recordings through the full detection pipeline
