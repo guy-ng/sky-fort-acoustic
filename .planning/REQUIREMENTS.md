@@ -21,10 +21,10 @@
 
 ### Classification
 
-- [ ] **CLS-01**: Service runs CNN inference on audio segments to classify detected sources as drone/not-drone
-- [ ] **CLS-02**: CNN classifier identifies drone type (multi-class: 5-inch, Mavic, Matrice, EvoMax, FlyCart, etc.)
-- [ ] **CLS-03**: Detection uses hysteresis state machine (enter/exit thresholds with confirmation hits) to prevent flickering
-- [ ] **CLS-04**: Service loads CNN model from configurable file path at startup
+- [x] **CLS-01**: Service runs CNN inference on audio segments to classify detected sources as drone/not-drone
+- [x] **CLS-02**: CNN classifier identifies drone type (multi-class: 5-inch, Mavic, Matrice, EvoMax, FlyCart, etc.)
+- [x] **CLS-03**: Detection uses hysteresis state machine (enter/exit thresholds with confirmation hits) to prevent flickering
+- [x] **CLS-04**: Service loads CNN model from configurable file path at startup
 
 ### Tracking
 
@@ -105,10 +105,10 @@
 | UI-02 | Phase 2 | Complete |
 | UI-03 | Phase 2 | Complete |
 | UI-08 | Phase 2 | Complete |
-| CLS-01 | Phase 3 | Pending |
-| CLS-02 | Phase 3 | Pending |
-| CLS-03 | Phase 3 | Pending |
-| CLS-04 | Phase 3 | Pending |
+| CLS-01 | Phase 3 | Complete |
+| CLS-02 | Phase 3 | Complete |
+| CLS-03 | Phase 3 | Complete |
+| CLS-04 | Phase 3 | Complete |
 | TRK-01 | Phase 3 | Pending |
 | TRK-02 | Phase 3 | Pending |
 | TRK-03 | Phase 3 | Pending |
