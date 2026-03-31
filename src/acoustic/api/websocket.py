@@ -23,10 +23,12 @@ async def ws_heatmap(websocket: WebSocket) -> None:
     Protocol:
     1. Send JSON handshake with grid dimensions
     2. Send binary float32 frames (row-major: [elevation][azimuth]) at ~20 Hz
+
+    Re-fetches pipeline each iteration so a lifecycle swap is picked up
+    without dropping the WebSocket connection.
     """
     await websocket.accept()
     settings = websocket.app.state.settings
-    pipeline = websocket.app.state.pipeline
 
     # Send handshake with grid dimensions
     handshake = HeatmapHandshake(
@@ -42,12 +44,18 @@ async def ws_heatmap(websocket: WebSocket) -> None:
     last_map_id = None
     try:
         while True:
-            current_map = pipeline.latest_map
-            if current_map is not None and id(current_map) != last_map_id:
-                last_map_id = id(current_map)
-                # Transpose to row-major [elevation][azimuth] before sending
-                frame = current_map.T.astype(np.float32).tobytes()
-                await websocket.send_bytes(frame)
+            try:
+                pipeline = websocket.app.state.pipeline
+                current_map = pipeline.latest_map
+                if current_map is not None and id(current_map) != last_map_id:
+                    last_map_id = id(current_map)
+                    # Transpose to row-major [elevation][azimuth] before sending
+                    frame = current_map.T.astype(np.float32).tobytes()
+                    await websocket.send_bytes(frame)
+            except (WebSocketDisconnect, RuntimeError):
+                raise
+            except Exception:
+                logger.debug("Heatmap frame skipped (pipeline may be mid-swap)")
             await asyncio.sleep(0.05)  # 20 Hz poll
     except (WebSocketDisconnect, RuntimeError):
         logger.debug("Heatmap WebSocket client disconnected")
@@ -55,17 +63,26 @@ async def ws_heatmap(websocket: WebSocket) -> None:
 
 @router.websocket("/ws/targets")
 async def ws_targets(websocket: WebSocket) -> None:
-    """Stream target state updates as JSON arrays at ~2 Hz."""
+    """Stream target state updates as JSON arrays at ~2 Hz.
+
+    Re-fetches pipeline each iteration to survive lifecycle swaps.
+    """
     await websocket.accept()
-    pipeline = websocket.app.state.pipeline
 
     try:
         while True:
-            peak = pipeline.latest_peak
-            if peak is not None:
-                target = placeholder_target_from_peak(peak)
-                await websocket.send_json([target])
-            else:
+            try:
+                pipeline = websocket.app.state.pipeline
+                peak = pipeline.latest_peak
+                if peak is not None:
+                    target = placeholder_target_from_peak(peak)
+                    await websocket.send_json([target])
+                else:
+                    await websocket.send_json([])
+            except (WebSocketDisconnect, RuntimeError):
+                raise
+            except Exception:
+                logger.debug("Target frame skipped (pipeline may be mid-swap)")
                 await websocket.send_json([])
             await asyncio.sleep(0.5)  # 2 Hz -- targets change slowly
     except (WebSocketDisconnect, RuntimeError):
