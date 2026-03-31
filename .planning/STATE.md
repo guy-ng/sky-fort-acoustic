@@ -5,7 +5,7 @@ milestone_name: milestone
 status: executing
 stopped_at: Phase 3 context gathered
 last_updated: "2026-03-31T12:09:42.650Z"
-last_activity: 2026-03-31 -- Completed quick task 260331-mok: Device disconnect overlay on heatmap
+last_activity: 2026-03-31 -- Completed quick task 260331-myc: Fix device disconnect/reconnect recovery
 progress:
   total_phases: 5
   completed_phases: 1
@@ -92,6 +92,7 @@ None yet.
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
 | 260331-mok | Device disconnect overlay on heatmap | 2026-03-31 | c020721 | [260331-mok-device-state-and-reconnect-ws-disconnect](./quick/260331-mok-device-state-and-reconnect-ws-disconnect/) |
+| 260331-myc | Fix device disconnect/reconnect recovery | 2026-03-31 | 2b25331 | [260331-myc-fix-device-disconnect-reconnect-backend-](./quick/260331-myc-fix-device-disconnect-reconnect-backend-/) |
 
 ## Session Continuity
 
