@@ -108,6 +108,20 @@ class BeamformingPipeline:
             self._thread.join(timeout=5.0)
             self._thread = None
 
+    def clear_state(self) -> None:
+        """Reset pipeline outputs to None (e.g. after device disconnect)."""
+        self.latest_map = None
+        self.latest_peak = None
+        self._last_process_time = None
+        logger.info("Pipeline state cleared (device disconnected)")
+
+    def restart(self, ring_buffer: AudioRingBuffer) -> None:
+        """Stop, clear state, and restart with a new ring buffer."""
+        self.stop()
+        self.clear_state()
+        self.start(ring_buffer)
+        logger.info("Pipeline restarted with new ring buffer")
+
     @property
     def running(self) -> bool:
         """Whether the pipeline background thread is running."""

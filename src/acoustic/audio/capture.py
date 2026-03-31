@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import logging
 import time
 
 import numpy as np
 import sounddevice as sd
+
+logger = logging.getLogger(__name__)
 
 
 class AudioRingBuffer:
@@ -95,9 +98,19 @@ class AudioCapture:
         self._stream.start()
 
     def stop(self) -> None:
-        """Stop and close the audio stream."""
-        self._stream.stop()
-        self._stream.close()
+        """Stop and close the audio stream.
+
+        Tolerates PortAudioError -- the USB device may already be gone.
+        """
+        try:
+            self._stream.stop()
+        except (sd.PortAudioError, Exception) as exc:
+            logger.warning("Stream stop failed (device may be disconnected): %s", exc)
+
+        try:
+            self._stream.close()
+        except (sd.PortAudioError, Exception) as exc:
+            logger.warning("Stream close failed (device may be disconnected): %s", exc)
 
     @property
     def ring(self) -> AudioRingBuffer:
