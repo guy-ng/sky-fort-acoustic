@@ -46,11 +46,12 @@ class TestTrackerCreate:
 class TestTrackerTTL:
     def test_target_lost_after_ttl(self) -> None:
         tracker = TargetTracker(ttl=5.0)
-        tracker.update(az_deg=30.0, el_deg=10.0, confidence=0.9)
+        target = tracker.update(az_deg=30.0, el_deg=10.0, confidence=0.9)
+        # Force last_seen to a known value, then advance time past TTL
+        target.last_seen = 100.0
 
-        # Simulate time passing beyond TTL
         with patch("acoustic.tracking.tracker.time") as mock_time:
-            mock_time.monotonic.return_value = 99999.0
+            mock_time.monotonic.return_value = 106.0  # 6s > 5s TTL
             lost_ids = tracker.tick()
 
         assert len(lost_ids) == 1
@@ -59,19 +60,21 @@ class TestTrackerTTL:
         tracker = TargetTracker(ttl=5.0)
         target = tracker.update(az_deg=30.0, el_deg=10.0, confidence=0.9)
         tid = target.id
+        target.last_seen = 100.0
 
         with patch("acoustic.tracking.tracker.time") as mock_time:
-            mock_time.monotonic.return_value = 99999.0
+            mock_time.monotonic.return_value = 106.0
             lost_ids = tracker.tick()
 
         assert tid in lost_ids
 
     def test_get_active_targets_excludes_lost(self) -> None:
         tracker = TargetTracker(ttl=5.0)
-        tracker.update(az_deg=30.0, el_deg=10.0, confidence=0.9)
+        target = tracker.update(az_deg=30.0, el_deg=10.0, confidence=0.9)
+        target.last_seen = 100.0
 
         with patch("acoustic.tracking.tracker.time") as mock_time:
-            mock_time.monotonic.return_value = 99999.0
+            mock_time.monotonic.return_value = 106.0
             tracker.tick()
 
         assert len(tracker.get_active_targets()) == 0
@@ -135,11 +138,12 @@ class TestTrackerEvents:
         broadcaster._subscribers.add(q)
 
         tracker = TargetTracker(ttl=5.0, broadcaster=broadcaster)
-        tracker.update(az_deg=30.0, el_deg=10.0, confidence=0.9)
+        target = tracker.update(az_deg=30.0, el_deg=10.0, confidence=0.9)
         q.get_nowait()  # drain "new"
+        target.last_seen = 100.0
 
         with patch("acoustic.tracking.tracker.time") as mock_time:
-            mock_time.monotonic.return_value = 99999.0
+            mock_time.monotonic.return_value = 106.0
             tracker.tick()
 
         event = q.get_nowait()
