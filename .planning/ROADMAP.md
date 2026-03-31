@@ -55,21 +55,21 @@ Plans:
 - [ ] 02-03-PLAN.md — Multi-stage Dockerfile and end-to-end human verification
 
 ### Phase 3: CNN Classification and Target Tracking
-**Goal**: The service detects drones from audio, assigns target IDs, and publishes tracking events over ZeroMQ
+**Goal**: The service detects drones from audio using a binary CNN classifier, assigns persistent target IDs, and publishes tracking events over ZeroMQ
 **Depends on**: Phase 2 (visual validation needed for tuning)
 **Requirements**: CLS-01, CLS-02, CLS-03, CLS-04, TRK-01, TRK-02, TRK-03, TRK-04, TRK-05
 **Success Criteria** (what must be TRUE):
-  1. When a drone is present, the CNN classifies it as drone (with type) and a target ID appears in the web UI within seconds
-  2. Target ID persists across consecutive detections and disappears only after the source is lost (timeout)
+  1. When a drone is present, the CNN classifies it as drone/not-drone and a target ID appears in the web UI within seconds
+  2. Target ID persists across consecutive detections and disappears only after the source is lost (5s timeout)
   3. Detection does not flicker -- the hysteresis state machine prevents rapid on/off transitions
-  4. ZeroMQ subscribers receive detection events (new target), periodic updates (speed, bearing), and lost events
+  4. ZeroMQ subscribers receive detection events (new target), periodic updates (bearing), and lost events
   5. CNN model loads from a configurable file path at startup
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 03-01: PyTorch CNN model architecture and mel-spectrogram inference pipeline
-- [ ] 03-02: Target tracker state machine with ID assignment and Doppler speed estimation
-- [ ] 03-03: ZeroMQ PUB/SUB event publishing and web UI integration
+- [ ] 03-01-PLAN.md — ONNX CNN inference with mel-spectrogram preprocessing, hysteresis state machine, config extensions, and unit tests
+- [ ] 03-02-PLAN.md — Target tracker with UUID lifecycle, ZeroMQ PUB/SUB publisher, event schema, and integration tests
+- [ ] 03-03-PLAN.md — Pipeline integration: CNN worker thread, tracker wiring, endpoint swap from placeholder to real data, end-to-end verification
 
 ### Phase 4: Recording and Playback
 **Goal**: Users can record raw 16-channel audio from the web UI, attach metadata, and replay recordings through the full detection pipeline
