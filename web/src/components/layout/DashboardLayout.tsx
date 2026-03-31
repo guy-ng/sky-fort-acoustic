@@ -9,6 +9,7 @@ import { TargetStrip } from '../targets/TargetStrip'
 import { useHeatmapSocket } from '../../hooks/useHeatmapSocket'
 import { useTargetSocket } from '../../hooks/useTargetSocket'
 import { useHealth } from '../../hooks/useHealth'
+import { useDeviceStatus } from '../../hooks/useDeviceStatus'
 
 export function DashboardLayout() {
   const heatmapRef = useRef<HeatmapCanvasHandle>(null)
@@ -19,9 +20,11 @@ export function DashboardLayout() {
 
   const { connected: heatmapConnected, gridInfo } = useHeatmapSocket({ onFrame })
   const { targets, connected: targetsConnected } = useTargetSocket()
-  const { data: health } = useHealth()
+  const { data: health, isError: healthError } = useHealth()
+  const deviceStatus = useDeviceStatus()
 
-  const pipelineRunning = health?.pipeline_running ?? false
+  const effectiveHealth = healthError ? undefined : health
+  const pipelineRunning = effectiveHealth?.pipeline_running ?? false
   const statusText = heatmapConnected && targetsConnected
     ? 'LIVE'
     : heatmapConnected
@@ -38,8 +41,8 @@ export function DashboardLayout() {
           "heatmap heatmap sidebar"
           "targets targets sidebar"
         `,
-        gridTemplateColumns: '1fr 1fr 300px',
-        gridTemplateRows: 'auto 1fr minmax(120px, 20vh)',
+        gridTemplateColumns: '3fr 2fr 300px',
+        gridTemplateRows: 'auto 1fr minmax(80px, 12vh)',
       }}
     >
       {/* Header */}
@@ -52,6 +55,18 @@ export function DashboardLayout() {
         <Panel title="BEAMFORMING MAP" className="h-full">
           <div className="flex h-full gap-2">
             <div className="relative flex-1">
+              {!heatmapConnected && (
+                <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-hud-panel/80">
+                  <div className="w-3 h-3 rounded-full bg-hud-danger mb-2" />
+                  <span className="text-hud-text-dim text-sm uppercase tracking-wider">No Signal</span>
+                </div>
+              )}
+              {!deviceStatus.detected && (
+                <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-white/50">
+                  <div className="w-3 h-3 rounded-full bg-amber-500 mb-2 animate-pulse" />
+                  <span className="text-gray-800 text-sm font-semibold uppercase tracking-wider">Device Disconnected</span>
+                </div>
+              )}
               <HeatmapCanvas ref={heatmapRef} gridInfo={gridInfo} />
               <TargetOverlay targets={targets} gridInfo={gridInfo} />
             </div>
@@ -62,7 +77,7 @@ export function DashboardLayout() {
 
       {/* Sidebar */}
       <div style={{ gridArea: 'sidebar' }}>
-        <Sidebar health={health} />
+        <Sidebar health={effectiveHealth} deviceStatus={deviceStatus} />
       </div>
 
       {/* Targets */}
