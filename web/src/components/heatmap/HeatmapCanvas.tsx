@@ -82,23 +82,23 @@ export const HeatmapCanvas = forwardRef<HeatmapCanvasHandle, HeatmapCanvasProps>
       get canvas() { return canvasRef.current },
     }), [renderFrame])
 
-    // Fit canvas display size to container while preserving aspect ratio
+    // Fit canvas as a square within the container
     useEffect(() => {
       if (!containerRef.current) return
       const observer = new ResizeObserver(() => {
         if (!canvasRef.current || !containerRef.current) return
         const { clientWidth, clientHeight } = containerRef.current
+        const size = Math.min(clientWidth, clientHeight)
         const canvas = canvasRef.current
-        // Stretch to fill — CSS handles the visual scaling
-        canvas.style.width = `${clientWidth}px`
-        canvas.style.height = `${clientHeight}px`
+        canvas.style.width = `${size}px`
+        canvas.style.height = `${size}px`
       })
       observer.observe(containerRef.current)
       return () => observer.disconnect()
     }, [])
 
     return (
-      <div ref={containerRef} className="relative w-full h-full overflow-hidden">
+      <div ref={containerRef} className="relative w-full h-full overflow-hidden flex items-center justify-center">
         <canvas
           ref={canvasRef}
           className="block"

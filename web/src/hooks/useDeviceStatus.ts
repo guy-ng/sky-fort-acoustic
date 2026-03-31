@@ -1,16 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { TargetState } from '../utils/types'
 
-interface UseTargetSocketResult {
-  targets: TargetState[]
-  connected: boolean
-  deviceOk: boolean
+export interface DeviceStatusState {
+  detected: boolean
+  name: string | null
+  scanning: boolean
 }
 
-export function useTargetSocket(): UseTargetSocketResult {
-  const [connected, setConnected] = useState(false)
-  const [targets, setTargets] = useState<TargetState[]>([])
-  const [deviceOk, setDeviceOk] = useState(true)
+const INITIAL: DeviceStatusState = { detected: false, name: null, scanning: true }
+
+export function useDeviceStatus(): DeviceStatusState {
+  const [status, setStatus] = useState<DeviceStatusState>(INITIAL)
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const reconnectDelay = useRef(2000)
@@ -27,38 +26,33 @@ export function useTargetSocket(): UseTargetSocketResult {
     }
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const ws = new WebSocket(`${protocol}//${window.location.host}/ws/targets`)
+    const ws = new WebSocket(`${protocol}//${window.location.host}/ws/status`)
     wsRef.current = ws
 
     ws.onopen = () => {
-      setConnected(true)
       reconnectDelay.current = 2000
     }
 
     ws.onmessage = (event: MessageEvent) => {
       if (typeof event.data === 'string') {
         try {
-          const msg = JSON.parse(event.data)
-          if (msg.type === 'device_disconnected') {
-            setDeviceOk(false)
-            setTargets([])
-            return
+          const msg = JSON.parse(event.data) as {
+            device_detected: boolean
+            device_name: string | null
+            scanning: boolean
           }
-          if (msg.type === 'device_reconnected') {
-            setDeviceOk(true)
-            return
-          }
-          // Regular target array
-          setTargets(msg as TargetState[])
+          setStatus({
+            detected: msg.device_detected,
+            name: msg.device_name,
+            scanning: msg.scanning,
+          })
         } catch {
-          // ignore parse errors
+          // ignore
         }
       }
     }
 
     ws.onclose = () => {
-      setConnected(false)
-      setTargets([])
       wsRef.current = null
       reconnectTimer.current = setTimeout(() => {
         connect()
@@ -82,5 +76,5 @@ export function useTargetSocket(): UseTargetSocketResult {
     }
   }, [connect])
 
-  return { targets, connected, deviceOk }
+  return status
 }

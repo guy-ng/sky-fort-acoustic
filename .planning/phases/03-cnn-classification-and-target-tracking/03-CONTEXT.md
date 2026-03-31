@@ -24,10 +24,10 @@ Deliver binary drone/not-drone detection using the POC's trained CNN model (conv
 - **D-06:** Target created with UUID on first confirmed detection. Target persists for 5 seconds after last detection signal before being marked as lost.
 - **D-07:** Doppler speed estimation (TRK-02) deferred to ms-2. `speed_mps` field remains `null` in this phase.
 
-### ZeroMQ Event Publishing
-- **D-08:** Single topic `acoustic/targets` for all events. Messages include an `event` field with values: `new`, `update`, `lost`.
+### Event Publishing (WebSocket, not ZeroMQ)
+- **D-08:** ~~ZeroMQ~~ Dedicated `/ws/events` WebSocket endpoint for external event consumers. Separate from the existing `/ws/targets` (UI heatmap/target state). Messages include an `event` field with values: `new`, `update`, `lost`.
 - **D-09:** JSON message schema carries: event type, target ID, bearing (az/el degrees), drone probability/confidence. Speed field present but null until ms-2.
-- **D-10:** PUB/SUB pattern. Publisher binds to configurable endpoint (env var). Subscribers connect and filter by topic prefix.
+- **D-10:** ~~PUB/SUB pattern via pyzmq~~ WebSocket broadcast pattern. All connected `/ws/events` clients receive all events. No topic filtering needed — single event stream. Removes `pyzmq` dependency entirely.
 
 ### Scope Deferrals to Milestone 2
 - **D-11:** Drone type classification (CLS-02: multi-class — 5-inch, Mavic, Matrice, EvoMax, FlyCart, etc.) deferred to ms-2.
@@ -90,7 +90,7 @@ Deliver binary drone/not-drone detection using the POC's trained CNN model (conv
 - WebSocket: `/ws/targets` streams real tracking data instead of placeholder
 - REST: `/api/targets` returns real target list
 - Config: New env vars for model path, ZMQ endpoint, detection thresholds
-- ZeroMQ: New PUB socket bound at configurable endpoint
+- WebSocket: New `/ws/events` endpoint for external event consumers (separate from `/ws/targets`)
 
 </code_context>
 

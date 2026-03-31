@@ -1,8 +1,10 @@
 import { Panel } from './Panel'
 import type { HealthStatus } from '../../utils/types'
+import type { DeviceStatusState } from '../../hooks/useDeviceStatus'
 
 interface SidebarProps {
   health: HealthStatus | undefined
+  deviceStatus: DeviceStatusState
 }
 
 function StatusDot({ active }: { active: boolean }) {
@@ -35,9 +37,14 @@ function formatFrameAge(lastFrameTime: number | null | undefined): string {
   return `${Math.round(age)}s ago`
 }
 
-export function Sidebar({ health }: SidebarProps) {
+function deviceLabel(ds: DeviceStatusState): string {
+  if (ds.detected) return ds.name ?? 'Connected'
+  if (ds.scanning) return 'Scanning...'
+  return 'No device'
+}
+
+export function Sidebar({ health, deviceStatus }: SidebarProps) {
   const pipelineRunning = health?.pipeline_running ?? false
-  const deviceDetected = health?.device_detected ?? false
 
   return (
     <Panel title="SYSTEM" className="h-full">
@@ -50,8 +57,12 @@ export function Sidebar({ health }: SidebarProps) {
         </StatRow>
         <StatRow label="Device">
           <span className="flex items-center gap-1.5">
-            <StatusDot active={deviceDetected} />
-            {deviceDetected ? 'Connected' : 'Not found'}
+            {deviceStatus.scanning && !deviceStatus.detected ? (
+              <span className="inline-block w-2 h-2 rounded-full bg-hud-warning animate-pulse" />
+            ) : (
+              <StatusDot active={deviceStatus.detected} />
+            )}
+            {deviceLabel(deviceStatus)}
           </span>
         </StatRow>
         <StatRow label="Overflows">

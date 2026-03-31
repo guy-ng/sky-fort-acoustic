@@ -30,9 +30,9 @@
 
 - [ ] **TRK-01**: Service assigns a unique target ID (UUID) on first detection and maintains it until target is lost (timeout)
 - [ ] **TRK-02**: Service estimates target speed via Doppler frequency shift analysis
-- [ ] **TRK-03**: Service publishes initial ZeroMQ detection event with target ID and drone class
-- [ ] **TRK-04**: Service publishes periodic ZeroMQ update events with speed, pan degree, and tilt degree per target
-- [ ] **TRK-05**: ZeroMQ uses PUB/SUB pattern with a defined message schema (JSON)
+- [ ] **TRK-03**: Service publishes initial detection event with target ID and drone class via dedicated `/ws/events` WebSocket
+- [ ] **TRK-04**: Service publishes periodic update events with speed, pan degree, and tilt degree per target via `/ws/events` WebSocket
+- [ ] **TRK-05**: Event WebSocket uses JSON message schema with defined event types (new, update, lost)
 
 ### API
 

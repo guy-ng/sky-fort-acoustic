@@ -13,9 +13,11 @@ from fastapi import FastAPI
 from acoustic.api.routes import router as api_router
 from acoustic.api.static import mount_static
 from acoustic.api.websocket import router as ws_router
+import sounddevice as sd
+
 from acoustic.audio.capture import AudioCapture, AudioRingBuffer
 from acoustic.audio.device import detect_uma16v2
-from acoustic.audio.monitor import DeviceMonitor
+from acoustic.audio.monitor import DeviceMonitor, DeviceStatus
 from acoustic.audio.simulator import SimulatedAudioSource
 from acoustic.config import AcousticSettings
 from acoustic.pipeline import BeamformingPipeline
@@ -94,7 +96,11 @@ class _CaptureShim:
         self._producer.stop()
 
 
-def _create_hardware_capture(settings: AcousticSettings, device_index: int | str) -> AudioCapture:
+def _create_hardware_capture(
+    settings: AcousticSettings,
+    device_index: int | str,
+    monitor: DeviceMonitor | None = None,
+) -> AudioCapture:
     """Create and start a new AudioCapture for the given device."""
     capture = AudioCapture(
         device=device_index,
@@ -102,9 +108,17 @@ def _create_hardware_capture(settings: AcousticSettings, device_index: int | str
         channels=settings.num_channels,
         chunk_samples=settings.chunk_samples,
         ring_chunks=settings.ring_chunks,
+        on_stream_finished=monitor.notify_stream_abort if monitor else None,
     )
+    if monitor:
+        monitor.set_frame_time_getter(lambda: capture.last_frame_time)
     capture.start()
     return capture
+
+
+RECONNECT_VERIFY_TIMEOUT = 2.0  # seconds to wait for first audio frame
+RECONNECT_RETRY_INTERVAL = 3.0  # seconds between reconnect attempts
+INITIAL_SCAN_INTERVAL = 3.0  # seconds between device scans at startup
 
 
 async def _device_lifecycle_task(app: FastAPI) -> None:
@@ -112,7 +126,7 @@ async def _device_lifecycle_task(app: FastAPI) -> None:
 
     Subscribes to DeviceMonitor events. On disconnect, safely tears down
     the capture and clears pipeline state. On reconnect, creates a new
-    AudioCapture and restarts the pipeline with the new ring buffer.
+    AudioCapture, verifies frames arrive, and restarts the pipeline.
 
     Only acts when the audio source is hardware (not simulated).
     """
@@ -137,34 +151,127 @@ async def _device_lifecycle_task(app: FastAPI) -> None:
 
                 app.state.capture = None
                 app.state.device_info = None
+                monitor.set_frame_time_getter(None)
                 app.state.pipeline.clear_state()
-                logger.info("Audio capture stopped, pipeline state cleared")
+                logger.info("Audio capture stopped, scanning for device...")
 
-            else:
-                # --- Device reconnected ---
-                device_info = detect_uma16v2()
-                if device_info is None:
-                    logger.warning("DeviceMonitor reported connected but detect_uma16v2() returned None")
-                    continue
-
-                logger.info("Device reconnected: %s (index=%s)", device_info.name, device_info.index)
-
-                # Stop old capture if it somehow still exists
-                old_capture = app.state.capture
-                if old_capture is not None:
-                    old_capture.stop()
-
-                # Create new capture and restart pipeline
-                capture = _create_hardware_capture(settings, device_info.index)
-                app.state.capture = capture
-                app.state.device_info = device_info
-                app.state.pipeline.restart(capture.ring)
-                logger.info("Audio pipeline rebuilt with new device")
+                # Actively retry until we get a working capture
+                await _reconnect_loop(app, settings, monitor)
 
     except asyncio.CancelledError:
         pass
     finally:
         monitor.unsubscribe(queue)
+
+
+async def _initial_scan_task(app: FastAPI) -> None:
+    """Scan for device when none was found at startup, then hand off to lifecycle task."""
+    settings: AcousticSettings = app.state.settings
+    monitor: DeviceMonitor = app.state.device_monitor
+
+    try:
+        while True:
+            await asyncio.sleep(INITIAL_SCAN_INTERVAL)
+
+            _reset_portaudio()
+            device_info = detect_uma16v2()
+            if device_info is None:
+                continue
+
+            logger.info("Device found during scan: %s (index=%s)", device_info.name, device_info.index)
+
+            try:
+                capture = _create_hardware_capture(settings, device_info.index, monitor)
+            except Exception as exc:
+                logger.warning("Failed to create capture: %s — will retry", exc)
+                continue
+
+            await asyncio.sleep(RECONNECT_VERIFY_TIMEOUT)
+
+            if capture.last_frame_time is not None:
+                app.state.capture = capture
+                app.state.device_info = device_info
+                app.state.pipeline.start(capture.ring)
+                monitor._detected = True
+                monitor._device_info = device_info
+                monitor._stall_disconnected = False
+                monitor._stream_aborted.clear()
+                monitor._broadcast(DeviceStatus(
+                    detected=True,
+                    name=device_info.name,
+                    scanning=False,
+                ))
+                logger.info("Device connected — pipeline started")
+                # Hand off to regular lifecycle task
+                await _device_lifecycle_task(app)
+                return
+            else:
+                logger.warning("Capture created but no audio frames — retrying")
+                capture.stop()
+                monitor.set_frame_time_getter(None)
+
+    except asyncio.CancelledError:
+        pass
+
+
+def _reset_portaudio() -> None:
+    """Re-initialize PortAudio to clear stale CoreAudio device cache."""
+    try:
+        sd._terminate()
+        sd._initialize()
+        logger.debug("PortAudio re-initialized")
+    except Exception as exc:
+        logger.warning("PortAudio reset failed: %s", exc)
+
+
+async def _reconnect_loop(
+    app: FastAPI,
+    settings: AcousticSettings,
+    monitor: DeviceMonitor,
+) -> None:
+    """Keep trying to create a working audio capture until successful."""
+    while True:
+        await asyncio.sleep(RECONNECT_RETRY_INTERVAL)
+
+        # Reset PortAudio to clear stale CoreAudio state
+        _reset_portaudio()
+
+        device_info = detect_uma16v2()
+        if device_info is None:
+            continue
+
+        logger.info("Device found: %s (index=%s) — attempting capture", device_info.name, device_info.index)
+
+        try:
+            capture = _create_hardware_capture(settings, device_info.index, monitor)
+        except Exception as exc:
+            logger.warning("Failed to create capture: %s — will retry", exc)
+            continue
+
+        # Wait for frames to verify the capture actually works
+        await asyncio.sleep(RECONNECT_VERIFY_TIMEOUT)
+
+        if capture.last_frame_time is not None:
+            # Capture is producing frames — accept the reconnect
+            app.state.capture = capture
+            app.state.device_info = device_info
+            app.state.pipeline.restart(capture.ring)
+            monitor._detected = True
+            monitor._device_info = device_info
+            monitor._stall_disconnected = False
+            monitor._stream_aborted.clear()
+            monitor._broadcast(DeviceStatus(
+                detected=True,
+                name=device_info.name,
+                scanning=False,
+            ))
+            logger.info("Audio pipeline rebuilt — device reconnected successfully")
+            return
+        else:
+            # Capture failed to produce frames — tear it down and retry
+            logger.warning("Capture created but no audio frames received — retrying")
+            capture.stop()
+            monitor.set_frame_time_getter(None)
 
 
 @asynccontextmanager
@@ -173,12 +280,11 @@ async def lifespan(app: FastAPI):
     settings = AcousticSettings()
     device_info = detect_uma16v2()
 
-    # D-04: Auto-switch to simulated mode if no hardware detected
-    if device_info is None and settings.audio_source != "simulated":
-        logger.warning(
-            "UMA-16v2 not detected, auto-switching to simulated audio source (D-04)"
-        )
-        settings.audio_source = "simulated"
+    # Start device monitor early so capture can wire its callbacks
+    device_monitor = DeviceMonitor(poll_interval=3.0)
+    device_monitor.start(asyncio.get_running_loop())
+
+    pipeline = BeamformingPipeline(settings)
 
     if settings.audio_source == "simulated":
         logger.info("Starting in simulated audio mode")
@@ -191,16 +297,15 @@ async def lifespan(app: FastAPI):
         producer = SimulatedProducer(sim, ring, settings.chunk_seconds)
         capture = _CaptureShim(ring, producer)
         capture.start()
-    else:
+        pipeline.start(capture.ring)
+    elif device_info is not None:
         logger.info("Starting with hardware audio capture (device=%s)", device_info.index)
-        capture = _create_hardware_capture(settings, device_info.index)
-
-    pipeline = BeamformingPipeline(settings)
-    pipeline.start(capture.ring)
-
-    # Start device monitor for live hot-plug detection
-    device_monitor = DeviceMonitor(poll_interval=3.0)
-    device_monitor.start(asyncio.get_running_loop())
+        capture = _create_hardware_capture(settings, device_info.index, device_monitor)
+        pipeline.start(capture.ring)
+    else:
+        # No device at startup — start with empty pipeline, scan for device
+        logger.warning("UMA-16v2 not detected at startup — scanning for device...")
+        capture = None
 
     # Store on app.state for endpoint access
     app.state.settings = settings
@@ -209,10 +314,14 @@ async def lifespan(app: FastAPI):
     app.state.pipeline = pipeline
     app.state.device_monitor = device_monitor
 
-    # Start background lifecycle task for hot-plug recovery
-    lifecycle_task = asyncio.create_task(_device_lifecycle_task(app))
+    # Start background lifecycle task for hot-plug recovery and initial scan
+    if capture is None and settings.audio_source != "simulated":
+        # No device at startup — start scanning immediately
+        lifecycle_task = asyncio.create_task(_initial_scan_task(app))
+    else:
+        lifecycle_task = asyncio.create_task(_device_lifecycle_task(app))
 
-    logger.info("Acoustic service started (pipeline running)")
+    logger.info("Acoustic service started%s", " (scanning for device)" if capture is None else " (pipeline running)")
     yield
 
     lifecycle_task.cancel()

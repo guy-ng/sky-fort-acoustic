@@ -8,11 +8,13 @@ interface UseHeatmapSocketOptions {
 interface UseHeatmapSocketResult {
   connected: boolean
   gridInfo: HeatmapHandshake | null
+  deviceOk: boolean
 }
 
 export function useHeatmapSocket({ onFrame }: UseHeatmapSocketOptions): UseHeatmapSocketResult {
   const [connected, setConnected] = useState(false)
   const [gridInfo, setGridInfo] = useState<HeatmapHandshake | null>(null)
+  const [deviceOk, setDeviceOk] = useState(true)
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const reconnectDelay = useRef(2000)
@@ -20,7 +22,17 @@ export function useHeatmapSocket({ onFrame }: UseHeatmapSocketOptions): UseHeatm
   onFrameRef.current = onFrame
 
   const connect = useCallback(() => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) return
+    // Guard: skip if already open or still connecting
+    const state = wsRef.current?.readyState
+    if (state === WebSocket.OPEN || state === WebSocket.CONNECTING) return
+
+    // Clean up any lingering socket in CLOSING state
+    if (wsRef.current) {
+      wsRef.current.onclose = null
+      wsRef.current.onerror = null
+      wsRef.current.onmessage = null
+      wsRef.current = null
+    }
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     const ws = new WebSocket(`${protocol}//${window.location.host}/ws/heatmap`)
@@ -35,11 +47,19 @@ export function useHeatmapSocket({ onFrame }: UseHeatmapSocketOptions): UseHeatm
     }
 
     ws.onmessage = (event: MessageEvent) => {
-      if (!handshakeDone && typeof event.data === 'string') {
+      if (typeof event.data === 'string') {
         try {
-          const handshake = JSON.parse(event.data) as HeatmapHandshake
-          if (handshake.type === 'handshake') {
-            setGridInfo(handshake)
+          const msg = JSON.parse(event.data)
+          if (msg.type === 'device_disconnected') {
+            setDeviceOk(false)
+            return
+          }
+          if (msg.type === 'device_reconnected') {
+            setDeviceOk(true)
+            return
+          }
+          if (!handshakeDone && msg.type === 'handshake') {
+            setGridInfo(msg as HeatmapHandshake)
             handshakeDone = true
           }
         } catch {
@@ -56,6 +76,7 @@ export function useHeatmapSocket({ onFrame }: UseHeatmapSocketOptions): UseHeatm
 
     ws.onclose = () => {
       setConnected(false)
+      setGridInfo(null)
       wsRef.current = null
       // Auto-reconnect with exponential backoff up to 10s
       reconnectTimer.current = setTimeout(() => {
@@ -80,5 +101,5 @@ export function useHeatmapSocket({ onFrame }: UseHeatmapSocketOptions): UseHeatm
     }
   }, [connect])
 
-  return { connected, gridInfo }
+  return { connected, gridInfo, deviceOk }
 }

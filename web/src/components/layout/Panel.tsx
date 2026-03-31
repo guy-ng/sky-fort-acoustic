@@ -8,13 +8,13 @@ interface PanelProps {
 
 export function Panel({ title, children, className = '' }: PanelProps) {
   return (
-    <div className={`bg-hud-panel border border-hud-border rounded-lg overflow-hidden ${className}`}>
+    <div className={`bg-hud-panel border border-hud-border rounded-lg overflow-hidden flex flex-col ${className}`}>
       {title && (
         <div className="px-3 py-2 border-b border-hud-border">
           <h2 className="text-hud-text-dim text-sm font-medium uppercase tracking-wider">{title}</h2>
         </div>
       )}
-      <div className="p-3">{children}</div>
+      <div className="p-3 flex-1 min-h-0">{children}</div>
     </div>
   )
 }

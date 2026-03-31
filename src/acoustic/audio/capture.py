@@ -68,6 +68,7 @@ class AudioCapture:
         channels: int,
         chunk_samples: int,
         ring_chunks: int = 14,
+        on_stream_finished: callable | None = None,
     ) -> None:
         self._ring = AudioRingBuffer(
             num_chunks=ring_chunks,
@@ -76,6 +77,7 @@ class AudioCapture:
         )
         self._last_frame_time: float | None = None
         self._xrun_flag = False
+        self._on_stream_finished = on_stream_finished
 
         self._stream = sd.InputStream(
             device=device,
@@ -84,6 +86,7 @@ class AudioCapture:
             dtype="float32",
             blocksize=chunk_samples,
             callback=self._callback,
+            finished_callback=self._finished,
         )
 
     def _callback(self, indata: np.ndarray, frames: int, time_info, status) -> None:
@@ -92,6 +95,11 @@ class AudioCapture:
         if status:
             self._xrun_flag = True
         self._ring.write(indata)
+
+    def _finished(self) -> None:
+        """Called by PortAudio when the stream stops (e.g. device unplugged)."""
+        if self._on_stream_finished is not None:
+            self._on_stream_finished()
 
     def start(self) -> None:
         """Start the audio stream."""

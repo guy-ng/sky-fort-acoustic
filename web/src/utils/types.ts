@@ -20,6 +20,7 @@ export interface HeatmapHandshake {
 export interface HealthStatus {
   status: string
   device_detected: boolean
+  device_name: string | null
   pipeline_running: boolean
   overflow_count: number
   last_frame_time: number | null
