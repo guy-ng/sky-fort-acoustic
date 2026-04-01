@@ -6,3 +6,5 @@ numpy>=1.26,<3
 scipy>=1.14
 pydantic-settings>=2.7
 pyzmq>=27.1.0
+torch>=2.11,<2.12
+torchaudio>=2.11,<2.12

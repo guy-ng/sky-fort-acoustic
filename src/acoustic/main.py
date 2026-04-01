@@ -290,15 +290,20 @@ async def lifespan(app: FastAPI):
     tracker = None
     broadcaster = None
     try:
-        from acoustic.classification.inference import OnnxDroneClassifier
+        from acoustic.classification.preprocessing import ResearchPreprocessor
         from acoustic.classification.state_machine import DetectionStateMachine
         from acoustic.classification.worker import CNNWorker
         from acoustic.tracking.events import EventBroadcaster
         from acoustic.tracking.tracker import TargetTracker
 
         broadcaster = EventBroadcaster()
-        classifier = OnnxDroneClassifier(settings.cnn_model_path)
-        cnn_worker = CNNWorker(classifier, fs_in=settings.sample_rate)
+        preprocessor = ResearchPreprocessor()
+        # No classifier until Phase 7 -- worker is dormant
+        cnn_worker = CNNWorker(
+            preprocessor=preprocessor,
+            classifier=None,
+            fs_in=settings.sample_rate,
+        )
         state_machine = DetectionStateMachine(
             enter_threshold=settings.cnn_enter_threshold,
             exit_threshold=settings.cnn_exit_threshold,
@@ -306,11 +311,9 @@ async def lifespan(app: FastAPI):
         )
         tracker = TargetTracker(ttl=settings.cnn_target_ttl, broadcaster=broadcaster)
         cnn_worker.start()
-        logger.info("CNN classification enabled (model: %s)", settings.cnn_model_path)
-    except FileNotFoundError:
-        logger.warning("CNN model not found at %s — running without classification", settings.cnn_model_path)
+        logger.info("CNN worker started (preprocessor ready, classifier pending Phase 7)")
     except Exception:
-        logger.exception("Failed to initialize CNN classification — running without it")
+        logger.exception("Failed to initialize CNN worker — running without it")
 
     pipeline = BeamformingPipeline(
         settings,

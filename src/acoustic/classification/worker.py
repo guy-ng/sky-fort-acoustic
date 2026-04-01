@@ -1,6 +1,6 @@
 """Background CNN inference worker thread.
 
-Runs ONNX inference in a daemon thread so it never blocks the beamforming loop.
+Runs inference in a daemon thread so it never blocks the beamforming loop.
 Uses a single-slot queue with drop semantics (latest audio only).
 """
 
@@ -14,8 +14,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from acoustic.classification.inference import OnnxDroneClassifier
-from acoustic.classification.preprocessing import preprocess_for_cnn
+from acoustic.classification.protocols import Classifier, Preprocessor
 
 logger = logging.getLogger(__name__)
 
@@ -37,9 +36,18 @@ class CNNWorker:
     Queue is maxsize=1 with drop semantics -- only the most recent audio is kept.
     """
 
-    def __init__(self, classifier: OnnxDroneClassifier, fs_in: int = 48000) -> None:
+    def __init__(
+        self,
+        preprocessor: Preprocessor | None = None,
+        classifier: Classifier | None = None,
+        *,
+        fs_in: int = 48000,
+        silence_threshold: float = 0.001,
+    ) -> None:
+        self._preprocessor = preprocessor
         self._classifier = classifier
         self._fs_in = fs_in
+        self._silence_threshold = silence_threshold
         self._queue: queue.Queue = queue.Queue(maxsize=1)
         self._lock = threading.Lock()
         self._stop_event = threading.Event()
@@ -99,9 +107,10 @@ class CNNWorker:
 
             try:
                 t0 = time.monotonic()
-                preprocessed = preprocess_for_cnn(mono_audio, self._fs_in)
-                if preprocessed is None:
-                    # Silence — report 0 probability so the UI stays fresh
+
+                # Energy gate
+                rms = np.sqrt(np.mean(mono_audio ** 2))
+                if rms < self._silence_threshold:
                     result = ClassificationResult(
                         drone_probability=0.0,
                         timestamp=time.monotonic(),
@@ -112,7 +121,16 @@ class CNNWorker:
                         self._latest = result
                     logger.debug("CNN: silence detected, reporting prob=0.0")
                     continue
-                prob = self._classifier.predict(preprocessed)
+
+                # Preprocess (skip if no preprocessor -- dormant until injected)
+                if self._preprocessor is None:
+                    continue
+                features = self._preprocessor.process(mono_audio, self._fs_in)
+
+                # Classify (skip if no classifier -- dormant until Phase 7)
+                if self._classifier is None:
+                    continue
+                prob = self._classifier.predict(features)
                 elapsed = time.monotonic() - t0
 
                 result = ClassificationResult(

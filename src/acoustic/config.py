@@ -39,7 +39,7 @@ class AcousticSettings(BaseSettings):
     ignore_origin_deg: float = 3.5  # Suppress broadside artifact within this radius of (0,0)
 
     # CNN classification
-    cnn_model_path: str = "models/uav_melspec_cnn.onnx"
+    cnn_model_path: str = "models/uav_melspec_cnn.pt"
     cnn_enter_threshold: float = 0.80
     cnn_exit_threshold: float = 0.40
     cnn_confirm_hits: int = 2
