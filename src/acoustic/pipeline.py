@@ -55,7 +55,7 @@ class BeamformingPipeline:
         self._tracker = tracker
         self._mono_buffer: list[np.ndarray] = []
         self._mono_buffer_samples: int = 0
-        self._cnn_segment_samples: int = int(settings.sample_rate * 2.0)
+        self._cnn_segment_samples: int = int(settings.sample_rate * 0.5)
         self._last_cnn_push: float = 0.0
         self._cnn_interval: float = 0.5  # Run CNN at least every 0.5s even without peaks
 
