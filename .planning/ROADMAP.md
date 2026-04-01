@@ -150,7 +150,11 @@ Plans:
   3. CNNWorker accepts injected Classifier, Preprocessor, and Aggregator via protocols; a factory in main.py selects the implementation at startup based on config
   4. State machine thresholds (enter/exit) are configurable via environment variables to accommodate the new CNN's different confidence distribution
   5. The pipeline processes audio end-to-end with the new classifier without crashing or regressing beamforming performance
-**Plans**: TBD
+**Plans**: 2 plans
+
+Plans:
+- [ ] 07-01-PLAN.md — ResearchCNN model, Aggregator protocol, WeightedAggregator, config extensions, unit tests
+- [ ] 07-02-PLAN.md — CNNWorker segment buffer, pipeline overlap push, classifier factory wiring, integration tests
 
 ### Phase 8: PyTorch Training Pipeline
 **Goal**: Users can train a research CNN model from labeled WAV files with the training process isolated from live detection
@@ -210,7 +214,7 @@ Note: Phase 11 is conditional -- build only if Phase 9 evaluation shows single-m
 | 4. Recording and Playback | v1.0 | 0/2 | Not started | - |
 | 5. CNN Training Pipeline | v1.0 | 0/2 | Not started | - |
 | 6. Preprocessing Parity Foundation | v2.0 | 2/2 | Complete   | 2026-04-01 |
-| 7. Research CNN and Inference Integration | v2.0 | 0/? | Not started | - |
+| 7. Research CNN and Inference Integration | v2.0 | 0/2 | Not started | - |
 | 8. PyTorch Training Pipeline | v2.0 | 0/? | Not started | - |
 | 9. Evaluation Harness and API | v2.0 | 0/? | Not started | - |
 | 10. Field Data Collection | v2.0 | 0/? | Not started | - |
