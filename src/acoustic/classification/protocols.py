@@ -1,28 +1,28 @@
-"""Classifier and Preprocessor protocols for clean model swaps."""
+"""Runtime-checkable protocols for classification pipeline components."""
 
 from __future__ import annotations
 
-from typing import Protocol, runtime_checkable
-
 import numpy as np
 import torch
+from typing import Protocol, runtime_checkable
 
 
 @runtime_checkable
 class Preprocessor(Protocol):
-    def process(self, audio: np.ndarray, sr: int) -> torch.Tensor:
-        """Process raw audio into model-ready features.
+    """Converts raw audio into a feature tensor for classification."""
 
-        Returns: Tensor of shape (1, 1, max_frames, n_mels).
-        """
-        ...
+    def process(self, audio: np.ndarray, sr: int) -> torch.Tensor: ...
 
 
 @runtime_checkable
 class Classifier(Protocol):
-    def predict(self, features: torch.Tensor) -> float:
-        """Run inference on preprocessed features.
+    """Produces a drone probability from a feature tensor."""
 
-        Returns: Drone probability in [0.0, 1.0].
-        """
-        ...
+    def predict(self, features: torch.Tensor) -> float: ...
+
+
+@runtime_checkable
+class Aggregator(Protocol):
+    """Aggregates multiple segment probabilities into a single score."""
+
+    def aggregate(self, probabilities: list[float]) -> float: ...

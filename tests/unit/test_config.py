@@ -119,3 +119,37 @@ class TestAcousticSettingsProperties:
         with patch.dict(os.environ, {"ACOUSTIC_CHUNK_SECONDS": "0.2"}):
             s = AcousticSettings()
             assert s.ring_chunks == 10  # ceil(2.0 / 0.2) = 10
+
+
+class TestAggregationConfigDefaults:
+    """Verify aggregation weight defaults."""
+
+    def setup_method(self):
+        self._saved = {
+            k: os.environ.pop(k) for k in list(os.environ) if k.startswith("ACOUSTIC_")
+        }
+
+    def teardown_method(self):
+        os.environ.update(self._saved)
+
+    def test_default_agg_w_max(self):
+        s = AcousticSettings()
+        assert s.cnn_agg_w_max == 0.5
+
+    def test_default_agg_w_mean(self):
+        s = AcousticSettings()
+        assert s.cnn_agg_w_mean == 0.5
+
+
+class TestAggregationConfigEnvOverride:
+    """Verify env var override for aggregation weights."""
+
+    def test_env_override_agg_w_max(self):
+        with patch.dict(os.environ, {"ACOUSTIC_CNN_AGG_W_MAX": "0.7"}):
+            s = AcousticSettings()
+            assert s.cnn_agg_w_max == 0.7
+
+    def test_env_override_agg_w_mean(self):
+        with patch.dict(os.environ, {"ACOUSTIC_CNN_AGG_W_MEAN": "0.3"}):
+            s = AcousticSettings()
+            assert s.cnn_agg_w_mean == 0.3

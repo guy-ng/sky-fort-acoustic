@@ -1,36 +1,59 @@
-"""Tests for Classifier and Preprocessor protocols."""
+"""Tests for classification protocol definitions."""
+
+from __future__ import annotations
 
 import numpy as np
 import torch
 
-from acoustic.classification.protocols import Classifier, Preprocessor
+from acoustic.classification.protocols import Aggregator, Classifier, Preprocessor
 
 
 class TestPreprocessorProtocol:
-    def test_conforming_class_satisfies(self):
-        class Good:
-            def process(self, audio: np.ndarray, sr: int) -> torch.Tensor:
-                return torch.zeros(1, 1, 128, 64)
+    """Verify Preprocessor protocol runtime checking."""
 
-        assert isinstance(Good(), Preprocessor)
+    def test_conforming_class_satisfies(self):
+        class GoodPreprocessor:
+            def process(self, audio: np.ndarray, sr: int) -> torch.Tensor:
+                return torch.zeros(1)
+
+        assert isinstance(GoodPreprocessor(), Preprocessor)
 
     def test_missing_method_fails(self):
-        class Bad:
+        class BadPreprocessor:
             pass
 
-        assert not isinstance(Bad(), Preprocessor)
+        assert not isinstance(BadPreprocessor(), Preprocessor)
 
 
 class TestClassifierProtocol:
+    """Verify Classifier protocol runtime checking."""
+
     def test_conforming_class_satisfies(self):
-        class Good:
+        class GoodClassifier:
             def predict(self, features: torch.Tensor) -> float:
                 return 0.5
 
-        assert isinstance(Good(), Classifier)
+        assert isinstance(GoodClassifier(), Classifier)
 
     def test_missing_method_fails(self):
-        class Bad:
+        class BadClassifier:
             pass
 
-        assert not isinstance(Bad(), Classifier)
+        assert not isinstance(BadClassifier(), Classifier)
+
+
+class TestAggregatorProtocol:
+    """Verify Aggregator protocol runtime checking."""
+
+    def test_conforming_class_satisfies(self):
+        class GoodAggregator:
+            def aggregate(self, probabilities: list[float]) -> float:
+                return 0.5
+
+        assert isinstance(GoodAggregator(), Aggregator)
+
+    def test_missing_method_fails(self):
+        class BadAggregator:
+            pass
+
+        assert not isinstance(BadAggregator(), Aggregator)

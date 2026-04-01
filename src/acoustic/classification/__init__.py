@@ -1,6 +1,5 @@
 """CNN-based drone classification package."""
 
-from acoustic.classification.config import MelConfig
-from acoustic.classification.protocols import Classifier, Preprocessor
+from acoustic.classification.protocols import Aggregator, Classifier, Preprocessor
 
-__all__ = ["MelConfig", "Classifier", "Preprocessor"]
+__all__ = ["Aggregator", "Classifier", "Preprocessor"]

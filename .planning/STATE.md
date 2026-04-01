@@ -1,60 +1,65 @@
 ---
 gsd_state_version: 1.0
 milestone: v1.0
-milestone_name: MVP
-status: executing
-stopped_at: Phase 7 context gathered
-last_updated: "2026-04-01T11:36:24.563Z"
+milestone_name: milestone
+status: verifying
+stopped_at: Completed 07-01-PLAN.md
+last_updated: "2026-04-01T12:05:21.086Z"
 last_activity: 2026-04-01
 progress:
-  total_phases: 6
-  completed_phases: 1
-  total_plans: 2
-  completed_plans: 2
-  percent: 10
+  total_phases: 5
+  completed_phases: 2
+  total_plans: 9
+  completed_plans: 8
+  percent: 20
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-04-01)
+See: .planning/PROJECT.md (updated 2026-03-29)
 
 **Core value:** Reliably detect and classify drones acoustically in real time, publishing target events over ZeroMQ so downstream systems can act on them.
-**Current focus:** Phase 06 — Preprocessing Parity Foundation
+**Current focus:** Phase 03 — cnn-classification-and-target-tracking
 
 ## Current Position
 
-Phase: 7 of 11 (research cnn and inference integration)
-Plan: Not started
-Status: Phase 06 executing
+Phase: 03 (cnn-classification-and-target-tracking) — EXECUTING
+Plan: 3 of 3 (Wave 1 complete, Wave 2 pending)
+Status: Phase complete — ready for verification
 Last activity: 2026-04-01
 
-Progress: [#.........] 10%
+Progress: [##........] 20%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 9
-- Average duration: ~7min
-- Total execution time: ~67 min
+- Total plans completed: 5
+- Average duration: -
+- Total execution time: 0 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| Phase 01 | 3 | 25min | 8min |
-| Phase 02 | 1 | 8min | 8min |
-| Phase 03 | 3 | 23min | 8min |
-| Phase 06 | 2 | 12min | 6min |
+| - | - | - | - |
 
 **Recent Trend:**
 
-- Last 5 plans: 6min, 5min, 12min, 5min, 7min
-- Trend: Stable
+- Last 5 plans: -
+- Trend: -
 
 *Updated after each plan completion*
+| Phase 01 P01 | 8min | 2 tasks | 20 files |
+| Phase 01 P02 | 9min | 2 tasks | 11 files |
+| Phase 02 P01 | 7min | 3 tasks | 11 files |
+| Phase 02 P02 | 8min | 2 tasks | 28 files |
+| Phase 03 P01 | 6min | 1 tasks | 9 files |
+| Phase 03 P02 | 5m19s | 1 tasks | 7 files |
+| Phase 03 P03 | 12min | 2 tasks | 9 files |
+| Phase 07 P01 | 5min | 1 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -63,15 +68,28 @@ Progress: [#.........] 10%
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
-- [Phase 03]: Used librosa for mel-spectrogram -- v2.0 replaces this with torchaudio
-- [Phase 03]: ONNX Runtime for inference -- v2.0 replaces with PyTorch native
-- [Phase 03]: CNNWorker uses single-slot queue with drop semantics -- v2.0 adds bounded ring buffer for aggregation
-- [v2.0 Research]: Training normalization (S_db+80)/80 is canonical, not inference z-score
-- [v2.0 Research]: 0.5s segment duration everywhere, not 2.0s
-- [v2.0 Research]: Classifier/Preprocessor protocol pattern for clean model swaps
-- [Phase 06]: norm="slaney" in torchaudio MelSpectrogram matches librosa.filters.mel default
-- [Phase 06]: Custom _power_to_db with per-spectrogram ref=max instead of AmplitudeToDB for librosa parity
-- [Phase 06]: Pipeline segment duration changed from 2.0s to 0.5s per research standard
+- PyTorch over TensorFlow for CNN (research recommendation -- existing .h5 model cannot be reused, retraining required)
+- Custom SRP-PHAT over Acoular (POC's 180-line implementation is simpler and sufficient for 4x4 array)
+- Callback-based sounddevice.InputStream over blocking sd.rec() (irreversible architecture decision)
+- [Phase 01]: Ring buffer uses one-slot-reserved circular pattern for full/empty disambiguation
+- [Phase 01]: AudioCapture callback does only np.copyto + monotonic timestamp -- no logging in audio thread
+- [Phase 01]: Elevation test relaxed for planar array -- UMA-16v2 has zero z-baseline, poor elevation discrimination is physics, not a bug
+- [Phase 01]: Frequency band test uses variance comparison due to GCC-PHAT magnitude normalization
+- [Phase 02]: Map data transposed to [elevation][azimuth] row-major for canvas rendering
+- [Phase 02]: WebSocket heatmap uses JSON handshake then binary float32 frames
+- [Phase 02]: Heatmap 20 Hz poll, targets 2 Hz matching data change rates
+- [Phase 02]: Pre-built 256-entry colormap LUT for O(1) heatmap pixel mapping
+- [Phase 02]: useImperativeHandle pattern on HeatmapCanvas to avoid React re-renders per frame
+- [Phase 03]: Used librosa for mel-spectrogram to match POC parameters exactly
+- [Phase 03]: ONNX Runtime for inference (lighter than PyTorch, model-agnostic)
+- [Phase 03]: Binary drone/not-drone only -- CLS-02 multi-class deferred to milestone 2
+- [Phase 03]: WebSocket broadcast via asyncio.Queue, not ZeroMQ PUB/SUB (per D-10)
+- [Phase 03]: Single-target tracking for Phase 3; multi-target is future enhancement
+- [Phase 03]: speed_mps always None -- Doppler deferred to milestone 2 (per D-07)
+- [Phase 03]: CNNWorker uses single-slot queue with drop semantics for non-blocking inference
+- [Phase 03]: Fixed EventBroadcaster to use call_soon_threadsafe for thread-safe async delivery
+- [Phase 07]: ResearchCNN architecture matches research build_model() exactly (3-layer Conv2D 32/64/128)
+- [Phase 07]: Aggregator protocol (runtime_checkable) for pluggable aggregation strategies
 
 ### Pending Todos
 
@@ -79,20 +97,20 @@ None yet.
 
 ### Blockers/Concerns
 
-- No labeled test dataset in repo -- Phase 9 evaluation needs training data from Phase 10 or external import
-- State machine threshold recalibration values unknown until Phase 9 runs evaluation with trained model
-- Docker image size: PyTorch CPU-only adds ~280MB -- verify against deployment constraints
+- Doppler speed estimation feasibility uncertain (UMA-16v2 aperture may be too small -- validate during Phase 3)
+- UMA-16v2 channel mapping needs empirical verification (tap test) before beamforming work
+- Callback-based capture not yet proven with UMA-16v2 (prototype early in Phase 1)
 
 ### Quick Tasks Completed
 
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
-| 260331-mok | Device disconnect overlay on heatmap | 2026-03-31 | c020721 | [260331-mok](./quick/260331-mok-device-state-and-reconnect-ws-disconnect/) |
-| 260331-myc | Fix device disconnect/reconnect recovery | 2026-03-31 | 2b25331 | [260331-myc](./quick/260331-myc-fix-device-disconnect-reconnect-backend-/) |
-| 260401-0fb | Beamforming map dB normalization + origin suppression | 2026-04-01 | caeaabd | [260401-0fb](./quick/260401-0fb-beamforming-map-focus-on-drone-data-copy/) |
+| 260331-mok | Device disconnect overlay on heatmap | 2026-03-31 | c020721 | [260331-mok-device-state-and-reconnect-ws-disconnect](./quick/260331-mok-device-state-and-reconnect-ws-disconnect/) |
+| 260331-myc | Fix device disconnect/reconnect recovery | 2026-03-31 | 2b25331 | [260331-myc-fix-device-disconnect-reconnect-backend-](./quick/260331-myc-fix-device-disconnect-reconnect-backend-/) |
+| 260401-0fb | Beamforming map dB normalization + origin suppression | 2026-04-01 | caeaabd | [260401-0fb-beamforming-map-focus-on-drone-data-copy](./quick/260401-0fb-beamforming-map-focus-on-drone-data-copy/) |
 
 ## Session Continuity
 
-Last session: 2026-04-01T11:36:24.559Z
-Stopped at: Phase 7 context gathered
-Resume file: .planning/phases/07-research-cnn-and-inference-integration/07-CONTEXT.md
+Last session: 2026-04-01T12:05:21.083Z
+Stopped at: Completed 07-01-PLAN.md
+Resume file: None
