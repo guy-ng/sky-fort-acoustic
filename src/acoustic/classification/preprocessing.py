@@ -104,9 +104,7 @@ class ResearchPreprocessor:
     def __init__(self, config: MelConfig | None = None) -> None:
         self._config = config or MelConfig()
         c = self._config
-        # Match librosa defaults: norm="slaney" (area-normalized mel filterbank,
-        # librosa.filters.mel defaults to norm="slaney" when htk=False),
-        # mel_scale="slaney" (htk=False), center=True, pad_mode="constant"
+        # Match librosa defaults: norm="slaney", mel_scale="slaney", center=True
         self._mel_spec = T.MelSpectrogram(
             sample_rate=c.sample_rate,
             n_fft=c.n_fft,
@@ -160,7 +158,7 @@ class ResearchPreprocessor:
             pad_amount = c.max_frames - frames
             spec = torch.nn.functional.pad(spec, (0, 0, 0, pad_amount))
         elif frames > c.max_frames:
-            # Center-crop to match research code's pad_or_trim_frames
+            # Center-crop
             start = (frames - c.max_frames) // 2
             spec = spec[start : start + c.max_frames]
 

@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
 milestone: v1.0
-milestone_name: MVP
-status: executing
-stopped_at: Phase 8 context gathered
-last_updated: "2026-04-01T18:57:39.781Z"
-last_activity: 2026-04-01 -- Phase 08 execution started
+milestone_name: milestone
+status: verifying
+stopped_at: Completed 08-02-PLAN.md
+last_updated: "2026-04-01T19:21:15.219Z"
+last_activity: 2026-04-01
 progress:
-  total_phases: 6
+  total_phases: 5
   completed_phases: 2
-  total_plans: 6
-  completed_plans: 4
+  total_plans: 9
+  completed_plans: 8
   percent: 20
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-29)
 
 **Core value:** Reliably detect and classify drones acoustically in real time, publishing target events over ZeroMQ so downstream systems can act on them.
-**Current focus:** Phase 08 — pytorch-training-pipeline
+**Current focus:** Phase 03 — cnn-classification-and-target-tracking
 
 ## Current Position
 
-Phase: 08 (pytorch-training-pipeline) — EXECUTING
-Plan: 1 of 2
-Status: Executing Phase 08
-Last activity: 2026-04-01 -- Phase 08 execution started
+Phase: 03 (cnn-classification-and-target-tracking) — EXECUTING
+Plan: 3 of 3 (Wave 1 complete, Wave 2 pending)
+Status: Phase complete — ready for verification
+Last activity: 2026-04-01
 
 Progress: [##........] 20%
 
@@ -59,8 +59,7 @@ Progress: [##........] 20%
 | Phase 03 P01 | 6min | 1 tasks | 9 files |
 | Phase 03 P02 | 5m19s | 1 tasks | 7 files |
 | Phase 03 P03 | 12min | 2 tasks | 9 files |
-| Phase 07 P01 | 5min | 1 tasks | 9 files |
-| Phase 07 P02 | 7min | 2 tasks | 5 files |
+| Phase 08 P02 | 7min | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -89,10 +88,8 @@ Recent decisions affecting current work:
 - [Phase 03]: speed_mps always None -- Doppler deferred to milestone 2 (per D-07)
 - [Phase 03]: CNNWorker uses single-slot queue with drop semantics for non-blocking inference
 - [Phase 03]: Fixed EventBroadcaster to use call_soon_threadsafe for thread-safe async delivery
-- [Phase 07]: ResearchCNN architecture matches research build_model() exactly (3-layer Conv2D 32/64/128)
-- [Phase 07]: Aggregator protocol (runtime_checkable) for pluggable aggregation strategies
-- [Phase 07]: Silence-gated segments do not append to aggregation deque
-- [Phase 07]: Classifier factory validates model with dummy forward pass before accepting
+- [Phase 08]: ReduceLROnPlateau scheduler for adaptive LR (factor=0.5, patience=3)
+- [Phase 08]: sklearn-free train/val split with fixed seed (42) for reproducibility
 
 ### Pending Todos
 
@@ -114,6 +111,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-01T13:03:52.745Z
-Stopped at: Phase 8 context gathered
-Resume file: .planning/phases/08-pytorch-training-pipeline/08-CONTEXT.md
+Last session: 2026-04-01T19:21:15.216Z
+Stopped at: Completed 08-02-PLAN.md
+Resume file: None
