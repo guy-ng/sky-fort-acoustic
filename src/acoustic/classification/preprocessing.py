@@ -19,6 +19,79 @@ HOP_LENGTH = 256
 N_MELS = 64
 MAX_FRAMES = 128
 
+# Module-level cache for MelSpectrogram transforms, keyed by MelConfig (frozen/hashable).
+_mel_spec_cache: dict[MelConfig, T.MelSpectrogram] = {}
+
+
+def _get_mel_transform(config: MelConfig) -> T.MelSpectrogram:
+    """Return a cached MelSpectrogram transform for the given config."""
+    if config not in _mel_spec_cache:
+        _mel_spec_cache[config] = T.MelSpectrogram(
+            sample_rate=config.sample_rate,
+            n_fft=config.n_fft,
+            hop_length=config.hop_length,
+            n_mels=config.n_mels,
+            power=2.0,
+            norm="slaney",
+            mel_scale="slaney",
+            center=True,
+            pad_mode="constant",
+        )
+    return _mel_spec_cache[config]
+
+
+def mel_spectrogram_from_segment(
+    segment: np.ndarray,
+    config: MelConfig | None = None,
+) -> torch.Tensor:
+    """Convert a pre-extracted audio segment to a normalized mel-spectrogram.
+
+    Produces identical output to ResearchPreprocessor.process() when given
+    the same segment (of length config.segment_samples).
+
+    Args:
+        segment: 1-D float32 mono audio. Will be zero-padded if shorter
+                 than config.segment_samples, trimmed if longer.
+        config: MelConfig with preprocessing parameters.
+
+    Returns:
+        Tensor of shape (1, 1, max_frames, n_mels) with values in [0, 1].
+    """
+    c = config or MelConfig()
+    n = c.segment_samples
+
+    waveform = torch.from_numpy(segment).float()
+
+    # Pad or trim to segment length (same logic as ResearchPreprocessor)
+    if waveform.shape[0] >= n:
+        waveform = waveform[-n:]
+    else:
+        waveform = torch.nn.functional.pad(waveform, (n - waveform.shape[0], 0))
+
+    # Mel spectrogram (power)
+    mel_transform = _get_mel_transform(c)
+    S = mel_transform(waveform)  # (n_mels, frames)
+
+    # power_to_db with ref=max
+    S_db = _power_to_db(S, top_db=c.db_range)
+
+    # Normalize to [0, 1]
+    S_norm = (S_db + c.db_range) / c.db_range
+    S_norm = S_norm.clamp(0.0, 1.0)
+
+    # Transpose to (frames, n_mels) then pad/trim to max_frames
+    spec = S_norm.T  # (frames, n_mels)
+    frames = spec.shape[0]
+    if frames < c.max_frames:
+        pad_amount = c.max_frames - frames
+        spec = torch.nn.functional.pad(spec, (0, 0, 0, pad_amount))
+    elif frames > c.max_frames:
+        start = (frames - c.max_frames) // 2
+        spec = spec[start : start + c.max_frames]
+
+    # Shape: (1, 1, max_frames, n_mels) = (1, 1, 128, 64)
+    return spec.unsqueeze(0).unsqueeze(0)
+
 
 def fast_resample(y: np.ndarray, fs_in: int, fs_out: int) -> np.ndarray:
     """Resample audio from fs_in to fs_out using polyphase filtering.
