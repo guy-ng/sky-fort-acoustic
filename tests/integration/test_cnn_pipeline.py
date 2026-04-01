@@ -142,8 +142,11 @@ class TestPipelineWithCNN:
         assert pipeline._mono_buffer_samples == settings.chunk_samples
         assert len(pipeline._mono_buffer) == 1
 
-    def test_process_cnn_clears_buffer_on_no_peak(self, settings, mock_classifier):
-        """Verify that mono buffer is cleared when no peak is detected."""
+    def test_process_cnn_accumulates_buffer_on_no_peak(self, settings, mock_classifier):
+        """Verify that mono buffer keeps accumulating even without a peak.
+
+        The CNN runs periodically without peaks so the UI always has a probability.
+        """
         worker = CNNWorker(mock_classifier, fs_in=settings.sample_rate)
         pipeline = BeamformingPipeline(settings, cnn_worker=worker)
 
@@ -152,8 +155,8 @@ class TestPipelineWithCNN:
         pipeline._mono_buffer_samples = 100
 
         pipeline._process_cnn(np.zeros((100, 16), dtype=np.float32), None)
-        assert pipeline._mono_buffer_samples == 0
-        assert len(pipeline._mono_buffer) == 0
+        assert pipeline._mono_buffer_samples == 200
+        assert len(pipeline._mono_buffer) == 2
 
 
 class TestGracefulDegradation:

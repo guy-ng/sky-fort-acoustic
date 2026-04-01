@@ -29,7 +29,7 @@ class TestOnnxDroneClassifier:
         from acoustic.classification.inference import OnnxDroneClassifier
 
         clf = OnnxDroneClassifier(str(DUMMY_MODEL))
-        inp = np.random.randn(1, 128, 64, 1).astype(np.float32)
+        inp = np.random.randn(1, 3, 224, 224).astype(np.float32)
         result = clf.predict(inp)
         assert isinstance(result, float)
         assert 0.0 <= result <= 1.0
@@ -38,6 +38,6 @@ class TestOnnxDroneClassifier:
         from acoustic.classification.inference import OnnxDroneClassifier
 
         clf = OnnxDroneClassifier(str(DUMMY_MODEL))
-        inp = np.zeros((1, 128, 64, 1), dtype=np.float32)
+        inp = np.zeros((1, 3, 224, 224), dtype=np.float32)
         result = clf.predict(inp)
         assert isinstance(result, float)

@@ -110,6 +110,9 @@ async def ws_targets(websocket: WebSocket) -> None:
                         await websocket.send_json({
                             "type": "device_disconnected",
                             "scanning": status.scanning,
+                            "targets": [],
+                            "drone_probability": None,
+                            "detection_state": None,
                         })
                         device_ok = False
                     elif status.detected and not device_ok:
@@ -122,12 +125,18 @@ async def ws_targets(websocket: WebSocket) -> None:
                 try:
                     pipeline = websocket.app.state.pipeline
                     targets = pipeline.latest_targets
-                    await websocket.send_json(targets)
+                    drone_prob = pipeline.latest_drone_probability
+                    det_state = pipeline.latest_detection_state
+                    await websocket.send_json({
+                        "targets": targets,
+                        "drone_probability": drone_prob,
+                        "detection_state": det_state,
+                    })
                 except (WebSocketDisconnect, RuntimeError):
                     raise
                 except Exception:
                     logger.debug("Target frame skipped (pipeline may be mid-swap)")
-                    await websocket.send_json([])
+                    await websocket.send_json({"targets": [], "drone_probability": None, "detection_state": None})
             await asyncio.sleep(0.5)  # 2 Hz -- targets change slowly
     except (WebSocketDisconnect, RuntimeError):
         logger.debug("Targets WebSocket client disconnected")

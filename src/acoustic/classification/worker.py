@@ -62,7 +62,7 @@ class CNNWorker:
         logger.info("CNN worker thread stopped")
 
     def push(self, mono_audio: np.ndarray, az_deg: float, el_deg: float) -> None:
-        """Submit audio for classification (non-blocking, drop if busy).
+        """Submit audio for classification (non-blocking, replace if busy).
 
         Args:
             mono_audio: 1-D float32 mono audio at self._fs_in sample rate.
@@ -73,8 +73,16 @@ class CNNWorker:
         try:
             self._queue.put_nowait(item)
         except queue.Full:
-            # Drop -- inference still running on previous segment
-            pass
+            # Drain stale item and replace with latest audio so the worker
+            # always processes the most recent segment after current inference.
+            try:
+                self._queue.get_nowait()
+            except queue.Empty:
+                pass
+            try:
+                self._queue.put_nowait(item)
+            except queue.Full:
+                pass
 
     def get_latest(self) -> ClassificationResult | None:
         """Return the most recent classification result, or None."""
@@ -92,6 +100,18 @@ class CNNWorker:
             try:
                 t0 = time.monotonic()
                 preprocessed = preprocess_for_cnn(mono_audio, self._fs_in)
+                if preprocessed is None:
+                    # Silence — report 0 probability so the UI stays fresh
+                    result = ClassificationResult(
+                        drone_probability=0.0,
+                        timestamp=time.monotonic(),
+                        az_deg=az_deg,
+                        el_deg=el_deg,
+                    )
+                    with self._lock:
+                        self._latest = result
+                    logger.debug("CNN: silence detected, reporting prob=0.0")
+                    continue
                 prob = self._classifier.predict(preprocessed)
                 elapsed = time.monotonic() - t0
 

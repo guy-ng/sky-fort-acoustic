@@ -16,12 +16,16 @@ from acoustic.tracking.schema import EventType, TargetEvent
 class TestTargetsWebSocket:
     """Tests for the updated /ws/targets endpoint."""
 
-    def test_targets_returns_list(self, running_app):
-        """/ws/targets returns a JSON list."""
+    def test_targets_returns_dict_with_targets(self, running_app):
+        """/ws/targets returns a JSON dict with targets, drone_probability, detection_state."""
         client = TestClient(running_app)
         with client.websocket_connect("/ws/targets") as ws:
             data = ws.receive_json()
-            assert isinstance(data, list)
+            assert isinstance(data, dict)
+            assert "targets" in data
+            assert isinstance(data["targets"], list)
+            assert "drone_probability" in data
+            assert "detection_state" in data
 
     def test_targets_no_placeholder_import(self):
         """Verify placeholder_target_from_peak is not imported in websocket module."""

@@ -5,12 +5,16 @@ interface UseTargetSocketResult {
   targets: TargetState[]
   connected: boolean
   deviceOk: boolean
+  droneProbability: number | null
+  detectionState: string | null
 }
 
 export function useTargetSocket(): UseTargetSocketResult {
   const [connected, setConnected] = useState(false)
   const [targets, setTargets] = useState<TargetState[]>([])
   const [deviceOk, setDeviceOk] = useState(true)
+  const [droneProbability, setDroneProbability] = useState<number | null>(null)
+  const [detectionState, setDetectionState] = useState<string | null>(null)
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const reconnectDelay = useRef(2000)
@@ -42,14 +46,23 @@ export function useTargetSocket(): UseTargetSocketResult {
           if (msg.type === 'device_disconnected') {
             setDeviceOk(false)
             setTargets([])
+            setDroneProbability(null)
+            setDetectionState(null)
             return
           }
           if (msg.type === 'device_reconnected') {
             setDeviceOk(true)
             return
           }
-          // Regular target array
-          setTargets(msg as TargetState[])
+          // Structured target message with probability
+          if (msg.targets !== undefined) {
+            setTargets(msg.targets as TargetState[])
+            setDroneProbability(msg.drone_probability ?? null)
+            setDetectionState(msg.detection_state ?? null)
+          } else if (Array.isArray(msg)) {
+            // Legacy format fallback
+            setTargets(msg as TargetState[])
+          }
         } catch {
           // ignore parse errors
         }
@@ -82,5 +95,5 @@ export function useTargetSocket(): UseTargetSocketResult {
     }
   }, [connect])
 
-  return { targets, connected, deviceOk }
+  return { targets, connected, deviceOk, droneProbability, detectionState }
 }

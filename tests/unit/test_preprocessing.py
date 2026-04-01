@@ -75,7 +75,7 @@ class TestPreprocessForCnn:
 
         y = _synth_mono(2.0, 48000)
         out = preprocess_for_cnn(y, 48000)
-        assert out.shape == (1, 128, 64, 1)
+        assert out.shape == (1, 3, 224, 224)
         assert out.dtype == np.float32
 
     def test_short_audio_pads(self):
@@ -83,4 +83,4 @@ class TestPreprocessForCnn:
 
         y = _synth_mono(0.5, 48000)
         out = preprocess_for_cnn(y, 48000)
-        assert out.shape == (1, 128, 64, 1)
+        assert out.shape == (1, 3, 224, 224)

@@ -36,7 +36,6 @@ class AcousticSettings(BaseSettings):
     noise_margin: float = 1.5
 
     # Beamforming map normalization (POC logic)
-    mask_threshold_db: float = 10.0  # Only top N dB of map is visible
     ignore_origin_deg: float = 3.5  # Suppress broadside artifact within this radius of (0,0)
 
     # CNN classification

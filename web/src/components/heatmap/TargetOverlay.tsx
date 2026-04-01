@@ -43,9 +43,12 @@ export function TargetOverlay({ targets, gridInfo }: TargetOverlayProps) {
             <div
               className={`absolute inset-0 w-3 h-3 rounded-full border-2 ${confidenceColor(target.confidence)} bg-transparent`}
             />
-            {/* Target ID label */}
+            {/* Target ID + probability label */}
             <span className="absolute left-4 -top-1 text-[10px] font-mono text-hud-accent whitespace-nowrap">
               {target.id.slice(0, 8)}
+            </span>
+            <span className={`absolute left-4 top-2.5 text-[10px] font-mono font-semibold whitespace-nowrap ${target.confidence >= 0.7 ? 'text-hud-success' : target.confidence >= 0.4 ? 'text-hud-warning' : 'text-hud-danger'}`}>
+              {(target.confidence * 100).toFixed(0)}%
             </span>
           </div>
         )

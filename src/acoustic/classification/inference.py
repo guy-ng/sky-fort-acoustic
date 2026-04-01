@@ -14,8 +14,8 @@ logger = logging.getLogger(__name__)
 class OnnxDroneClassifier:
     """Binary drone/not-drone classifier using an ONNX model.
 
-    Accepts preprocessed mel-spectrogram input of shape (1, 128, 64, 1)
-    and returns a drone probability in [0.0, 1.0].
+    Accepts preprocessed mel-spectrogram input of shape (1, 3, 224, 224)
+    (EfficientNet-B0 format) and returns a drone probability in [0.0, 1.0].
     """
 
     def __init__(self, model_path: str) -> None:
@@ -32,11 +32,13 @@ class OnnxDroneClassifier:
         """Run inference on preprocessed input.
 
         Args:
-            preprocessed: Array of shape (1, 128, 64, 1) float32.
+            preprocessed: Array of shape (1, 3, 224, 224) float32.
 
         Returns:
-            Drone probability clamped to [0.0, 1.0].
+            Drone probability in [0.0, 1.0] (sigmoid of raw logit).
         """
         outputs = self._session.run(None, {self._input_name: preprocessed})
-        raw = float(outputs[0].flat[0])
-        return max(0.0, min(1.0, raw))
+        logit = float(outputs[0].flat[0])
+        # Apply sigmoid to convert raw logit to probability
+        prob = 1.0 / (1.0 + np.exp(-logit))
+        return float(prob)

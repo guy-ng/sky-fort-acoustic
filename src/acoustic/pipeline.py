@@ -1,4 +1,9 @@
-"""Background beamforming pipeline that consumes audio from a ring buffer."""
+"""Background pipeline that consumes audio from a ring buffer.
+
+Beamforming (SRP-PHAT) is currently stubbed out — the pipeline produces a
+zero map and no peaks.  The beamforming module is kept in the codebase for
+future re-integration.
+"""
 
 from __future__ import annotations
 
@@ -10,9 +15,6 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from acoustic.audio.capture import AudioRingBuffer
-from acoustic.beamforming.geometry import build_mic_positions
-from acoustic.beamforming.peak import detect_peak_with_threshold
-from acoustic.beamforming.srp_phat import srp_phat_2d
 from acoustic.config import AcousticSettings
 from acoustic.types import PeakDetection, placeholder_target_from_peak
 
@@ -25,7 +27,11 @@ logger = logging.getLogger(__name__)
 
 
 class BeamformingPipeline:
-    """Runs SRP-PHAT beamforming on audio chunks from a ring buffer in a background thread."""
+    """Consumes audio chunks from a ring buffer in a background thread.
+
+    Beamforming is currently stubbed — process_chunk returns a zero map and
+    no peak.  CNN classification still runs on the raw audio.
+    """
 
     def __init__(
         self,
@@ -35,23 +41,8 @@ class BeamformingPipeline:
         tracker: TargetTracker | None = None,
     ) -> None:
         self._settings = settings
-        self._mic_positions = build_mic_positions()
-        self._az_grid_deg = np.arange(
-            -settings.az_range,
-            settings.az_range + settings.az_resolution,
-            settings.az_resolution,
-        )
-        self._el_grid_deg = np.arange(
-            -settings.el_range,
-            settings.el_range + settings.el_resolution,
-            settings.el_resolution,
-        )
-        # Pre-compute origin distance mask for normalization (avoid per-frame meshgrid)
-        az_mesh, el_mesh = np.meshgrid(
-            self._az_grid_deg, self._el_grid_deg, indexing="ij"
-        )
-        self._origin_dist = np.sqrt(az_mesh**2 + el_mesh**2)
-
+        self._az_size = int((2 * settings.az_range / settings.az_resolution) + 1)
+        self._el_size = int((2 * settings.el_range / settings.el_resolution) + 1)
         self.latest_map: np.ndarray | None = None
         self.latest_peak: PeakDetection | None = None
         self._running = False
@@ -65,72 +56,22 @@ class BeamformingPipeline:
         self._mono_buffer: list[np.ndarray] = []
         self._mono_buffer_samples: int = 0
         self._cnn_segment_samples: int = int(settings.sample_rate * 2.0)
-
-    def _normalize_map(self, srp_map: np.ndarray) -> np.ndarray:
-        """Apply dB conversion, origin suppression, and top-dB masking (POC logic).
-
-        Returns a [0, 1] normalized map where only the top mask_threshold_db
-        of energy is visible and the broadside origin artifact is suppressed.
-        """
-        # Step 1: Convert to dB scale
-        db_map = 10.0 * np.log10(np.maximum(srp_map, 1e-20))
-
-        # Step 2: Suppress origin artifact
-        db_map[self._origin_dist < self._settings.ignore_origin_deg] = -np.inf
-
-        # Step 3: Top-N-dB masking
-        finite_vals = db_map[np.isfinite(db_map)]
-        if len(finite_vals) == 0:
-            return np.zeros_like(srp_map)
-        db_max = float(np.max(finite_vals))
-        thresh = db_max - self._settings.mask_threshold_db
-
-        # Normalize to [0, 1] within the top-dB window
-        denom = self._settings.mask_threshold_db
-        if denom <= 0:
-            denom = 1.0
-        result = (db_map - thresh) / denom
-        result = np.clip(result, 0.0, 1.0)
-
-        return result
+        self._last_cnn_push: float = 0.0
+        self._cnn_interval: float = 0.5  # Run CNN at least every 0.5s even without peaks
 
     def process_chunk(self, chunk: np.ndarray) -> PeakDetection | None:
-        """Run SRP-PHAT beamforming on a single audio chunk.
+        """Stub: produce a zero beamforming map with no peak detection.
 
         Args:
             chunk: (chunk_samples, num_channels) float32 array from ring buffer.
 
         Returns:
-            PeakDetection if a peak exceeds the noise threshold, else None.
+            Always None (no beamforming peak).
         """
-        # Transpose from (samples, channels) to (channels, samples) for SRP-PHAT
-        signals = chunk.T
-
-        srp_map = srp_phat_2d(
-            signals=signals,
-            mic_positions=self._mic_positions,
-            fs=self._settings.sample_rate,
-            c=self._settings.speed_of_sound,
-            az_grid_deg=self._az_grid_deg,
-            el_grid_deg=self._el_grid_deg,
-            fmin=self._settings.freq_min,
-            fmax=self._settings.freq_max,
-        )
-
-        self.latest_map = self._normalize_map(srp_map)
-
-        peak = detect_peak_with_threshold(
-            srp_map=srp_map,
-            az_grid_deg=self._az_grid_deg,
-            el_grid_deg=self._el_grid_deg,
-            percentile=self._settings.noise_percentile,
-            margin=self._settings.noise_margin,
-            ignore_origin_deg=self._settings.ignore_origin_deg,
-        )
-        self.latest_peak = peak
+        self.latest_map = np.zeros((self._az_size, self._el_size), dtype=np.float32)
+        self.latest_peak = None
         self._last_process_time = time.monotonic()
-
-        return peak
+        return None
 
     def _run_loop(self, ring_buffer: AudioRingBuffer) -> None:
         """Background thread target: continuously read chunks and process them."""
@@ -152,21 +93,30 @@ class BeamformingPipeline:
         if self._cnn_worker is None:
             return
 
-        if peak is not None:
-            # Accumulate mono audio for CNN segment
-            mono = chunk.mean(axis=1).astype(np.float32)
-            self._mono_buffer.append(mono)
-            self._mono_buffer_samples += len(mono)
+        # Always accumulate mono audio so we have a rolling buffer ready
+        mono = chunk.mean(axis=1).astype(np.float32)
+        self._mono_buffer.append(mono)
+        self._mono_buffer_samples += len(mono)
 
-            if self._mono_buffer_samples >= self._cnn_segment_samples:
-                segment = np.concatenate(self._mono_buffer)[-self._cnn_segment_samples:]
+        # Trim buffer to at most 2x the segment length to bound memory
+        max_samples = self._cnn_segment_samples * 2
+        while self._mono_buffer_samples > max_samples:
+            dropped = self._mono_buffer.pop(0)
+            self._mono_buffer_samples -= len(dropped)
+
+        # Push to CNN when we have enough audio accumulated:
+        # - On peak: push immediately with peak bearing
+        # - No peak: push periodically (every _cnn_interval) with (0,0) bearing
+        #   so the UI always has a fresh drone probability
+        now = time.monotonic()
+        if self._mono_buffer_samples >= self._cnn_segment_samples:
+            segment = np.concatenate(self._mono_buffer)[-self._cnn_segment_samples:]
+            if peak is not None:
                 self._cnn_worker.push(segment, peak.az_deg, peak.el_deg)
-                self._mono_buffer.clear()
-                self._mono_buffer_samples = 0
-        else:
-            # No peak -- reset accumulation
-            self._mono_buffer.clear()
-            self._mono_buffer_samples = 0
+                self._last_cnn_push = now
+            elif now - self._last_cnn_push >= self._cnn_interval:
+                self._cnn_worker.push(segment, 0.0, 0.0)
+                self._last_cnn_push = now
 
         # Check for CNN results
         result = self._cnn_worker.get_latest()
@@ -211,6 +161,21 @@ class BeamformingPipeline:
         self.clear_state()
         self.start(ring_buffer)
         logger.info("Pipeline restarted with new ring buffer")
+
+    @property
+    def latest_drone_probability(self) -> float | None:
+        """Return the most recent CNN drone probability, regardless of detection state."""
+        if self._cnn_worker is None:
+            return None
+        result = self._cnn_worker.get_latest()
+        return result.drone_probability if result is not None else None
+
+    @property
+    def latest_detection_state(self) -> str | None:
+        """Return the current detection state machine label."""
+        if self._state_machine is None:
+            return None
+        return self._state_machine.state.value
 
     @property
     def latest_targets(self) -> list[dict]:

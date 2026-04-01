@@ -13,7 +13,7 @@ function confidenceBarColor(confidence: number): string {
 
 export function TargetCard({ target }: TargetCardProps) {
   return (
-    <Panel className="min-w-[180px] shrink-0">
+    <Panel className="shrink-0">
       <div className="flex flex-col gap-1.5">
         {/* Target ID */}
         <div className="font-mono text-sm text-hud-accent font-semibold">
@@ -23,6 +23,24 @@ export function TargetCard({ target }: TargetCardProps) {
         {/* Class label */}
         <div className="text-xs text-hud-text-dim">
           {target.class_label}
+        </div>
+
+        {/* Drone probability */}
+        <div className="flex justify-between text-xs">
+          <span className="text-hud-text-dim">Probability</span>
+          <span className={`font-mono font-semibold ${target.confidence >= 0.7 ? 'text-hud-success' : target.confidence >= 0.4 ? 'text-hud-warning' : 'text-hud-danger'}`}>
+            {(target.confidence * 100).toFixed(1)}%
+          </span>
+        </div>
+
+        {/* Confidence bar */}
+        <div>
+          <div className="h-1.5 w-full bg-hud-border rounded-full overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all ${confidenceBarColor(target.confidence)}`}
+              style={{ width: `${Math.round(target.confidence * 100)}%` }}
+            />
+          </div>
         </div>
 
         {/* Speed */}
@@ -39,19 +57,6 @@ export function TargetCard({ target }: TargetCardProps) {
           <span className="font-mono text-hud-text">
             Az: {target.az_deg.toFixed(1)} El: {target.el_deg.toFixed(1)}
           </span>
-        </div>
-
-        {/* Confidence bar */}
-        <div className="mt-1">
-          <div className="h-1.5 w-full bg-hud-border rounded-full overflow-hidden">
-            <div
-              className={`h-full rounded-full transition-all ${confidenceBarColor(target.confidence)}`}
-              style={{ width: `${Math.round(target.confidence * 100)}%` }}
-            />
-          </div>
-          <div className="text-[10px] text-hud-text-dim font-mono mt-0.5 text-right">
-            {(target.confidence * 100).toFixed(0)}%
-          </div>
         </div>
       </div>
     </Panel>
