@@ -59,6 +59,19 @@ Reliably detect and classify drones acoustically in real time, publishing target
 - **Real-time**: Audio processing must keep up with 48kHz 16-channel stream
 - **Deployment**: Must run independently — no dependency on other POC components
 
+## Current Milestone: v2.0 Research Classification Migration
+
+**Goal:** Replace the current EfficientNet-B0 classification with the Acoustic-UAV-Identification research pipeline — new CNN architecture, mel-spectrogram preprocessing, segment aggregation, PyTorch training, late fusion ensemble, and field data collection.
+
+**Target features:**
+- Port research CNN architecture (3-layer CNN with GlobalAvgPool) to PyTorch, replacing EfficientNet-B0 ONNX
+- Adapt preprocessing to research params (64 mels, 128 frames, 16kHz, log-dB normalization)
+- Add segment-level aggregation (p_max, p_mean, p_agg, weighted combination)
+- PyTorch training pipeline integrated into service
+- Late fusion ensemble support (multi-model soft/hard voting)
+- UMA-16 dataset collection via web UI
+- Model evaluation harness (confusion matrix, distribution stats, per-file analysis)
+
 ## Key Decisions
 
 | Decision | Rationale | Outcome |
@@ -87,4 +100,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-30 after Phase 1 completion*
+*Last updated: 2026-04-01 — Milestone v2.0 started*

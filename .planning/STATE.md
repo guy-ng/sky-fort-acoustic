@@ -1,17 +1,17 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.0
-milestone_name: milestone
-status: verifying
-stopped_at: "Completed 03-03 (checkpoint:human-verify pending)"
-last_updated: "2026-03-31T17:07:46.166Z"
-last_activity: 2026-03-31
+milestone: v2.0
+milestone_name: Research Classification Migration
+status: planning
+stopped_at: null
+last_updated: "2026-04-01T00:00:00.000Z"
+last_activity: 2026-04-01
 progress:
-  total_phases: 5
-  completed_phases: 2
-  total_plans: 9
-  completed_plans: 8
-  percent: 20
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -25,12 +25,12 @@ See: .planning/PROJECT.md (updated 2026-03-29)
 
 ## Current Position
 
-Phase: 03 (cnn-classification-and-target-tracking) — EXECUTING
-Plan: 3 of 3 (Wave 1 complete, Wave 2 pending)
-Status: Phase complete — ready for verification
-Last activity: 2026-04-01 - Completed quick task 260401-0fb: Beamforming map focus on drone data
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-04-01 — Milestone v2.0 started
 
-Progress: [##........] 20%
+Progress: [..........] 0%
 
 ## Performance Metrics
 
