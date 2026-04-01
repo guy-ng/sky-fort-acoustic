@@ -1,410 +1,670 @@
-# Architecture Patterns
+# Architecture Research
 
-**Domain:** Acoustic drone detection and tracking microservice
-**Researched:** 2026-03-29
+**Domain:** Acoustic UAV classification pipeline migration
+**Researched:** 2026-04-01
+**Confidence:** HIGH
 
-## Recommended Architecture
+## Standard Architecture
 
-A **pipeline architecture** with four processing stages feeding a shared state bus. Each stage runs in its own thread (or async task), communicating via thread-safe queues and shared state objects. The service exposes two output interfaces: ZeroMQ PUB for downstream machine consumers and REST/WebSocket for the web UI.
-
-```
-+------------------+     +------------------+     +------------------+
-|  Audio Capture   | --> |  Beamforming     | --> |  Target Tracker  |
-|  (sounddevice)   |     |  (acoular)       |     |  (state machine) |
-|  16ch @ 48kHz    |     |  spatial map     |     |  ID, bearing,    |
-|                  |     |  peak detection  |     |  speed, class    |
-+------------------+     +--+------------+--+     +--------+---------+
-                            |            |                 |
-                            v            |                 v
-                    +-------+------+     |        +--------+---------+
-                    | CNN Classifier|    |        |  Event Publisher  |
-                    | (TF/Keras)   |     |        |  (ZeroMQ PUB)    |
-                    | mel-spec +   |     |        |  detection events |
-                    | drone prob   |     |        |  periodic updates |
-                    +--------------+     |        +------------------+
-                                         |
-                                         v
-                              +----------+---------+
-                              |  REST API (FastAPI) |
-                              |  /beamforming-map   |
-                              |  /targets           |
-                              |  /recordings        |
-                              |  /training          |
-                              |  WebSocket /ws/live  |
-                              +----------+---------+
-                                         |
-                                         v
-                              +----------+---------+
-                              |  React Web UI       |
-                              |  (Vite+TS+Tailwind) |
-                              |  served as static   |
-                              +--------------------+
-```
-
-### Component Boundaries
-
-| Component | Responsibility | Inputs | Outputs | Thread Model |
-|-----------|---------------|--------|---------|--------------|
-| **Audio Capture** | Acquire raw 16-channel PCM from UMA-16v2 via sounddevice | USB audio device | Raw PCM chunks (80ms @ 48kHz = 3840 samples x 16ch) | Dedicated thread with blocking read |
-| **Beamforming Engine** | Compute spatial sound map, find peak direction | Raw PCM chunks | Beamforming map (2D grid), peak (x,y), azimuth, L_max dB | Same thread as capture (tight loop, as in POC) |
-| **CNN Classifier** | Classify audio as drone/not-drone, output probability | Resampled mono audio segment (2s @ 16kHz) | Drone probability (0-1), drone class label | Separate thread (GPU/CPU inference is blocking) |
-| **Target Tracker** | Maintain target state machine: detection, tracking, loss | Beamforming peak + CNN probability | Target ID, class, pan/tilt degrees, Doppler speed, state | Runs in main processing loop after beamforming |
-| **Doppler Estimator** | Estimate radial speed from frequency shift over time | Sequential beamforming peaks + audio spectra | Speed estimate (m/s) | Inline computation in tracker |
-| **ZeroMQ Publisher** | Publish detection and tracking events to downstream | Target state changes | JSON messages on topic-filtered PUB socket | Dedicated async task or thread |
-| **REST API** | Serve beamforming map, target info, recording CRUD, training trigger | HTTP requests | JSON responses, WebSocket streams | FastAPI async event loop |
-| **Recording Manager** | Record raw 16-ch audio to disk, manage metadata | Audio capture stream + user commands | WAV files + metadata JSON | Writes in capture thread, metadata via API |
-| **Training Pipeline** | Train/retrain CNN model from labeled recordings | Labeled WAV files + metadata | Updated model file (.h5/.keras) | Background process (CPU/GPU intensive) |
-| **Web UI** | Live monitoring, recording controls, training UI | REST API + WebSocket | User interactions | Separate build artifact, served as static files |
-
-### Data Flow
-
-**Real-time detection path (latency-critical):**
+### System Overview
 
 ```
-USB Mic (48kHz, 16ch)
-  |
-  v
-[Audio Capture Thread]
-  |-- raw PCM chunk (80ms)
-  |
-  +---> [Beamforming] (acoular: TimeSamples -> PowerSpectra -> BeamformerBase)
-  |       |-- spatial map (101x101 grid)
-  |       |-- peak location (ix, iy)
-  |       |-- azimuth (degrees)
-  |       |-- L_max (dB)
-  |       |
-  |       +---> [Target Tracker]
-  |               |-- pan/tilt calculation from peak
-  |               |-- Doppler estimation from peak shift over time
-  |               |-- state machine: IDLE -> DETECTED -> TRACKING -> LOST
-  |               |
-  |               +---> [ZeroMQ PUB] detection/update events
-  |               +---> [Shared State] for REST API to read
-  |
-  +---> [Ring Buffer] (last 2s of mono audio)
-          |
-          +---> [CNN Classifier Thread] (every 0.5s)
-                  |-- resample 48kHz -> 16kHz
-                  |-- mel spectrogram (64 mels, 128 frames)
-                  |-- model.predict() -> drone probability
-                  |-- feeds into Target Tracker state
+                              EXISTING (keep)                          NEW (add)
+                    +----------------------------+        +----------------------------+
+                    |  AudioCapture / Simulator   |        |    DatasetCollector (API)   |
+                    |  -> AudioRingBuffer          |        |  record + label + metadata  |
+                    +-------------+--------------+        +-------------+--------------+
+                                  |                                      |
+                                  v                                      v
+                    +----------------------------+        +----------------------------+
+                    |   BeamformingPipeline       |        |     data/recordings/        |
+                    |   process_chunk()           |        |     {label}/{bin}/*.wav      |
+                    |   _process_cnn() <-- MODIFY |        |     + .json metadata         |
+                    +-------------+--------------+        +----------------------------+
+                                  |                                      |
+                        +---------+---------+                            v
+                        |                   |              +----------------------------+
+                        v                   v              |   TrainingPipeline          |
+              +----------------+  +------------------+    |   PyTorch CNN (3-layer)     |
+              | CNNWorker      |  | StateMachine     |    |   -> .pt checkpoints        |
+              | (background    |  | (3-state          |    |   -> ONNX export            |
+              |  thread)       |  |  hysteresis)      |    +-------------+--------------+
+              | MODIFY: swap   |  |                   |                  |
+              | classifier     |  +------------------+                  v
+              +-------+--------+                          +----------------------------+
+                      |                                   |   EvaluationHarness         |
+                      v                                   |   confusion matrix, dist    |
+              +----------------+                          |   stats, per-file analysis  |
+              | Classifier     |                          +----------------------------+
+              | (Protocol)     |
+              | REPLACE:       |
+              | OnnxDrone.. -> |                          +----------------------------+
+              | ResearchCNN +  |                          |   EnsembleClassifier        |
+              | Ensemble       |                          |   soft/hard voting          |
+              +-------+--------+                          |   weighted combination      |
+                      |                                   +----------------------------+
+                      v
+              +----------------+
+              | SegmentAggr.   |
+              | NEW: p_max,    |
+              | p_mean, p_agg  |
+              +-------+--------+
+                      |
+                      v
+              +----------------+
+              | TargetTracker  |
+              | (keep as-is)   |
+              +----------------+
 ```
 
-**Recording path:**
+### Component Responsibilities
+
+| Component | Status | Responsibility | Communicates With |
+|-----------|--------|---------------|-------------------|
+| `AudioRingBuffer` | KEEP | Ring buffer for 16-ch audio chunks | Pipeline reads, Capture writes |
+| `BeamformingPipeline` | MODIFY | Orchestrates chunk processing + CNN dispatch | CNNWorker, StateMachine, Tracker |
+| `CNNWorker` | MODIFY | Background inference thread, single-slot queue | Classifier (via protocol), Pipeline |
+| `OnnxDroneClassifier` | REPLACE | ONNX EfficientNet-B0 inference | CNNWorker calls `.predict()` |
+| `preprocessing.py` | REPLACE | Mel-spec for EfficientNet (224x224, 3-ch) | CNNWorker calls `preprocess_for_cnn()` |
+| `DetectionStateMachine` | KEEP | 3-state hysteresis (NO_DRONE/CANDIDATE/CONFIRMED) | Pipeline feeds probabilities |
+| `TargetTracker` | KEEP | Track targets by bearing + confidence | Pipeline feeds on CONFIRMED |
+| `AcousticSettings` | EXTEND | Pydantic settings from env vars | All components read config |
+| `routes.py` | EXTEND | REST API for map, targets | Pipeline, new training/eval endpoints |
+| **ResearchClassifier** | NEW | PyTorch CNN inference (research arch) | CNNWorker via Classifier protocol |
+| **ResearchPreprocessor** | NEW | Mel-spec matching research params (128x64, 1-ch) | CNNWorker, TrainingPipeline |
+| **SegmentAggregator** | NEW | p_max, p_mean, p_agg from segment probs | CNNWorker (post-inference) |
+| **EnsembleClassifier** | NEW | Multi-model soft/hard voting | CNNWorker (wraps multiple classifiers) |
+| **TrainingPipeline** | NEW | PyTorch training loop, dataset loading | REST API triggers, filesystem |
+| **EvaluationHarness** | NEW | Confusion matrix, distribution stats | REST API triggers, filesystem |
+| **DatasetCollector** | NEW | Record + label audio via web UI | REST API, AudioCapture |
+
+## Recommended Project Structure
 
 ```
-[Audio Capture Thread] ---(raw 16ch PCM)---> [WAV Writer] ---> disk
-[REST API] ---(start/stop/metadata)---> [Recording Manager]
-[Web UI] ---(labels, notes)---> [REST API] ---> [Metadata Store]
+src/acoustic/
+  classification/
+    __init__.py                    # KEEP
+    inference.py                   # MODIFY: add Classifier protocol, keep OnnxDroneClassifier
+    preprocessing.py               # MODIFY: rename current to efficientnet_preprocessing.py
+    state_machine.py               # KEEP (no changes)
+    worker.py                      # MODIFY: support new classifier + aggregation
+    # --- NEW FILES ---
+    protocol.py                    # Classifier protocol (interface)
+    research_model.py              # PyTorch 3-layer CNN architecture definition
+    research_classifier.py         # PyTorch/ONNX inference implementing Classifier protocol
+    research_preprocessing.py      # Research mel-spec params (64 mels, 128 frames, 16kHz)
+    aggregation.py                 # SegmentAggregator: p_max, p_mean, p_agg, weighted
+    ensemble.py                    # EnsembleClassifier: soft/hard voting, weighted combo
+  training/                        # NEW PACKAGE
+    __init__.py
+    dataset.py                     # PyTorch Dataset for WAV files (replaces tf.data)
+    trainer.py                     # Training loop (replaces train_strong_cnn.py)
+    export.py                      # PyTorch -> ONNX export
+    config.py                      # Training hyperparameters (Pydantic model)
+  evaluation/                      # NEW PACKAGE
+    __init__.py
+    harness.py                     # Evaluation runner (replaces eval_folder_with_strong_cnn.py)
+    metrics.py                     # Confusion matrix, precision, recall, F1, dist stats
+  collection/                      # NEW PACKAGE
+    __init__.py
+    recorder.py                    # Record labeled clips (replaces uma16_dataset_collector_gui.py)
+    metadata.py                    # JSON metadata schema for recordings
+  pipeline.py                      # MODIFY: wire new aggregation into _process_cnn
+  config.py                        # EXTEND: add training/eval/collection settings
+  api/
+    routes.py                      # EXTEND: add /api/training/*, /api/eval/*, /api/collection/*
+    models.py                      # EXTEND: add request/response models for new endpoints
+
+models/                            # Model artifacts directory
+  uav_melspec_cnn.onnx             # KEEP (legacy EfficientNet, for fallback)
+  research_cnn_v1.pt               # NEW: PyTorch checkpoint
+  research_cnn_v1.onnx             # NEW: Exported ONNX for production inference
+  ensemble/                        # NEW: Multiple model checkpoints for voting
+    model_1.onnx
+    model_2.onnx
+    ...
+
+data/                              # Training data (gitignored)
+  train/
+    uav/*.wav
+    background/*.wav
+  test/
+    uav/*.wav
+    background/*.wav
+  recordings/                      # NEW: UMA-16 field recordings
+    drone/{distance_bin}/*.wav
+    background/{distance_bin}/*.wav
 ```
 
-**Training path:**
+## Architectural Patterns
 
-```
-[Web UI] ---(trigger training)---> [REST API] ---> [Training Pipeline]
-[Training Pipeline]:
-  1. Load labeled recordings from disk
-  2. Extract mel spectrograms
-  3. Train CNN (TensorFlow/Keras)
-  4. Save model to disk
-  5. Hot-reload model in CNN Classifier thread
-```
+### Pattern 1: Classifier Protocol (Strategy Pattern)
 
-**Playback/simulation path:**
+The current code hardcodes `OnnxDroneClassifier`. Replace with a protocol so `CNNWorker` is classifier-agnostic.
 
-```
-[Web UI] ---(select recording)---> [REST API] ---> [Playback Engine]
-[Playback Engine]:
-  1. Read WAV file
-  2. Feed chunks to Beamforming Engine (same pipeline as live)
-  3. Results flow through Target Tracker -> ZeroMQ + API as normal
-```
+**What:** Define a `Classifier` protocol, make all classifiers implement it. `CNNWorker` depends on the protocol, not the concrete class.
 
-## Patterns to Follow
-
-### Pattern 1: Threaded Pipeline with Shared State
-
-**What:** Each processing stage runs in its own thread. Communication happens through thread-safe shared state objects (with locks) and queues. This matches the POC's proven `SharedState` pattern.
-
-**When:** Always -- this is the core architecture.
-
-**Why:** Audio capture is blocking I/O. CNN inference is CPU-bound. The REST API is async I/O. These workloads naturally separate into threads. The POC already validates this approach works at 48kHz/16ch.
+**Why:** Enables swapping EfficientNet ONNX for research CNN, ONNX-exported research CNN, or ensemble -- without touching worker logic.
 
 ```python
-import threading
-from dataclasses import dataclass, field
-from collections import deque
+# classification/protocol.py
+from typing import Protocol, runtime_checkable
 import numpy as np
 
-@dataclass
-class SharedState:
-    # Audio capture -> Beamforming (same thread, direct)
-    # Beamforming -> API/ZMQ (shared state with locks)
-    map_lock: threading.Lock = field(default_factory=threading.Lock)
-    beamforming_map: np.ndarray | None = None
-    peak_azimuth_deg: float = 0.0
-    peak_elevation_deg: float = 0.0
-    l_max_db: float = -100.0
+@runtime_checkable
+class Classifier(Protocol):
+    """Interface for any drone classifier."""
+    def predict(self, preprocessed: np.ndarray) -> float:
+        """Return drone probability in [0.0, 1.0]."""
+        ...
 
-    # CNN -> Tracker (shared state with lock)
-    cnn_lock: threading.Lock = field(default_factory=threading.Lock)
-    drone_probability: float = 0.0
-    drone_class: str = ""
-
-    # Tracker -> ZMQ/API (shared state with lock)
-    target_lock: threading.Lock = field(default_factory=threading.Lock)
-    targets: dict = field(default_factory=dict)
-
-    # Control signals
-    stop: threading.Event = field(default_factory=threading.Event)
+@runtime_checkable
+class Preprocessor(Protocol):
+    """Interface for audio-to-model-input preprocessing."""
+    def __call__(self, mono_audio: np.ndarray, fs_in: int) -> np.ndarray | None:
+        """Return preprocessed tensor or None if silence."""
+        ...
 ```
 
-### Pattern 2: Topic-Based ZeroMQ Events
+### Pattern 2: Segment Aggregation (Post-Inference)
 
-**What:** Use ZeroMQ PUB/SUB with topic prefixes for different event types. Subscribers filter by topic.
+The research pipeline splits audio into overlapping 0.5s segments and aggregates predictions. This happens AFTER per-segment inference, BEFORE the state machine.
 
-**When:** All outbound event publishing.
+**What:** `SegmentAggregator` accumulates per-segment probabilities and produces file-level scores.
 
-```python
-import zmq
-import json
-
-# Publisher side
-ctx = zmq.Context()
-pub = ctx.socket(zmq.PUB)
-pub.bind("tcp://*:5556")
-
-# Detection event (new target)
-pub.send_multipart([
-    b"detection",
-    json.dumps({
-        "target_id": "T-001",
-        "drone_class": "DJI_Mavic",
-        "confidence": 0.92,
-        "pan_deg": 45.2,
-        "tilt_deg": 12.1,
-        "timestamp": 1711720000.123
-    }).encode()
-])
-
-# Periodic update (existing target)
-pub.send_multipart([
-    b"tracking",
-    json.dumps({
-        "target_id": "T-001",
-        "speed_mps": 8.3,
-        "pan_deg": 46.1,
-        "tilt_deg": 11.8,
-        "timestamp": 1711720000.223
-    }).encode()
-])
-
-# Target lost
-pub.send_multipart([
-    b"lost",
-    json.dumps({
-        "target_id": "T-001",
-        "timestamp": 1711720002.5
-    }).encode()
-])
-```
-
-### Pattern 3: FastAPI with Background Thread Bridge
-
-**What:** FastAPI runs in its own async event loop. A bridge reads from SharedState and can push to WebSocket clients. Background threads handle the audio pipeline.
-
-**When:** REST API + WebSocket serving.
+**When:** Real-time inference. The CNNWorker currently processes one 2-second chunk. With the research approach, it processes multiple 0.5s overlapping segments from that chunk and aggregates.
 
 ```python
-from fastapi import FastAPI, WebSocket
-from contextlib import asynccontextmanager
-import asyncio
+# classification/aggregation.py
+import numpy as np
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # Start audio pipeline threads
-    pipeline = AudioPipeline(state)
-    pipeline.start()
-    yield
-    # Shutdown
-    state.stop.set()
-    pipeline.join(timeout=5.0)
+class SegmentAggregator:
+    """Aggregate segment-level drone probabilities into a single score."""
 
-app = FastAPI(lifespan=lifespan)
+    def __init__(self, w_max: float = 0.7, w_mean: float = 0.3):
+        self._w_max = w_max
+        self._w_mean = w_mean
 
-@app.get("/api/beamforming-map")
-async def get_beamforming_map():
-    with state.map_lock:
-        if state.beamforming_map is None:
-            return {"map": None}
+    def aggregate(self, segment_probs: np.ndarray) -> dict:
+        """Return p_max, p_mean, p_agg, and weighted combination."""
+        p_max = float(np.max(segment_probs))
+        p_mean = float(np.mean(segment_probs))
+        # Probability at least one segment is drone
+        p_agg = 1.0 - float(np.prod(1.0 - segment_probs))
+        p_weighted = self._w_max * p_max + self._w_mean * p_mean
         return {
-            "map": state.beamforming_map.tolist(),
-            "peak_azimuth": state.peak_azimuth_deg,
-            "l_max_db": state.l_max_db
+            "p_max": p_max,
+            "p_mean": p_mean,
+            "p_agg": p_agg,
+            "p_weighted": p_weighted,
         }
-
-@app.websocket("/ws/live")
-async def websocket_live(ws: WebSocket):
-    await ws.accept()
-    while True:
-        with state.target_lock:
-            data = serialize_targets(state.targets)
-        await ws.send_json(data)
-        await asyncio.sleep(0.1)  # 10 Hz update
 ```
 
-### Pattern 4: Single-Container Multi-Process via Supervisor or Entrypoint
+### Pattern 3: Ensemble as Composite Classifier
 
-**What:** Single Docker container runs Python backend (FastAPI + audio pipeline threads) plus serves pre-built React static files. No need for a separate frontend container.
+The ensemble wraps multiple classifiers and implements the same `Classifier` protocol. Transparent to the worker.
 
-**When:** Docker deployment.
+**What:** `EnsembleClassifier` holds N classifiers, runs all, combines via soft/hard voting.
 
-```dockerfile
-FROM python:3.11-slim
-# Install system deps for audio (ALSA/PulseAudio), build tools
-RUN apt-get update && apt-get install -y libportaudio2 libsndfile1
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-COPY backend/ /app/backend/
-COPY frontend/dist/ /app/frontend/dist/
-WORKDIR /app
-CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"]
+**When:** Production inference when multiple models are available.
+
+```python
+# classification/ensemble.py
+class EnsembleClassifier:
+    """Late fusion ensemble implementing Classifier protocol."""
+
+    def __init__(
+        self,
+        classifiers: list[Classifier],
+        weights: list[float] | None = None,
+        mode: str = "soft",  # "soft" or "hard"
+    ):
+        self._classifiers = classifiers
+        self._weights = weights or [1.0 / len(classifiers)] * len(classifiers)
+        self._mode = mode
+
+    def predict(self, preprocessed: np.ndarray) -> float:
+        probs = [c.predict(preprocessed) for c in self._classifiers]
+        if self._mode == "hard":
+            votes = [1 if p >= 0.5 else 0 for p in probs]
+            return float(np.average(votes, weights=self._weights))
+        else:
+            return float(np.average(probs, weights=self._weights))
 ```
 
-FastAPI serves the React build as static files via `StaticFiles` mount.
+### Pattern 4: Training as Background Task (not blocking the pipeline)
 
-## Anti-Patterns to Avoid
+**What:** Training runs in a separate thread, never on the inference path. FastAPI endpoint triggers it, WebSocket streams progress.
 
-### Anti-Pattern 1: Monolithic Processing Loop
+**Why:** Training is CPU/GPU-bound and long-running. Must not interfere with real-time audio processing.
 
-**What:** Putting audio capture, beamforming, CNN inference, and HTTP serving all in a single thread/loop (like the POC does partially).
+```python
+# training/trainer.py -- simplified structure
+class TrainingJob:
+    """Manages a single training run in a background thread."""
 
-**Why bad:** CNN inference (50-200ms) blocks the audio capture loop, causing buffer overruns and dropped frames. The POC already solves this with a separate `SoundCNNWorker` thread -- the new service must maintain this separation.
+    def __init__(self, config: TrainingConfig):
+        self.config = config
+        self.status = "pending"
+        self.progress = {}
+        self._thread: threading.Thread | None = None
 
-**Instead:** Keep CNN in its own thread with a queue. Audio capture + beamforming can share a thread (beamforming is fast, ~5-10ms per chunk). REST API runs in async event loop.
+    def start(self) -> None:
+        self._thread = threading.Thread(target=self._train, daemon=True)
+        self._thread.start()
 
-### Anti-Pattern 2: Passing Full Audio Arrays via ZeroMQ
-
-**What:** Publishing raw 16-channel audio data over ZeroMQ to downstream consumers.
-
-**Why bad:** 48kHz x 16ch x 4 bytes = 3 MB/s. ZeroMQ PUB/SUB is for events and metadata, not bulk audio streaming.
-
-**Instead:** Publish only detection events and tracking updates (small JSON payloads). If raw audio is needed downstream, use a different mechanism (shared filesystem, dedicated stream).
-
-### Anti-Pattern 3: REST Polling for Live Data
-
-**What:** Having the web UI poll REST endpoints at high frequency for live beamforming map and target updates.
-
-**Why bad:** HTTP overhead, latency, unnecessary load. Beamforming map is ~40KB per update at 12 Hz = 480 KB/s of redundant HTTP framing.
-
-**Instead:** Use WebSocket for live streaming data to the UI. REST for CRUD operations (recordings, metadata, training). The beamforming map and target updates flow over WebSocket.
-
-### Anti-Pattern 4: Training in the Main Process
-
-**What:** Running CNN training in the same Python process as the real-time pipeline.
-
-**Why bad:** Training consumes all CPU/GPU, starving the real-time audio pipeline. GIL contention with NumPy operations.
-
-**Instead:** Spawn training as a subprocess. The API triggers it, monitors progress via file or IPC, and hot-reloads the model when training completes.
-
-## Component Build Order (Dependencies)
-
-The architecture has clear dependency chains that dictate build order:
-
-```
-Phase 1: Audio Capture + Beamforming (foundation)
-   |
-   +-- No downstream deps. This is the core that everything reads from.
-   |   Extract from POC: sounddevice capture, acoular beamforming, mic geometry.
-   |   Output: SharedState with beamforming map, peak, azimuth, L_max.
-   |
-Phase 2: REST API + Static File Serving (output layer)
-   |
-   +-- Depends on: Phase 1 (reads SharedState for /beamforming-map endpoint)
-   |   FastAPI app, beamforming map endpoint, health check.
-   |   Serve React static files.
-   |
-Phase 3: Web UI - Live Monitoring (visualization)
-   |
-   +-- Depends on: Phase 2 (consumes REST API / WebSocket)
-   |   React app: beamforming heatmap, target list, connection status.
-   |   WebSocket for real-time updates.
-   |
-Phase 4: CNN Classifier (detection intelligence)
-   |
-   +-- Depends on: Phase 1 (reads audio from ring buffer)
-   |   Extract from POC: SoundCNNWorker, mel spectrogram, model loading.
-   |   Feeds drone probability into SharedState.
-   |
-Phase 5: Target Tracker + ZeroMQ Publisher (state machine + output)
-   |
-   +-- Depends on: Phase 1 (beamforming), Phase 4 (CNN classification)
-   |   State machine: IDLE -> DETECTED -> TRACKING -> LOST
-   |   Doppler speed estimation from peak shift.
-   |   Pan/tilt degree calculation.
-   |   ZeroMQ PUB with topic-filtered events.
-   |
-Phase 6: Recording + Playback (data capture)
-   |
-   +-- Depends on: Phase 1 (audio stream), Phase 2 (API endpoints)
-   |   Record raw 16ch WAV. Metadata attachment via API.
-   |   Playback: feed recorded WAV through same pipeline as live.
-   |
-Phase 7: CNN Training Pipeline (model lifecycle)
-   |
-   +-- Depends on: Phase 4 (model format), Phase 6 (labeled recordings)
-   |   Training subprocess. Hot-reload trained model.
-   |
-Phase 8: Docker Packaging (deployment)
-   |
-   +-- Depends on: All phases (containerize the whole service)
-       USB passthrough for UMA-16v2. Single container.
+    def _train(self) -> None:
+        self.status = "running"
+        # ... PyTorch training loop ...
+        # On completion: self.status = "complete"
+        # Export to ONNX for production use
 ```
 
-**Why this order:**
+### Pattern 5: Preprocessing Normalization Mismatch Guard
 
-1. **Audio + Beamforming first** because every other component depends on it. Cannot test anything without audio input.
-2. **REST API second** because it provides the interface for both humans (web UI) and integration testing.
-3. **Web UI third** because it enables visual validation of beamforming output -- critical for tuning.
-4. **CNN fourth** because it requires a working audio pipeline to feed it, and visual confirmation helps validate results.
-5. **Tracker + ZeroMQ fifth** because it synthesizes beamforming + CNN into the actual product output.
-6. **Recording sixth** because it's a side-channel off the existing pipeline, and recordings are needed for training.
-7. **Training seventh** because it needs labeled recordings to exist.
-8. **Docker last** because containerization should wrap a working service, not a partial one.
+**Critical:** The research pipeline uses `(S_db + 80) / 80` normalization (0-1 range), while the current service uses `(S_db - mean) / std` (zero-mean, unit-variance). These produce different distributions and are NOT interchangeable. The new preprocessor MUST match the training normalization exactly.
+
+**What:** The `ResearchPreprocessor` must use the research normalization: `(S_db + 80.0) / 80.0` clipped to [0, 1]. The current `norm_spec()` with zero-mean/unit-variance is ONLY for the legacy EfficientNet path.
+
+## Data Flow
+
+### Training Flow
+
+```
+[WAV files on disk]
+    |
+    v
+TrainingDataset (PyTorch Dataset)
+    | - list WAV files from data/train/{uav,background}/
+    | - random 0.5s segment per file (data augmentation)
+    | - segment_to_melspec() with research params
+    | - (S_db + 80) / 80 normalization
+    | - pad_or_trim to (128, 64)
+    | - expand dims -> (128, 64, 1)
+    |
+    v
+DataLoader (batch=32, shuffle=True)
+    |
+    v
+ResearchCNN (PyTorch nn.Module)
+    | - Conv2d(1, 32) -> BN -> MaxPool
+    | - Conv2d(32, 64) -> BN -> MaxPool
+    | - Conv2d(64, 128) -> BN -> MaxPool
+    | - GlobalAvgPool2d
+    | - Linear(128, 128) -> ReLU -> Dropout(0.3)
+    | - Linear(128, 1) -> Sigmoid
+    |
+    v
+BCELoss + Adam(lr=1e-3)
+    | - EarlyStopping(patience=8)
+    | - ReduceLR(patience=3)
+    |
+    v
+[Save .pt checkpoint] -> [Export to ONNX]
+```
+
+### Inference Flow (updated)
+
+```
+[Pipeline._process_cnn(chunk, peak)]
+    |
+    v
+Accumulate mono audio in rolling buffer (KEEP existing logic)
+    |
+    v
+When buffer >= segment_length:
+    |
+    +-- CHANGE: Split into overlapping 0.5s segments (was: single 2s chunk)
+    |   hop = 0.25s (50% overlap), yielding ~7 segments from 2s buffer
+    |
+    v
+For each segment:
+    ResearchPreprocessor
+    | - resample to 16kHz (KEEP, same target SR)
+    | - silence gate (KEEP, same RMS check)
+    | - melspectrogram (n_fft=1024, hop=256, 64 mels, power=2.0)
+    | - (S_db + 80) / 80, clip to [0,1]   <-- CHANGE from zero-mean/std
+    | - pad_or_trim to (128, 64)
+    | - reshape to (1, 1, 128, 64)          <-- CHANGE from (1, 3, 224, 224)
+    |
+    v
+Classifier.predict(preprocessed) -> float per segment
+    | (ResearchClassifier or EnsembleClassifier via protocol)
+    |
+    v
+SegmentAggregator.aggregate(segment_probs)
+    | -> p_max, p_mean, p_agg, p_weighted
+    |
+    v
+Feed p_weighted (or p_agg) into DetectionStateMachine.update()
+    | (KEEP existing 3-state hysteresis, just different input value)
+    |
+    v
+On CONFIRMED -> TargetTracker.update() (KEEP)
+```
+
+### Evaluation Flow
+
+```
+[REST: POST /api/eval/run]
+    |
+    v
+EvaluationHarness
+    | - Load model from models/ directory
+    | - Iterate WAV files in test/{uav,background}/
+    | - Per file: split into segments, predict, aggregate
+    | - Compute confusion matrix, precision, recall, F1
+    | - Compute distribution stats (p1, p5, median, p95, p99)
+    | - Per-file detail for debugging
+    |
+    v
+[REST: GET /api/eval/results/{run_id}]
+    | -> JSON with metrics, confusion matrix, per-file predictions
+    |
+    v
+[WebSocket: /ws/eval/progress]
+    | -> Real-time progress updates during evaluation
+```
+
+## Integration Points
+
+### Modified Components
+
+#### 1. `classification/worker.py` (CNNWorker)
+
+**Current:** Hardcoded `OnnxDroneClassifier` and `preprocess_for_cnn`.
+
+**Change:** Accept `Classifier` and `Preprocessor` protocols. Add segment splitting and aggregation.
+
+```python
+class CNNWorker:
+    def __init__(
+        self,
+        classifier: Classifier,        # Was: OnnxDroneClassifier
+        preprocessor: Preprocessor,     # NEW: injectable preprocessing
+        aggregator: SegmentAggregator,  # NEW: segment aggregation
+        fs_in: int = 48000,
+        segment_seconds: float = 0.5,   # NEW: research uses 0.5s segments
+        segment_hop: float = 0.25,      # NEW: 50% overlap
+    ) -> None:
+```
+
+The `_loop` method changes from:
+- preprocess single chunk -> predict -> store result
+
+To:
+- split chunk into overlapping segments -> preprocess each -> predict each -> aggregate -> store result
+
+**Risk:** LOW. The worker's external interface (`push()`, `get_latest()`) does not change. Only internal processing logic changes.
+
+#### 2. `classification/preprocessing.py`
+
+**Current:** `preprocess_for_cnn()` produces `(1, 3, 224, 224)` for EfficientNet.
+
+**Change:** Rename file to `efficientnet_preprocessing.py` (keep for legacy/fallback). Create `research_preprocessing.py` with research params.
+
+**Key differences:**
+
+| Parameter | Current (EfficientNet) | Research CNN |
+|-----------|----------------------|--------------|
+| Output shape | (1, 3, 224, 224) | (1, 1, 128, 64) |
+| Segment length | 2.0s | 0.5s |
+| Normalization | (x - mean) / std | (x + 80) / 80, clip [0,1] |
+| Resize | scipy.ndimage.zoom to 224x224 | None (native 128x64) |
+| Channels | 3 (grayscale repeated) | 1 |
+
+**Risk:** LOW. New file, old file preserved.
+
+#### 3. `classification/inference.py`
+
+**Current:** Only `OnnxDroneClassifier`.
+
+**Change:** Add `Classifier` protocol import. Keep `OnnxDroneClassifier` as-is (it already satisfies the protocol). Add `ResearchClassifier` in separate file.
+
+**Risk:** LOW. Additive change only.
+
+#### 4. `pipeline.py` (BeamformingPipeline)
+
+**Current:** Constructs `CNNWorker` dependencies are injected via `__init__`.
+
+**Change:** No pipeline change needed if aggregation happens inside `CNNWorker`. The `ClassificationResult.drone_probability` field already carries the final score -- the pipeline just reads it. The aggregation is transparent.
+
+**Risk:** NONE. The pipeline reads `result.drone_probability` which will now be the aggregated value.
+
+#### 5. `config.py` (AcousticSettings)
+
+**Current:** CNN settings for EfficientNet ONNX model.
+
+**Change:** Add settings for research model, training, evaluation, collection.
+
+```python
+class AcousticSettings(BaseSettings):
+    # ... existing ...
+
+    # Research CNN (replaces EfficientNet)
+    cnn_classifier_type: str = "research"  # "onnx_efficientnet" | "research" | "ensemble"
+    research_model_path: str = "models/research_cnn_v1.onnx"
+    ensemble_model_dir: str = "models/ensemble/"
+    ensemble_mode: str = "soft"  # "soft" | "hard"
+
+    # Segment aggregation
+    segment_seconds: float = 0.5
+    segment_hop_seconds: float = 0.25
+    agg_w_max: float = 0.7
+    agg_w_mean: float = 0.3
+
+    # Training
+    training_data_dir: str = "data/train"
+    training_batch_size: int = 32
+    training_epochs: int = 60
+    training_patience: int = 8
+    training_lr: float = 1e-3
+
+    # Collection
+    collection_output_dir: str = "data/recordings"
+```
+
+#### 6. `main.py` (FastAPI lifespan)
+
+**Current:** Hardcoded `OnnxDroneClassifier` initialization.
+
+**Change:** Factory logic based on `cnn_classifier_type` setting.
+
+```python
+# In lifespan():
+if settings.cnn_classifier_type == "research":
+    classifier = ResearchClassifier(settings.research_model_path)
+    preprocessor = research_preprocess_for_cnn
+elif settings.cnn_classifier_type == "ensemble":
+    classifiers = load_ensemble(settings.ensemble_model_dir)
+    classifier = EnsembleClassifier(classifiers, mode=settings.ensemble_mode)
+    preprocessor = research_preprocess_for_cnn
+else:
+    classifier = OnnxDroneClassifier(settings.cnn_model_path)
+    preprocessor = preprocess_for_cnn  # legacy
+
+aggregator = SegmentAggregator(w_max=settings.agg_w_max, w_mean=settings.agg_w_mean)
+cnn_worker = CNNWorker(classifier, preprocessor, aggregator, fs_in=settings.sample_rate)
+```
+
+#### 7. `api/routes.py`
+
+**Current:** `/api/map`, `/api/targets`.
+
+**Change:** Add training, evaluation, and collection route groups. Use separate APIRouters for modularity.
+
+New endpoints:
+- `POST /api/training/start` -- trigger training job
+- `GET /api/training/status` -- poll training progress
+- `POST /api/eval/run` -- trigger evaluation
+- `GET /api/eval/results/{run_id}` -- get evaluation results
+- `POST /api/collection/record` -- record labeled clip
+- `GET /api/collection/stats` -- dataset statistics
+
+### New Components
+
+#### 1. `classification/protocol.py`
+Classifier and Preprocessor protocols. Foundation for all other changes. **Build first.**
+
+#### 2. `classification/research_model.py`
+PyTorch `nn.Module` defining the 3-layer CNN. Used by both training and inference.
+
+```python
+class ResearchCNN(nn.Module):
+    """3-layer CNN matching Acoustic-UAV-Identification architecture."""
+    def __init__(self):
+        super().__init__()
+        self.features = nn.Sequential(
+            nn.Conv2d(1, 32, 3, padding=1), nn.BatchNorm2d(32), nn.ReLU(), nn.MaxPool2d(2),
+            nn.Conv2d(32, 64, 3, padding=1), nn.BatchNorm2d(64), nn.ReLU(), nn.MaxPool2d(2),
+            nn.Conv2d(64, 128, 3, padding=1), nn.BatchNorm2d(128), nn.ReLU(), nn.MaxPool2d(2),
+        )
+        self.classifier = nn.Sequential(
+            nn.AdaptiveAvgPool2d(1), nn.Flatten(),
+            nn.Linear(128, 128), nn.ReLU(), nn.Dropout(0.3),
+            nn.Linear(128, 1), nn.Sigmoid(),
+        )
+    def forward(self, x): return self.classifier(self.features(x))
+```
+
+#### 3. `classification/research_classifier.py`
+Implements `Classifier` protocol. Loads either `.pt` (PyTorch) or `.onnx` (ONNX Runtime) model file. Prefer ONNX for production (faster, no PyTorch dependency at runtime).
+
+#### 4. `classification/research_preprocessing.py`
+Research mel-spec pipeline: 0.5s segments, 16kHz, 64 mels, `(S_db+80)/80` normalization, output `(1, 1, 128, 64)`.
+
+#### 5. `classification/aggregation.py`
+Segment aggregation logic. Pure NumPy, no external dependencies.
+
+#### 6. `classification/ensemble.py`
+Multi-model voting. Loads N models from a directory, implements `Classifier` protocol.
+
+#### 7. `training/dataset.py`
+PyTorch `Dataset` replacing `tf.data` pipeline. Loads WAV files lazily, extracts random segments, applies research preprocessing.
+
+#### 8. `training/trainer.py`
+Training loop replacing `train_strong_cnn.py`. Uses PyTorch DataLoader, Adam optimizer, early stopping, LR scheduling. Saves `.pt` checkpoints.
+
+#### 9. `training/export.py`
+`torch.onnx.export()` wrapper to convert `.pt` to `.onnx` for production inference.
+
+#### 10. `evaluation/harness.py`
+Port of `eval_folder_with_strong_cnn.py`. Runs model on test folders, computes metrics.
+
+#### 11. `evaluation/metrics.py`
+Confusion matrix, accuracy, precision, recall, F1, distribution stats. Pure Python/NumPy.
+
+#### 12. `collection/recorder.py`
+Port of `uma16_dataset_collector_gui.py` for web-based recording. Records single-channel mono from UMA-16, saves WAV + JSON metadata.
+
+#### 13. `collection/metadata.py`
+Pydantic models for recording metadata (label, distance, altitude, session, etc.).
+
+## Build Order (Suggested Phases)
+
+Dependencies flow downward -- each phase builds on the previous.
+
+### Phase 1: Foundation (Protocols + Research Preprocessing)
+
+**Build:** `protocol.py`, `research_preprocessing.py`, `research_model.py`
+
+**Rationale:** These have zero dependencies on existing code changes. They are pure additions. Tests can verify preprocessing matches research output exactly. The model architecture can be unit-tested with random tensors.
+
+**Validates:** Preprocessing produces correct shapes and normalization. Model forward pass works.
+
+### Phase 2: Research Classifier + Aggregation
+
+**Build:** `research_classifier.py`, `aggregation.py`
+
+**Rationale:** Depends on Phase 1 (protocol, preprocessing, model). Still pure additions -- no existing code modified yet. Can test end-to-end: audio -> preprocess -> predict -> aggregate.
+
+**Validates:** Inference produces correct probabilities. Aggregation matches research behavior.
+
+### Phase 3: Worker + Pipeline Integration
+
+**Build:** Modify `worker.py` to use protocols and aggregation. Modify `config.py` for new settings. Modify `main.py` lifespan for classifier factory.
+
+**Rationale:** This is where new code meets existing code. The worker's external interface (`push()`, `get_latest()`) stays the same, so the pipeline and state machine are unaffected. The key change is internal: segment splitting + aggregation inside the worker loop.
+
+**Validates:** Real-time inference works end-to-end through the existing pipeline.
+
+### Phase 4: Training Pipeline
+
+**Build:** `training/dataset.py`, `training/trainer.py`, `training/export.py`, `training/config.py`
+
+**Rationale:** Independent of the inference path. Can be built and tested in isolation. Depends on Phase 1 for the model architecture and preprocessing.
+
+**Validates:** Training produces a model that passes Phase 2 inference tests.
+
+### Phase 5: Evaluation Harness
+
+**Build:** `evaluation/harness.py`, `evaluation/metrics.py`
+
+**Rationale:** Depends on Phase 2 (classifier + aggregation) for running inference. Pure analysis code, no impact on production path.
+
+**Validates:** Evaluation metrics match research baseline numbers.
+
+### Phase 6: Ensemble Support
+
+**Build:** `classification/ensemble.py`, extend classifier factory in `main.py`
+
+**Rationale:** Depends on Phase 2 (multiple classifiers). Requires multiple trained models from Phase 4. Most complex ML feature, build last.
+
+**Validates:** Ensemble outperforms single model on evaluation harness.
+
+### Phase 7: Data Collection + API
+
+**Build:** `collection/recorder.py`, `collection/metadata.py`, API routes for training/eval/collection
+
+**Rationale:** Can be built in parallel with Phases 4-6 since it is mostly REST + recording logic. Placed last because the core inference path (Phases 1-3) is the critical integration. API routes for training/eval depend on those packages existing.
+
+**Validates:** End-to-end flow: collect -> train -> evaluate -> deploy.
+
+## Anti-Patterns
+
+### Anti-Pattern 1: Replacing preprocessing without exact parameter matching
+**What:** Using different mel-spec parameters (n_fft, hop, n_mels, normalization) between training and inference.
+**Why bad:** The model sees a completely different feature distribution at inference time. Accuracy drops to random chance.
+**Instead:** Extract preprocessing constants into a shared config. Both training and inference import from the same source. Add an integration test that verifies training preprocessing matches inference preprocessing bit-for-bit on the same audio input.
+
+### Anti-Pattern 2: Running training on the inference thread
+**What:** Blocking the audio processing pipeline with model training.
+**Why bad:** Training takes minutes to hours. The real-time pipeline must process audio within 150ms chunks. Any blocking kills detection latency.
+**Instead:** Training runs in a separate thread/process. The pipeline only loads the finished model. Hot-swap via the classifier factory after training completes.
+
+### Anti-Pattern 3: Modifying the state machine for aggregation
+**What:** Changing `DetectionStateMachine` to understand segment-level probabilities.
+**Why bad:** The state machine's job is simple hysteresis on a single probability value. Making it segment-aware adds complexity and couples it to the research pipeline.
+**Instead:** Aggregation produces a single probability. The state machine consumes it unchanged. Separation of concerns.
+
+### Anti-Pattern 4: Storing models in the Docker image
+**What:** Baking trained models into the Docker container.
+**Why bad:** Models change frequently during development. Rebuilding the container for each model update is slow. Models can be 10-100MB.
+**Instead:** Mount a `models/` volume. The service loads models from the filesystem at startup. Model hot-reload endpoint allows swapping without restart.
+
+### Anti-Pattern 5: TensorFlow + PyTorch coexistence
+**What:** Keeping TensorFlow as a dependency alongside PyTorch.
+**Why bad:** Both frameworks are 500MB+ each. Docker image size doubles. Dependency conflicts (NumPy version wars). Confusing for developers.
+**Instead:** Port everything to PyTorch. Export to ONNX for production inference (ONNX Runtime is 50MB). Remove TensorFlow entirely.
 
 ## Scalability Considerations
 
-| Concern | Single Unit (v1) | Multi-Unit (future) | Notes |
-|---------|------------------|---------------------|-------|
-| Audio throughput | 48kHz x 16ch = 3 MB/s raw PCM. Easily handled by one thread. | N/A (one mic array per service instance) | Bottleneck is beamforming compute, not I/O |
-| Beamforming latency | ~5-10ms per 80ms chunk on modern CPU. Well within real-time. | N/A | acoular uses NumPy + optional Numba JIT |
-| CNN inference | ~50-200ms per 2s segment. Runs every 0.5s in separate thread. | N/A | TensorFlow CPU is adequate; GPU optional |
-| ZeroMQ throughput | ~20 events/sec (detection + tracking). Trivial for ZMQ. | Multiple subscribers, still trivial | ZMQ PUB fans out automatically |
-| WebSocket clients | 1-5 monitoring UIs. Fine with FastAPI async. | 10-50 would still be fine | Beamforming map is largest payload (~40KB) |
-| Recording storage | ~3 MB/s raw. 10 min recording = ~1.8 GB. Disk-bound. | External storage mount | Docker volume for recordings |
-| Training time | Minutes to hours depending on dataset size. Runs as subprocess. | Could offload to separate GPU machine | Out of scope for v1 |
-
-## Key Technology Decisions
-
-| Decision | Choice | Rationale |
-|----------|--------|-----------|
-| Audio framework | `sounddevice` + `acoular` | Proven in POC. acoular is purpose-built for mic array beamforming. No reason to switch. |
-| Web framework | FastAPI | Async support for WebSocket + REST. Better performance than Flask (used in POC). Type-safe with Pydantic. |
-| CNN framework | TensorFlow/Keras | POC uses `.h5` model format. Training pipeline already exists. Switching to PyTorch would require model retraining and format migration with no benefit. |
-| Event transport | ZeroMQ (pyzmq) | Project requirement. PUB/SUB is simple, brokerless, low-latency. |
-| Frontend | React + Vite + TypeScript + Tailwind CSS | Consistent with sky-fort-dashboard. Same tooling, same patterns. |
-| Container | Single Docker container | Project requirement. FastAPI serves both API and static React build. |
+| Concern | Current (1 model) | With Ensemble (3-5 models) | Mitigation |
+|---------|-------------------|---------------------------|------------|
+| Inference latency | ~15ms (ONNX) | ~75ms (5x ONNX) | Parallelize with ThreadPool. ONNX sessions are thread-safe. |
+| Memory usage | ~100MB (1 ONNX session) | ~500MB (5 sessions) | Acceptable for edge device. Could share backbone if architectures match. |
+| Segment processing | 1 inference/push | ~7 inferences/push (0.5s segments from 2s buffer) | Batch the segments: single ONNX call with batch dim. (1, 1, 128, 64) -> (7, 1, 128, 64). |
+| Training data growth | N/A | 10K+ WAV files | PyTorch DataLoader with num_workers for async loading. Index file (JSONL) for fast metadata access. |
 
 ## Sources
 
-- POC codebase analysis: `POC-code/scripts/POC_Recorder.py` (beamforming pipeline, CNN worker, shared state pattern)
-- POC codebase analysis: `POC-code/scripts/unified_drone_collection_web_gui.py` (process management, multi-service orchestration)
-- [Acoular - Acoustic testing and source mapping software](https://www.acoular.org/) - mic array beamforming framework
-- [Acoular GitHub](https://github.com/acoular/acoular) - pipeline architecture with generator objects
-- [Pyroomacoustics](https://pyroomacoustics.readthedocs.io/) - alternative framework (not recommended, acoular is already proven in POC)
-- [ZeroMQ PUB/SUB patterns](https://learning-0mq-with-pyzmq.readthedocs.io/en/latest/pyzmq/patterns/pubsub.html) - topic-based message filtering
-- [FastAPI ZMQ Integration](https://www.restack.io/p/fastapi-answer-zmq-integration) - async ZMQ + FastAPI patterns
-- [Acoustic drone detection via ML](https://www.researchgate.net/publication/366717010_Acoustic_Based_Drone_Detection_Via_Machine_Learning) - CNN + mel-spectrogram approach validation
-- [Drone detection with beamforming + HMM](https://www.researchgate.net/publication/338472717_Classification_positioning_and_tracking_of_drones_by_HMM_using_acoustic_circular_microphone_array_beamforming) - beamforming + classification pipeline reference
-- [Development of Acoustic System for UAV Detection](https://pmc.ncbi.nlm.nih.gov/articles/PMC7506852/) - system architecture reference
-- sky-fort-dashboard `package.json` - React 19 + Vite 8 + Tailwind 4 + TypeScript 5.9 stack reference
+- Existing codebase: `src/acoustic/classification/` (inference.py, preprocessing.py, worker.py, state_machine.py)
+- Existing codebase: `src/acoustic/pipeline.py`, `src/acoustic/config.py`, `src/acoustic/main.py`
+- Research pipeline: `Acoustic-UAV-Identification-main-main/train_strong_cnn.py` (TF training, research CNN arch)
+- Research pipeline: `Acoustic-UAV-Identification-main-main/mic_realtime_inference.py` (real-time inference pattern)
+- Research pipeline: `Acoustic-UAV-Identification-main-main/run_strong_inference.py` (segment aggregation: p_max, p_mean, weighted)
+- Research pipeline: `Acoustic-UAV-Identification-main-main/eval_folder_with_strong_cnn.py` (evaluation: p_agg, confusion matrix, dist stats)
+- Research pipeline: `Acoustic-UAV-Identification-main-main/4 - Late Fusion Networks/Performance_Soft_Voting_Calcs.py` (soft voting, weighted ensemble)
+- Research pipeline: `Acoustic-UAV-Identification-main-main/uma16_dataset_collector_gui.py` (UMA-16 recording + metadata)
+- Project config: `.planning/PROJECT.md` (milestone v2.0 requirements)
+- CLAUDE.md stack decisions (PyTorch over TensorFlow, ONNX export, FastAPI)
