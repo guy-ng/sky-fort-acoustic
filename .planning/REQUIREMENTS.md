@@ -10,8 +10,8 @@
 
 - [ ] **PRE-01**: Service uses a shared MelConfig with research parameters (SR=16000, N_FFT=1024, HOP=256, N_MELS=64, MAX_FRAMES=128, (S_db+80)/80 normalization)
 - [ ] **PRE-02**: Classifier and Preprocessor protocols enable clean model swaps without modifying pipeline or state machine code
-- [ ] **PRE-03**: Preprocessing outputs (1, 1, 128, 64) tensors from 0.5s audio segments with research normalization
-- [ ] **PRE-04**: Numerical parity tests verify PyTorch preprocessing matches research TF output within atol=1e-4
+- [x] **PRE-03**: Preprocessing outputs (1, 1, 128, 64) tensors from 0.5s audio segments with research normalization
+- [x] **PRE-04**: Numerical parity tests verify PyTorch preprocessing matches research TF output within atol=1e-4
 
 ### Model & Inference
 
@@ -117,8 +117,8 @@
 |--------|-------|--------|
 | PRE-01 | Phase 6 | Pending |
 | PRE-02 | Phase 6 | Pending |
-| PRE-03 | Phase 6 | Pending |
-| PRE-04 | Phase 6 | Pending |
+| PRE-03 | Phase 6 | Complete |
+| PRE-04 | Phase 6 | Complete |
 | MDL-01 | Phase 7 | Pending |
 | MDL-02 | Phase 7 | Pending |
 | MDL-03 | Phase 7 | Pending |

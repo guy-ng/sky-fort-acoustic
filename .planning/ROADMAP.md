@@ -137,8 +137,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 06-01-PLAN.md — MelConfig dataclass, Classifier/Preprocessor protocols, ONNX removal, reference fixtures
-- [ ] 06-02-PLAN.md — ResearchPreprocessor (torchaudio), CNNWorker protocol refactor, pipeline 0.5s segments, parity tests
+- [x] 06-01-PLAN.md — MelConfig dataclass, Classifier/Preprocessor protocols, ONNX removal, reference fixtures
+- [x] 06-02-PLAN.md — ResearchPreprocessor (torchaudio), CNNWorker protocol refactor, pipeline 0.5s segments, parity tests
 
 ### Phase 7: Research CNN and Inference Integration
 **Goal**: The live detection pipeline uses the research CNN architecture with segment aggregation, swappable via protocol injection at startup
@@ -209,7 +209,7 @@ Note: Phase 11 is conditional -- build only if Phase 9 evaluation shows single-m
 | 3. CNN Classification and Target Tracking | v1.0 | 3/3 | Complete | |
 | 4. Recording and Playback | v1.0 | 0/2 | Not started | - |
 | 5. CNN Training Pipeline | v1.0 | 0/2 | Not started | - |
-| 6. Preprocessing Parity Foundation | v2.0 | 0/2 | Not started | - |
+| 6. Preprocessing Parity Foundation | v2.0 | 2/2 | Complete   | 2026-04-01 |
 | 7. Research CNN and Inference Integration | v2.0 | 0/? | Not started | - |
 | 8. PyTorch Training Pipeline | v2.0 | 0/? | Not started | - |
 | 9. Evaluation Harness and API | v2.0 | 0/? | Not started | - |
