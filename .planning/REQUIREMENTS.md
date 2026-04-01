@@ -115,24 +115,24 @@
 
 | REQ-ID | Phase | Status |
 |--------|-------|--------|
-| PRE-01 | TBD | Pending |
-| PRE-02 | TBD | Pending |
-| PRE-03 | TBD | Pending |
-| PRE-04 | TBD | Pending |
-| MDL-01 | TBD | Pending |
-| MDL-02 | TBD | Pending |
-| MDL-03 | TBD | Pending |
-| MDL-04 | TBD | Pending |
-| TRN-01 | TBD | Pending |
-| TRN-02 | TBD | Pending |
-| TRN-03 | TBD | Pending |
-| TRN-04 | TBD | Pending |
-| EVL-01 | TBD | Pending |
-| EVL-02 | TBD | Pending |
-| API-01 | TBD | Pending |
-| API-02 | TBD | Pending |
-| COL-01 | TBD | Pending |
-| COL-02 | TBD | Pending |
-| COL-03 | TBD | Pending |
-| ENS-01 | TBD | Pending |
-| ENS-02 | TBD | Pending |
+| PRE-01 | Phase 6 | Pending |
+| PRE-02 | Phase 6 | Pending |
+| PRE-03 | Phase 6 | Pending |
+| PRE-04 | Phase 6 | Pending |
+| MDL-01 | Phase 7 | Pending |
+| MDL-02 | Phase 7 | Pending |
+| MDL-03 | Phase 7 | Pending |
+| MDL-04 | Phase 7 | Pending |
+| TRN-01 | Phase 8 | Pending |
+| TRN-02 | Phase 8 | Pending |
+| TRN-03 | Phase 8 | Pending |
+| TRN-04 | Phase 8 | Pending |
+| EVL-01 | Phase 9 | Pending |
+| EVL-02 | Phase 9 | Pending |
+| API-01 | Phase 9 | Pending |
+| API-02 | Phase 9 | Pending |
+| COL-01 | Phase 10 | Pending |
+| COL-02 | Phase 10 | Pending |
+| COL-03 | Phase 10 | Pending |
+| ENS-01 | Phase 11 | Pending |
+| ENS-02 | Phase 11 | Pending |
