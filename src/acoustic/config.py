@@ -45,6 +45,10 @@ class AcousticSettings(BaseSettings):
     cnn_confirm_hits: int = 2
     cnn_target_ttl: float = 5.0  # seconds before target marked lost
 
+    # Aggregation weights for multi-segment classification
+    cnn_agg_w_max: float = 0.5
+    cnn_agg_w_mean: float = 0.5
+
     # Server
     host: str = "0.0.0.0"
     port: int = 8000
