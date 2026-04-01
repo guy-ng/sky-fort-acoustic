@@ -15,6 +15,8 @@ Reliably detect and classify drones acoustically in real time, publishing target
 - [x] Real-time 16-channel audio capture from UMA-16v2 mic array — Validated in Phase 1
 - [x] Beamforming processing to produce spatial sound map (beamforming map) — Validated in Phase 1
 - [x] Dockerized deployment (single container, independent service) — Validated in Phase 1
+- [x] Shared preprocessing config with research-validated parameters (MelConfig) — Validated in Phase 6
+- [x] Classifier/Preprocessor protocol contracts for pipeline decoupling — Validated in Phase 6
 
 ### Active
 
@@ -100,4 +102,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-01 — Milestone v2.0 started*
+*Last updated: 2026-04-01 — Phase 6 complete, preprocessing parity foundation established*
