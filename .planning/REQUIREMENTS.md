@@ -16,9 +16,9 @@
 ### Model & Inference
 
 - [ ] **MDL-01**: Research CNN architecture (3-layer Conv2D 32/64/128 + BN + MaxPool, GlobalAvgPool, Dense 128, Dropout 0.3, Sigmoid) implemented in PyTorch
-- [ ] **MDL-02**: Segment aggregation splits audio into overlapping 0.5s segments and computes p_max, p_mean, p_agg with configurable weights
-- [ ] **MDL-03**: CNNWorker accepts injected Classifier/Preprocessor/Aggregator via protocols; classifier factory selects implementation at startup
-- [ ] **MDL-04**: State machine thresholds are re-calibratable via config for the new CNN's confidence distribution
+- [x] **MDL-02**: Segment aggregation splits audio into overlapping 0.5s segments and computes p_max, p_mean, p_agg with configurable weights
+- [x] **MDL-03**: CNNWorker accepts injected Classifier/Preprocessor/Aggregator via protocols; classifier factory selects implementation at startup
+- [x] **MDL-04**: State machine thresholds are re-calibratable via config for the new CNN's confidence distribution
 
 ### Training
 
@@ -120,9 +120,9 @@
 | PRE-03 | Phase 6 | Complete |
 | PRE-04 | Phase 6 | Complete |
 | MDL-01 | Phase 7 | Pending |
-| MDL-02 | Phase 7 | Pending |
-| MDL-03 | Phase 7 | Pending |
-| MDL-04 | Phase 7 | Pending |
+| MDL-02 | Phase 7 | Complete |
+| MDL-03 | Phase 7 | Complete |
+| MDL-04 | Phase 7 | Complete |
 | TRN-01 | Phase 8 | Pending |
 | TRN-02 | Phase 8 | Pending |
 | TRN-03 | Phase 8 | Pending |

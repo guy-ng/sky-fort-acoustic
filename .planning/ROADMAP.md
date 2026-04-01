@@ -153,8 +153,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 07-01-PLAN.md — ResearchCNN model, Aggregator protocol, WeightedAggregator, config extensions, unit tests
-- [ ] 07-02-PLAN.md — CNNWorker segment buffer, pipeline overlap push, classifier factory wiring, integration tests
+- [x] 07-01-PLAN.md — ResearchCNN model, Aggregator protocol, WeightedAggregator, config extensions, unit tests
+- [x] 07-02-PLAN.md — CNNWorker segment buffer, pipeline overlap push, classifier factory wiring, integration tests
 
 ### Phase 8: PyTorch Training Pipeline
 **Goal**: Users can train a research CNN model from labeled WAV files with the training process isolated from live detection
