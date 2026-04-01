@@ -53,9 +53,9 @@
 
 ### Training
 
-- [ ] **TRN-01**: Web UI provides interface to select labeled recordings as training dataset
-- [ ] **TRN-02**: Service runs CNN training as a background subprocess (does not block live detection)
-- [ ] **TRN-03**: Training produces a new model file with validation metrics (accuracy, confusion matrix)
+- [x] **TRN-01**: Web UI provides interface to select labeled recordings as training dataset
+- [x] **TRN-02**: Service runs CNN training as a background subprocess (does not block live detection)
+- [x] **TRN-03**: Training produces a new model file with validation metrics (accuracy, confusion matrix)
 - [ ] **TRN-04**: Web UI displays training progress and results
 
 ### Infrastructure
@@ -118,7 +118,7 @@
 | UI-05 | Phase 4 | Pending |
 | UI-06 | Phase 4 | Pending |
 | UI-07 | Phase 4 | Pending |
-| TRN-01 | Phase 5 | Pending |
-| TRN-02 | Phase 5 | Pending |
-| TRN-03 | Phase 5 | Pending |
+| TRN-01 | Phase 5 | Complete |
+| TRN-02 | Phase 5 | Complete |
+| TRN-03 | Phase 5 | Complete |
 | TRN-04 | Phase 5 | Pending |
