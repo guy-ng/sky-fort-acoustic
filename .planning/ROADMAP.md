@@ -168,7 +168,7 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 08-01-PLAN.md — TrainingConfig, data augmentation (SpecAugment + waveform), DroneAudioDataset with lazy loading and random segment extraction
+- [x] 08-01-PLAN.md — TrainingConfig, data augmentation (SpecAugment + waveform), DroneAudioDataset with lazy loading and random segment extraction
 - [ ] 08-02-PLAN.md — TrainingRunner (training loop + early stopping + checkpoint), TrainingManager (background thread + progress + cancellation)
 
 ### Phase 9: Evaluation Harness and API
@@ -219,7 +219,7 @@ Note: Phase 11 is conditional -- build only if Phase 9 evaluation shows single-m
 | 5. CNN Training Pipeline | v1.0 | 0/2 | Not started | - |
 | 6. Preprocessing Parity Foundation | v2.0 | 2/2 | Complete   | 2026-04-01 |
 | 7. Research CNN and Inference Integration | v2.0 | 0/2 | Not started | - |
-| 8. PyTorch Training Pipeline | v2.0 | 0/2 | Not started | - |
+| 8. PyTorch Training Pipeline | v2.0 | 1/2 | In Progress|  |
 | 9. Evaluation Harness and API | v2.0 | 0/? | Not started | - |
 | 10. Field Data Collection | v2.0 | 0/? | Not started | - |
 | 11. Late Fusion Ensemble (Conditional) | v2.0 | 0/? | Not started | - |

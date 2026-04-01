@@ -22,10 +22,10 @@
 
 ### Training
 
-- [ ] **TRN-01**: PyTorch training pipeline loads WAV files lazily, extracts random 0.5s segments, trains with Adam/BCE/early stopping
+- [x] **TRN-01**: PyTorch training pipeline loads WAV files lazily, extracts random 0.5s segments, trains with Adam/BCE/early stopping
 - [ ] **TRN-02**: Training runs as a background thread with resource isolation (nice, thread limits) without degrading live detection
 - [ ] **TRN-03**: Training produces a model checkpoint and exports to deployable format on completion
-- [ ] **TRN-04**: Training data augmentation applies SpecAugment and waveform augmentation during training
+- [x] **TRN-04**: Training data augmentation applies SpecAugment and waveform augmentation during training
 
 ### Evaluation
 
@@ -123,10 +123,10 @@
 | MDL-02 | Phase 7 | Complete |
 | MDL-03 | Phase 7 | Complete |
 | MDL-04 | Phase 7 | Complete |
-| TRN-01 | Phase 8 | Pending |
+| TRN-01 | Phase 8 | Complete |
 | TRN-02 | Phase 8 | Pending |
 | TRN-03 | Phase 8 | Pending |
-| TRN-04 | Phase 8 | Pending |
+| TRN-04 | Phase 8 | Complete |
 | EVL-01 | Phase 9 | Pending |
 | EVL-02 | Phase 9 | Pending |
 | API-01 | Phase 9 | Pending |
