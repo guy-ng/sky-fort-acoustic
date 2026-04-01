@@ -10,11 +10,12 @@ import logging
 import queue
 import threading
 import time
+from collections import deque
 from dataclasses import dataclass
 
 import numpy as np
 
-from acoustic.classification.protocols import Classifier, Preprocessor
+from acoustic.classification.protocols import Aggregator, Classifier, Preprocessor
 
 logger = logging.getLogger(__name__)
 
@@ -40,14 +41,18 @@ class CNNWorker:
         self,
         preprocessor: Preprocessor | None = None,
         classifier: Classifier | None = None,
+        aggregator: Aggregator | None = None,
         *,
         fs_in: int = 48000,
         silence_threshold: float = 0.001,
+        segment_buffer_size: int = 4,
     ) -> None:
         self._preprocessor = preprocessor
         self._classifier = classifier
+        self._aggregator = aggregator
         self._fs_in = fs_in
         self._silence_threshold = silence_threshold
+        self._segment_probs: deque[float] = deque(maxlen=segment_buffer_size)
         self._queue: queue.Queue = queue.Queue(maxsize=1)
         self._lock = threading.Lock()
         self._stop_event = threading.Event()
@@ -127,10 +132,16 @@ class CNNWorker:
                     continue
                 features = self._preprocessor.process(mono_audio, self._fs_in)
 
-                # Classify (skip if no classifier -- dormant until Phase 7)
+                # Classify (skip if no classifier -- dormant)
                 if self._classifier is None:
                     continue
                 prob = self._classifier.predict(features)
+
+                # Accumulate segment probability and aggregate
+                self._segment_probs.append(prob)
+                if self._aggregator is not None and self._segment_probs:
+                    prob = self._aggregator.aggregate(list(self._segment_probs))
+
                 elapsed = time.monotonic() - t0
 
                 result = ClassificationResult(
