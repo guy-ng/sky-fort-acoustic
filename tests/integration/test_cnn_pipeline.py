@@ -24,31 +24,41 @@ def settings():
 
 @pytest.fixture
 def mock_classifier():
-    """Mock ONNX classifier that always returns 0.9 probability."""
+    """Mock classifier that always returns 0.9 probability."""
     clf = MagicMock()
     clf.predict.return_value = 0.9
     return clf
+
+
+@pytest.fixture
+def mock_preprocessor():
+    """Mock preprocessor that returns a dummy feature tensor."""
+    import torch
+
+    pp = MagicMock()
+    pp.process.return_value = torch.zeros(1, 1, 128, 64)
+    return pp
 
 
 class TestCNNWorker:
     """Tests for the CNNWorker background thread."""
 
     def test_worker_start_stop(self, mock_classifier):
-        worker = CNNWorker(mock_classifier, fs_in=48000)
+        worker = CNNWorker(classifier=mock_classifier, fs_in=48000)
         worker.start()
         assert worker._thread is not None
         assert worker._thread.is_alive()
         worker.stop()
         assert worker._thread is None
 
-    def test_push_and_get_latest(self, mock_classifier):
-        worker = CNNWorker(mock_classifier, fs_in=16000)
+    def test_push_and_get_latest(self, mock_preprocessor, mock_classifier):
+        worker = CNNWorker(preprocessor=mock_preprocessor, classifier=mock_classifier, fs_in=16000)
         worker.start()
         try:
             # Push a 2-second mono segment
             mono = np.random.randn(32000).astype(np.float32)
             worker.push(mono, az_deg=10.0, el_deg=5.0)
-            # Wait for inference (librosa mel-spectrogram is slow on first call)
+            # Wait for inference
             time.sleep(3.0)
             result = worker.get_latest()
             assert result is not None
@@ -60,7 +70,7 @@ class TestCNNWorker:
             worker.stop()
 
     def test_get_latest_returns_none_initially(self, mock_classifier):
-        worker = CNNWorker(mock_classifier, fs_in=48000)
+        worker = CNNWorker(classifier=mock_classifier, fs_in=48000)
         assert worker.get_latest() is None
 
 
@@ -68,7 +78,7 @@ class TestPipelineWithCNN:
     """Tests for BeamformingPipeline with CNN integration."""
 
     def test_pipeline_initializes_with_cnn(self, settings, mock_classifier):
-        worker = CNNWorker(mock_classifier, fs_in=settings.sample_rate)
+        worker = CNNWorker(classifier=mock_classifier, fs_in=settings.sample_rate)
         sm = DetectionStateMachine()
         broadcaster = EventBroadcaster()
         tracker = TargetTracker(ttl=5.0, broadcaster=broadcaster)
@@ -129,7 +139,7 @@ class TestPipelineWithCNN:
         """Verify that _process_cnn accumulates mono audio on peak detection."""
         from acoustic.types import PeakDetection
 
-        worker = CNNWorker(mock_classifier, fs_in=settings.sample_rate)
+        worker = CNNWorker(classifier=mock_classifier, fs_in=settings.sample_rate)
         sm = DetectionStateMachine()
         pipeline = BeamformingPipeline(
             settings, cnn_worker=worker, state_machine=sm, tracker=None
@@ -147,7 +157,7 @@ class TestPipelineWithCNN:
 
         The CNN runs periodically without peaks so the UI always has a probability.
         """
-        worker = CNNWorker(mock_classifier, fs_in=settings.sample_rate)
+        worker = CNNWorker(classifier=mock_classifier, fs_in=settings.sample_rate)
         pipeline = BeamformingPipeline(settings, cnn_worker=worker)
 
         # Pre-fill some buffer
@@ -170,3 +180,46 @@ class TestGracefulDegradation:
         assert app.state.pipeline.running
         # event_broadcaster may or may not be set depending on model availability
         # but the app should not crash
+
+
+class TestFactoryWiring:
+    """Tests for classifier factory and aggregator wiring."""
+
+    def test_dormant_mode_no_model_file(self, settings):
+        """Service runs in dormant mode when model file doesn't exist."""
+        worker = CNNWorker(preprocessor=None, classifier=None, aggregator=None, fs_in=settings.sample_rate)
+        assert worker._classifier is None
+
+    def test_aggregator_wired_with_config_weights(self):
+        """WeightedAggregator uses weights from config."""
+        from acoustic.classification.aggregation import WeightedAggregator
+
+        s = AcousticSettings(audio_source="simulated")
+        agg = WeightedAggregator(w_max=s.cnn_agg_w_max, w_mean=s.cnn_agg_w_mean)
+        assert agg._w_max == 0.5
+        assert agg._w_mean == 0.5
+
+    def test_model_load_with_temp_checkpoint(self, tmp_path):
+        """Factory can load a freshly saved untrained model."""
+        import torch
+
+        from acoustic.classification.research_cnn import ResearchClassifier, ResearchCNN
+
+        model = ResearchCNN()
+        path = tmp_path / "test_model.pt"
+        torch.save(model.state_dict(), path)
+        loaded = ResearchCNN()
+        loaded.load_state_dict(torch.load(path, weights_only=True))
+        loaded.eval()
+        clf = ResearchClassifier(loaded)
+        prob = clf.predict(torch.zeros(1, 1, 128, 64))
+        assert 0.0 <= prob <= 1.0
+
+
+class TestPipelineOverlap:
+    """Tests for pipeline segment push interval."""
+
+    def test_cnn_interval_is_025(self, settings):
+        """Pipeline pushes segments every 0.25s for 50% overlap (D-02)."""
+        pipeline = BeamformingPipeline(settings)
+        assert pipeline._cnn_interval == 0.25

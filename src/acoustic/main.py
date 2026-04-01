@@ -290,7 +290,13 @@ async def lifespan(app: FastAPI):
     tracker = None
     broadcaster = None
     try:
+        import os
+
+        import torch
+
+        from acoustic.classification.aggregation import WeightedAggregator
         from acoustic.classification.preprocessing import ResearchPreprocessor
+        from acoustic.classification.research_cnn import ResearchClassifier, ResearchCNN
         from acoustic.classification.state_machine import DetectionStateMachine
         from acoustic.classification.worker import CNNWorker
         from acoustic.tracking.events import EventBroadcaster
@@ -298,10 +304,38 @@ async def lifespan(app: FastAPI):
 
         broadcaster = EventBroadcaster()
         preprocessor = ResearchPreprocessor()
-        # No classifier until Phase 7 -- worker is dormant
+
+        # Classifier factory (D-06): load model if file exists, else dormant
+        classifier = None
+        if os.path.isfile(settings.cnn_model_path):
+            try:
+                model = ResearchCNN()
+                model.load_state_dict(torch.load(settings.cnn_model_path, weights_only=True))
+                model.eval()
+                # Validate model with dummy forward pass
+                dummy = torch.zeros(1, 1, 128, 64)
+                with torch.no_grad():
+                    out = model(dummy)
+                assert out.shape == (1, 1), f"Unexpected model output shape: {out.shape}"
+                classifier = ResearchClassifier(model)
+                logger.info("Loaded CNN model from %s", settings.cnn_model_path)
+            except Exception:
+                logger.exception("Failed to load CNN model -- running without classifier")
+        else:
+            logger.warning(
+                "CNN model not found at %s -- running in dormant mode",
+                settings.cnn_model_path,
+            )
+
+        aggregator = WeightedAggregator(
+            w_max=settings.cnn_agg_w_max,
+            w_mean=settings.cnn_agg_w_mean,
+        )
+
         cnn_worker = CNNWorker(
             preprocessor=preprocessor,
-            classifier=None,
+            classifier=classifier,
+            aggregator=aggregator,
             fs_in=settings.sample_rate,
         )
         state_machine = DetectionStateMachine(
@@ -311,7 +345,12 @@ async def lifespan(app: FastAPI):
         )
         tracker = TargetTracker(ttl=settings.cnn_target_ttl, broadcaster=broadcaster)
         cnn_worker.start()
-        logger.info("CNN worker started (preprocessor ready, classifier pending Phase 7)")
+        logger.info(
+            "CNN worker started (classifier=%s, aggregator=WeightedAggregator(w_max=%.2f, w_mean=%.2f))",
+            "active" if classifier is not None else "dormant",
+            settings.cnn_agg_w_max,
+            settings.cnn_agg_w_mean,
+        )
     except Exception:
         logger.exception("Failed to initialize CNN worker — running without it")
 

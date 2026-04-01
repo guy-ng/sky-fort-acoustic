@@ -57,7 +57,7 @@ class BeamformingPipeline:
         self._mono_buffer_samples: int = 0
         self._cnn_segment_samples: int = int(settings.sample_rate * 0.5)
         self._last_cnn_push: float = 0.0
-        self._cnn_interval: float = 0.5  # Run CNN at least every 0.5s even without peaks
+        self._cnn_interval: float = 0.25  # Push every 0.25s for 50% overlap of 0.5s segments
 
     def process_chunk(self, chunk: np.ndarray) -> PeakDetection | None:
         """Stub: produce a zero beamforming map with no peak detection.
