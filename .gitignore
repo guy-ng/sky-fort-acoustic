@@ -23,3 +23,13 @@ dist/
 
 # Docs (Word files from reference)
 *.docx
+Acoustic-UAV-Identification-main-main/
+
+# Build artifacts
+*.egg-info/
+
+# Large data files
+*.tar.gz
+
+# Claude local config
+.claude/
