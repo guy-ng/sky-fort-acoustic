@@ -17,6 +17,7 @@ Reliably detect and classify drones acoustically in real time, publishing target
 - [x] Dockerized deployment (single container, independent service) — Validated in Phase 1
 - [x] Shared preprocessing config with research-validated parameters (MelConfig) — Validated in Phase 6
 - [x] Classifier/Preprocessor protocol contracts for pipeline decoupling — Validated in Phase 6
+- [x] ResearchCNN model architecture with segment aggregation, protocol-injected into live pipeline — Validated in Phase 7
 
 ### Active
 
