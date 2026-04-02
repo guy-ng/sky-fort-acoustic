@@ -251,5 +251,5 @@ Note: Phase 11 is conditional -- build only if Phase 9 evaluation shows single-m
 | 8. PyTorch Training Pipeline | v2.0 | 2/3 | In Progress|  |
 | 9. Evaluation Harness and API | v2.0 | 2/2 | Complete | 2026-04-02 |
 | 10. Field Data Collection | v2.0 | 3/3 | Complete   | 2026-04-02 |
-| 11. Late Fusion Ensemble (Conditional) | v2.0 | 0/2 | Not started | - |
+| 11. Late Fusion Ensemble (Conditional) | v2.0 | 0/2 | Complete    | 2026-04-02 |
 | 12. Add ML Training & Testing UI Tab | v2.0 | 0/2 | Not started | - |
