@@ -194,9 +194,14 @@ Plans:
 **Success Criteria** (what must be TRUE):
   1. User can start a labeled recording session from the web UI, specifying drone type and recording conditions
   2. User can attach and edit metadata on recordings (drone type, distance, altitude, conditions, notes)
-  3. Recordings are automatically saved into a directory structure (data/recordings/{label}/{bin}/) that the training pipeline can directly consume without manual reorganization
-**Plans**: TBD
+  3. Recordings are automatically saved into a directory structure (data/field/{label}/) that the training pipeline can directly consume without manual reorganization
+**Plans**: 3 plans
 **UI hint**: yes
+
+Plans:
+- [ ] 10-01-PLAN.md — Backend recording module: config, metadata, recorder session, manager with auto-stop and label workflow
+- [ ] 10-02-PLAN.md — REST API endpoints, WebSocket /ws/recording, pipeline chunk forwarding, main.py wiring, integration tests
+- [ ] 10-03-PLAN.md — Frontend recording UI: controls panel, recordings list, metadata editor, sidebar tab integration
 
 ### Phase 11: Late Fusion Ensemble (Conditional)
 **Goal**: Multiple classifiers combine via accuracy-weighted soft voting to improve detection accuracy beyond what a single model achieves
@@ -226,5 +231,5 @@ Note: Phase 11 is conditional -- build only if Phase 9 evaluation shows single-m
 | 7. Research CNN and Inference Integration | v2.0 | 0/2 | Not started | - |
 | 8. PyTorch Training Pipeline | v2.0 | 2/3 | In Progress|  |
 | 9. Evaluation Harness and API | v2.0 | 2/2 | Complete | 2026-04-02 |
-| 10. Field Data Collection | v2.0 | 0/? | Not started | - |
+| 10. Field Data Collection | v2.0 | 0/3 | Not started | - |
 | 11. Late Fusion Ensemble (Conditional) | v2.0 | 0/? | Not started | - |
