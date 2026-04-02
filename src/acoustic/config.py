@@ -49,6 +49,9 @@ class AcousticSettings(BaseSettings):
     cnn_agg_w_max: float = 0.5
     cnn_agg_w_mean: float = 0.5
 
+    # Ensemble configuration
+    ensemble_config_path: str | None = None
+
     # Server
     host: str = "0.0.0.0"
     port: int = 8000
