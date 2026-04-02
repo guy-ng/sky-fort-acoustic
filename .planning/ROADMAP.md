@@ -165,11 +165,12 @@ Plans:
   2. Training runs as a background thread with resource isolation (os.nice, thread limits) and does not degrade live detection latency below the 150ms beamforming deadline
   3. Training produces a model checkpoint (.pt) and exports to a deployable format on completion
   4. Training data augmentation (SpecAugment time/frequency masking and waveform augmentation) is applied during training and can be toggled via config
-**Plans**: 2 plans
+**Plans**: 3 plans
 
 Plans:
 - [x] 08-01-PLAN.md — TrainingConfig, data augmentation (SpecAugment + waveform), DroneAudioDataset with lazy loading and random segment extraction
-- [ ] 08-02-PLAN.md — TrainingRunner (training loop + early stopping + checkpoint), TrainingManager (background thread + progress + cancellation)
+- [x] 08-02-PLAN.md — TrainingRunner (training loop + early stopping + checkpoint), TrainingManager (background thread + progress + cancellation)
+- [ ] 08-03-PLAN.md — Gap closure: TorchScript export, torch.set_num_threads isolation, confusion matrix tracking
 
 ### Phase 9: Evaluation Harness and API
 **Goal**: Operators can evaluate classifier accuracy on labeled test data and control training and evaluation via REST endpoints with real-time progress updates
@@ -219,7 +220,7 @@ Note: Phase 11 is conditional -- build only if Phase 9 evaluation shows single-m
 | 5. CNN Training Pipeline | v1.0 | 0/2 | Not started | - |
 | 6. Preprocessing Parity Foundation | v2.0 | 2/2 | Complete   | 2026-04-01 |
 | 7. Research CNN and Inference Integration | v2.0 | 0/2 | Not started | - |
-| 8. PyTorch Training Pipeline | v2.0 | 1/2 | In Progress|  |
+| 8. PyTorch Training Pipeline | v2.0 | 2/3 | In Progress|  |
 | 9. Evaluation Harness and API | v2.0 | 0/? | Not started | - |
 | 10. Field Data Collection | v2.0 | 0/? | Not started | - |
 | 11. Late Fusion Ensemble (Conditional) | v2.0 | 0/? | Not started | - |
