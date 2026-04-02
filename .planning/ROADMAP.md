@@ -201,7 +201,7 @@ Plans:
 Plans:
 - [x] 10-01-PLAN.md — Backend recording module: config, metadata, recorder session, manager with auto-stop and label workflow
 - [x] 10-02-PLAN.md — REST API endpoints, WebSocket /ws/recording, pipeline chunk forwarding, main.py wiring, integration tests
-- [ ] 10-03-PLAN.md — Frontend recording UI: controls panel, recordings list, metadata editor, sidebar tab integration
+- [x] 10-03-PLAN.md — Frontend recording UI: controls panel, recordings list, metadata editor, sidebar tab integration
 
 ### Phase 11: Late Fusion Ensemble (Conditional)
 **Goal**: Multiple classifiers combine via accuracy-weighted soft voting to improve detection accuracy beyond what a single model achieves
@@ -231,5 +231,5 @@ Note: Phase 11 is conditional -- build only if Phase 9 evaluation shows single-m
 | 7. Research CNN and Inference Integration | v2.0 | 0/2 | Not started | - |
 | 8. PyTorch Training Pipeline | v2.0 | 2/3 | In Progress|  |
 | 9. Evaluation Harness and API | v2.0 | 2/2 | Complete | 2026-04-02 |
-| 10. Field Data Collection | v2.0 | 2/3 | In Progress|  |
+| 10. Field Data Collection | v2.0 | 3/3 | Complete   | 2026-04-02 |
 | 11. Late Fusion Ensemble (Conditional) | v2.0 | 0/? | Not started | - |
