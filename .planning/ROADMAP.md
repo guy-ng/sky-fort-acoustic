@@ -1,8 +1,9 @@
 # Roadmap: Sky Fort Acoustic Service
 
-## Overview
+## Milestones
 
-This roadmap delivers a real-time acoustic drone detection microservice from the ground up, following the dependency chain dictated by the processing pipeline: audio capture feeds beamforming, beamforming feeds visual validation, visual validation enables CNN tuning, CNN feeds tracking and events, recordings feed training. Five phases take the project from raw 16-channel audio capture to a self-improving CNN training loop, each delivering a verifiable capability.
+- 🚧 **v1.0 MVP** - Phases 1-5 (in progress)
+- 📋 **v2.0 Research Classification Migration** - Phases 6-11 (planned)
 
 ## Phases
 
@@ -12,13 +13,30 @@ This roadmap delivers a real-time acoustic drone detection microservice from the
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Audio Capture, Beamforming, and Infrastructure** - Reliable 16-channel audio capture with real-time beamforming in a Docker container
+<details>
+<summary>v1.0 MVP (Phases 1-5)</summary>
+
+- [x] **Phase 1: Audio Capture, Beamforming, and Infrastructure** - Reliable 16-channel audio capture with real-time beamforming in a Docker container
 - [ ] **Phase 2: REST API and Live Monitoring UI** - Visual feedback on beamforming output via WebSocket-driven React app
 - [ ] **Phase 3: CNN Classification and Target Tracking** - Drone detection intelligence with WebSocket event publishing
 - [ ] **Phase 4: Recording and Playback** - Capture field audio with metadata and replay through the full pipeline
 - [ ] **Phase 5: CNN Training Pipeline** - In-service model training from labeled recordings
 
+</details>
+
+### v2.0 Research Classification Migration (Phases 6-11)
+
+- [ ] **Phase 6: Preprocessing Parity Foundation** - Shared MelConfig, research preprocessing, Classifier/Preprocessor protocols, numerical parity tests
+- [ ] **Phase 7: Research CNN and Inference Integration** - Research CNN architecture, segment aggregation, protocol-based worker injection, state machine recalibration
+- [ ] **Phase 8: PyTorch Training Pipeline** - Background training with resource isolation, data augmentation, model checkpoint and export
+- [ ] **Phase 9: Evaluation Harness and API** - Model evaluation with metrics, REST endpoints for training and evaluation, WebSocket progress streaming
+- [ ] **Phase 10: Field Data Collection** - Record labeled audio from live UMA-16 via web UI with metadata and auto-organized directory structure
+- [ ] **Phase 11: Late Fusion Ensemble (Conditional)** - Multi-model ensemble with accuracy-weighted soft voting, conditional on single-model accuracy results
+
 ## Phase Details
+
+<details>
+<summary>v1.0 MVP Phase Details (Phases 1-5)</summary>
 
 ### Phase 1: Audio Capture, Beamforming, and Infrastructure
 **Goal**: The service captures 16-channel audio from the UMA-16v2 and produces a real-time beamforming spatial map inside a Docker container
@@ -101,15 +119,112 @@ Plans:
 - [ ] 05-01: Training pipeline (dataset preparation, PyTorch training loop, model output)
 - [ ] 05-02: Training UI and model management
 
+</details>
+
+### v2.0 Research Classification Migration
+
+**Milestone Goal:** Replace the EfficientNet-B0 ONNX classifier with the research-proven 3-layer CNN architecture, including PyTorch training, segment aggregation, model evaluation, field data collection, and optional late fusion ensemble.
+
+### Phase 6: Preprocessing Parity Foundation
+**Goal**: All audio preprocessing uses a single shared configuration with research-validated parameters, and protocols decouple classifiers from the pipeline
+**Depends on**: Phase 3 (existing classification infrastructure)
+**Requirements**: PRE-01, PRE-02, PRE-03, PRE-04
+**Success Criteria** (what must be TRUE):
+  1. A single MelConfig dataclass defines all preprocessing constants (SR=16000, N_FFT=1024, HOP=256, N_MELS=64, MAX_FRAMES=128, normalization) with no duplicate magic numbers anywhere in the codebase
+  2. Classifier and Preprocessor protocols exist and the existing OnnxDroneClassifier can be wrapped to implement the Classifier protocol without changing its internals
+  3. Feeding a 0.5s audio segment through the research preprocessor produces a (1, 1, 128, 64) tensor with values in [0, 1] using (S_db+80)/80 normalization
+  4. Numerical parity tests pass: the same WAV file processed through both TF research code and the new PyTorch preprocessor produces tensors within atol=1e-4
+**Plans**: 2 plans
+
+Plans:
+- [x] 06-01-PLAN.md — MelConfig dataclass, Classifier/Preprocessor protocols, ONNX removal, reference fixtures
+- [x] 06-02-PLAN.md — ResearchPreprocessor (torchaudio), CNNWorker protocol refactor, pipeline 0.5s segments, parity tests
+
+### Phase 7: Research CNN and Inference Integration
+**Goal**: The live detection pipeline uses the research CNN architecture with segment aggregation, swappable via protocol injection at startup
+**Depends on**: Phase 6
+**Requirements**: MDL-01, MDL-02, MDL-03, MDL-04
+**Success Criteria** (what must be TRUE):
+  1. ResearchCNN model (3-layer Conv2D 32/64/128, BN, MaxPool, GlobalAvgPool, Dense 128, Dropout 0.3, Sigmoid) accepts (N, 1, 128, 64) input and produces a single probability per sample
+  2. Audio chunks are split into overlapping 0.5s segments, each classified independently, and aggregated via configurable p_max/p_mean/p_agg weights before feeding the state machine
+  3. CNNWorker accepts injected Classifier, Preprocessor, and Aggregator via protocols; a factory in main.py selects the implementation at startup based on config
+  4. State machine thresholds (enter/exit) are configurable via environment variables to accommodate the new CNN's different confidence distribution
+  5. The pipeline processes audio end-to-end with the new classifier without crashing or regressing beamforming performance
+**Plans**: 2 plans
+
+Plans:
+- [x] 07-01-PLAN.md — ResearchCNN model, Aggregator protocol, WeightedAggregator, config extensions, unit tests
+- [x] 07-02-PLAN.md — CNNWorker segment buffer, pipeline overlap push, classifier factory wiring, integration tests
+
+### Phase 8: PyTorch Training Pipeline
+**Goal**: Users can train a research CNN model from labeled WAV files with the training process isolated from live detection
+**Depends on**: Phase 6 (shared preprocessing), Phase 7 (model architecture)
+**Requirements**: TRN-01, TRN-02, TRN-03, TRN-04
+**Success Criteria** (what must be TRUE):
+  1. Training pipeline loads WAV files lazily, extracts random 0.5s segments, and trains with Adam optimizer, BCE loss, and early stopping
+  2. Training runs as a background thread with resource isolation (os.nice, thread limits) and does not degrade live detection latency below the 150ms beamforming deadline
+  3. Training produces a model checkpoint (.pt) and exports to a deployable format on completion
+  4. Training data augmentation (SpecAugment time/frequency masking and waveform augmentation) is applied during training and can be toggled via config
+**Plans**: 3 plans
+
+Plans:
+- [x] 08-01-PLAN.md — TrainingConfig, data augmentation (SpecAugment + waveform), DroneAudioDataset with lazy loading and random segment extraction
+- [x] 08-02-PLAN.md — TrainingRunner (training loop + early stopping + checkpoint), TrainingManager (background thread + progress + cancellation)
+- [x] 08-03-PLAN.md — Gap closure: TorchScript export, torch.set_num_threads isolation, confusion matrix tracking
+
+### Phase 9: Evaluation Harness and API
+**Goal**: Operators can evaluate classifier accuracy on labeled test data and control training and evaluation via REST endpoints with real-time progress updates
+**Depends on**: Phase 7 (inference path), Phase 8 (training pipeline)
+**Requirements**: EVL-01, EVL-02, API-01, API-02
+**Success Criteria** (what must be TRUE):
+  1. Evaluation harness runs the classifier on labeled test folders and produces confusion matrix, precision/recall/F1, and distribution stats (p_agg/p_max/p_mean percentiles)
+  2. Evaluation provides per-file detailed output showing segment-level probabilities and final aggregation scores
+  3. REST endpoints allow starting a training run, checking training progress, running an evaluation, and retrieving evaluation results
+  4. Training progress is streamed via WebSocket so the UI can show real-time updates (epoch, loss, metrics)
+**Plans**: 2 plans
+
+Plans:
+- [ ] 09-01-PLAN.md — Evaluation module (Evaluator class, metrics, distribution stats, per-file output) and Pydantic API models
+- [ ] 09-02-PLAN.md — REST endpoints (training, eval, models), WebSocket /ws/training, main.py wiring, integration tests
+
+### Phase 10: Field Data Collection
+**Goal**: Users can record labeled audio clips from the live UMA-16 microphone array through the web UI, building a training dataset
+**Depends on**: Phase 8 (recordings feed training pipeline)
+**Requirements**: COL-01, COL-02, COL-03
+**Success Criteria** (what must be TRUE):
+  1. User can start a labeled recording session from the web UI, specifying drone type and recording conditions
+  2. User can attach and edit metadata on recordings (drone type, distance, altitude, conditions, notes)
+  3. Recordings are automatically saved into a directory structure (data/recordings/{label}/{bin}/) that the training pipeline can directly consume without manual reorganization
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 11: Late Fusion Ensemble (Conditional)
+**Goal**: Multiple classifiers combine via accuracy-weighted soft voting to improve detection accuracy beyond what a single model achieves
+**Depends on**: Phase 9 (evaluation harness measures single-model accuracy; build only if accuracy is insufficient)
+**Requirements**: ENS-01, ENS-02
+**Success Criteria** (what must be TRUE):
+  1. EnsembleClassifier wraps N models via the Classifier protocol with accuracy-weighted soft voting and normalized weights
+  2. Ensemble inference runs within real-time latency budget (max 3 models for live detection, N models for offline evaluation)
+  3. Ensemble evaluation on the harness shows measurable improvement over the best single-model baseline
+**Plans**: TBD
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
+Phases execute in numeric order: 6 -> 7 -> 8 -> 9 -> 10 -> 11
 
-| Phase | Plans Complete | Status | Completed |
-|-------|----------------|--------|-----------|
-| 1. Audio Capture, Beamforming, and Infrastructure | 3/3 | Complete | 2026-03-30 |
-| 2. REST API and Live Monitoring UI | 1/3 | In Progress|  |
-| 3. CNN Classification and Target Tracking | 1/3 | In Progress|  |
-| 4. Recording and Playback | 0/2 | Not started | - |
-| 5. CNN Training Pipeline | 0/2 | Not started | - |
+Note: Phase 11 is conditional -- build only if Phase 9 evaluation shows single-model accuracy is insufficient.
+
+| Phase | Milestone | Plans Complete | Status | Completed |
+|-------|-----------|----------------|--------|-----------|
+| 1. Audio Capture, Beamforming, and Infrastructure | v1.0 | 3/3 | Complete | 2026-03-30 |
+| 2. REST API and Live Monitoring UI | v1.0 | 1/3 | In Progress | |
+| 3. CNN Classification and Target Tracking | v1.0 | 3/3 | Complete | |
+| 4. Recording and Playback | v1.0 | 0/2 | Not started | - |
+| 5. CNN Training Pipeline | v1.0 | 0/2 | Not started | - |
+| 6. Preprocessing Parity Foundation | v2.0 | 2/2 | Complete   | 2026-04-01 |
+| 7. Research CNN and Inference Integration | v2.0 | 0/2 | Not started | - |
+| 8. PyTorch Training Pipeline | v2.0 | 2/3 | In Progress|  |
+| 9. Evaluation Harness and API | v2.0 | 0/2 | Not started | - |
+| 10. Field Data Collection | v2.0 | 0/? | Not started | - |
+| 11. Late Fusion Ensemble (Conditional) | v2.0 | 0/? | Not started | - |
