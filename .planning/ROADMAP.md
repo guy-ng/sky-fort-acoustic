@@ -229,7 +229,7 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 12-01-PLAN.md — Install Recharts, TypeScript interfaces for training/eval/model APIs, data hooks (useTraining, useTrainingSocket, useEvaluation, useModels)
+- [x] 12-01-PLAN.md — Install Recharts, TypeScript interfaces for training/eval/model APIs, data hooks (useTraining, useTrainingSocket, useEvaluation, useModels)
 - [ ] 12-02-PLAN.md — UI components (TrainingPanel accordion, TrainSection, TrainingProgress chart, EvalSection, EvaluationResults, ModelsSection) + Sidebar integration + visual verification
 
 ## Progress
@@ -252,4 +252,4 @@ Note: Phase 11 is conditional -- build only if Phase 9 evaluation shows single-m
 | 9. Evaluation Harness and API | v2.0 | 2/2 | Complete | 2026-04-02 |
 | 10. Field Data Collection | v2.0 | 3/3 | Complete   | 2026-04-02 |
 | 11. Late Fusion Ensemble (Conditional) | v2.0 | 0/2 | Complete    | 2026-04-02 |
-| 12. Add ML Training & Testing UI Tab | v2.0 | 0/2 | Not started | - |
+| 12. Add ML Training & Testing UI Tab | v2.0 | 1/2 | In Progress|  |
