@@ -45,6 +45,9 @@ class AcousticSettings(BaseSettings):
     cnn_confirm_hits: int = 2
     cnn_target_ttl: float = 5.0  # seconds before target marked lost
 
+    # Ensemble configuration
+    ensemble_config_path: str | None = None
+
     # Server
     host: str = "0.0.0.0"
     port: int = 8000
