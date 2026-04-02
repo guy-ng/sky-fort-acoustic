@@ -21,7 +21,7 @@ created: 2026-04-02
 | Preset | not applicable |
 | Component library | none (custom HUD components: Panel, Header, Sidebar) |
 | Icon library | Material Symbols Outlined (`material-symbols/outlined.css`) |
-| Font | Inter (400, 500, 600) + JetBrains Mono (400) via @fontsource |
+| Font | Inter (400, 600) + JetBrains Mono (400) via @fontsource |
 
 Source: `web/src/index.css` theme tokens, `web/package.json` dependencies.
 
@@ -35,13 +35,13 @@ Declared values (must be multiples of 4):
 |-------|-------|-------|
 | xs | 4px | Icon gaps, inline padding, grid gap (`gap-1` = 4px) |
 | sm | 8px | Compact element spacing, stat row padding (`py-1.5` ~ 6px rounds to 8px context) |
-| md | 12px | Panel internal padding (`p-3` = 12px — established pattern) |
-| lg | 16px | Header horizontal padding (`px-4`), section spacing |
-| xl | 24px | Section breaks between recording panel zones |
-| 2xl | 32px | Not used in this phase |
-| 3xl | 48px | Not used in this phase |
+| md | 16px | Header horizontal padding (`px-4`), section spacing |
+| lg | 24px | Section breaks between recording panel zones |
+| xl | 32px | Not used in this phase |
+| 2xl | 48px | Not used in this phase |
+| 3xl | 64px | Not used in this phase |
 
-Exceptions: Panel content padding is 12px (`p-3`), matching existing Panel component. Panel header padding is `px-3 py-2` (12px horizontal, 8px vertical). These are established patterns — do not override.
+Exceptions: Panel content padding is 12px (`p-3`), matching existing Panel.tsx (`Panel` component uses `p-3` as an established legacy pattern). Panel header padding is `px-3 py-2` (12px horizontal, 8px vertical). These are established patterns — do not override.
 
 ---
 
@@ -50,11 +50,13 @@ Exceptions: Panel content padding is 12px (`p-3`), matching existing Panel compo
 | Role | Size | Weight | Line Height | Font |
 |------|------|--------|-------------|------|
 | Body | 14px (`text-sm`) | 400 (regular) | 1.5 | Inter |
-| Label | 12px (`text-xs`) | 500 (medium) | 1.5 | Inter |
-| Panel title | 14px (`text-sm`) | 500 (medium) | 1.5 | Inter — uppercase, `tracking-wider`, `text-hud-text-dim` |
+| Label | 12px (`text-xs`) | 400 (regular) | 1.5 | Inter — uppercase, `tracking-wider`, `text-hud-text-dim` |
+| Panel title | 14px (`text-sm`) | 600 (semibold) | 1.5 | Inter — uppercase, `tracking-wider`, `text-hud-text-dim` |
 | Heading | 18px (`text-lg`) | 600 (semibold) | 1.4 | JetBrains Mono — header title only |
 | Mono value | 14px (`text-sm`) | 400 (regular) | 1.5 | JetBrains Mono — timers, level readouts, file sizes |
 | Stat label | 12px (`text-xs`) | 400 (regular) | 1.5 | Inter — uppercase, `tracking-wider`, `text-hud-text-dim` |
+
+Weights used: 400 (regular) for body text, labels, and mono values; 600 (semibold) for panel titles and the header heading. Two weights only.
 
 Source: Existing patterns in Panel.tsx, Sidebar.tsx, Header.tsx, TargetCard.tsx.
 
@@ -81,6 +83,12 @@ Border color: `#1f2937` (`hud-border`) for all panel borders, dividers, form inp
 Text primary: `#e5e7eb` (`hud-text`). Text secondary: `#9ca3af` (`hud-text-dim`).
 
 Source: `web/src/index.css` @theme block, existing component usage patterns.
+
+---
+
+## Visual Hierarchy
+
+**Primary focal point:** The recording button (top of recording section), always visible and color-coded to current recording state (accent blue when idle, pulsing red when recording, muted when device disconnected). The button is the largest interactive element in the recording panel and the first thing the user sees.
 
 ---
 
@@ -138,7 +146,7 @@ No router required — sidebar switches between "SYSTEM" and "RECORDINGS" views 
 | Conditions | Text input | Placeholder: "e.g., light wind, rain" — optional |
 | Notes | Textarea (2 rows) | Placeholder: "Free-text notes" — optional |
 | Save button | Button | "Save Recording" — `hud-accent` background, disabled until top-level label selected |
-| Discard button | Text button | "Discard" — `hud-text-dim`, no background |
+| Discard button | Text button | "Discard Recording" — `hud-text-dim`, no background |
 
 Form inputs: `bg-hud-bg`, `border border-hud-border`, `rounded`, `px-2 py-1.5`, `text-sm text-hud-text`, `focus:border-hud-accent focus:outline-none`. Consistent with HUD dark theme.
 
@@ -166,8 +174,8 @@ Form inputs: `bg-hud-bg`, `border border-hud-border`, `rounded`, `px-2 py-1.5`, 
 | Label badge: unlabeled | `bg-hud-warning/20 text-hud-warning`, italic text |
 | Duration | `font-mono text-xs text-hud-text-dim` |
 | Timestamp | `font-mono text-xs text-hud-text-dim` |
-| Delete icon | Material Symbol `delete`, `text-hud-text-dim hover:text-hud-danger`, 20px |
-| Edit icon | Material Symbol `edit`, `text-hud-text-dim hover:text-hud-accent`, 20px |
+| Delete icon | Material Symbol `delete`, `text-hud-text-dim hover:text-hud-danger`, 20px, `aria-label="Delete recording"` |
+| Edit icon | Material Symbol `edit`, `text-hud-text-dim hover:text-hud-accent`, 20px, `aria-label="Edit recording metadata"` |
 
 ### Timer Display (during recording)
 
@@ -186,7 +194,7 @@ Form inputs: `bg-hud-bg`, `border border-hud-border`, `rounded`, `px-2 py-1.5`, 
 | Primary CTA | "Start Recording" |
 | Secondary CTA (stop) | "Stop Recording" |
 | Save CTA | "Save Recording" |
-| Discard CTA | "Discard" |
+| Discard CTA | "Discard Recording" |
 | Empty state heading | "No Recordings" |
 | Empty state body | "Start a recording to collect training data. Recordings are saved as labeled audio clips for the training pipeline." |
 | Error state (device missing) | "No audio device detected. Connect the UMA-16 microphone array and refresh." |
