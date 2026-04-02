@@ -29,6 +29,19 @@ class DistributionStats:
 
 
 @dataclass
+class PerModelResult:
+    """Evaluation metrics for a single model within an ensemble."""
+
+    model_type: str
+    model_path: str
+    weight: float  # Normalized weight used in ensemble
+    accuracy: float
+    precision: float
+    recall: float
+    f1: float
+
+
+@dataclass
 class EvaluationResult:
     """Complete evaluation result with confusion matrix, metrics, and per-file detail."""
 
@@ -49,3 +62,4 @@ class EvaluationResult:
     files: list[FileResult] = field(default_factory=list)
     total_files: int = 0
     total_correct: int = 0
+    per_model_results: list[PerModelResult] = field(default_factory=list)

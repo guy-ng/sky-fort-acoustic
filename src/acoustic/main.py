@@ -305,9 +305,52 @@ async def lifespan(app: FastAPI):
         broadcaster = EventBroadcaster()
         preprocessor = ResearchPreprocessor()
 
-        # Classifier factory (D-06): load model if file exists, else dormant
+        # Classifier factory: ensemble detection first, then single-model fallback
         classifier = None
-        if os.path.isfile(settings.cnn_model_path):
+        ensemble_active = False
+
+        # Ensemble factory (D-06): detect ensemble config file
+        if settings.ensemble_config_path and os.path.isfile(settings.ensemble_config_path):
+            try:
+                from acoustic.classification.ensemble import (
+                    EnsembleClassifier,
+                    EnsembleConfig,
+                    load_model as load_ensemble_model,
+                )
+
+                config = EnsembleConfig.from_file(settings.ensemble_config_path)
+                if len(config.models) > 1:
+                    classifiers_list = []
+                    weights_list = []
+                    for entry in config.models:
+                        clf = load_ensemble_model(entry.type, entry.path)
+                        classifiers_list.append(clf)
+                        weights_list.append(entry.weight)
+                    classifier = EnsembleClassifier(
+                        classifiers_list, weights_list, live_mode=True
+                    )
+                    ensemble_active = True
+                    logger.info(
+                        "Loaded ensemble with %d models from %s",
+                        len(classifiers_list),
+                        settings.ensemble_config_path,
+                    )
+                elif len(config.models) == 1:
+                    # Single model in ensemble config -- use it directly
+                    entry = config.models[0]
+                    classifier = load_ensemble_model(entry.type, entry.path)
+                    logger.info(
+                        "Ensemble config has 1 model, using single-model mode: %s",
+                        entry.path,
+                    )
+            except Exception:
+                logger.exception(
+                    "Failed to load ensemble from %s -- falling back to single model",
+                    settings.ensemble_config_path,
+                )
+
+        # Single-model fallback (D-06): load model if file exists, else dormant
+        if classifier is None and os.path.isfile(settings.cnn_model_path):
             try:
                 model = ResearchCNN()
                 model.load_state_dict(torch.load(settings.cnn_model_path, weights_only=True))
@@ -321,7 +364,7 @@ async def lifespan(app: FastAPI):
                 logger.info("Loaded CNN model from %s", settings.cnn_model_path)
             except Exception:
                 logger.exception("Failed to load CNN model -- running without classifier")
-        else:
+        elif classifier is None:
             logger.warning(
                 "CNN model not found at %s -- running in dormant mode",
                 settings.cnn_model_path,
@@ -345,9 +388,10 @@ async def lifespan(app: FastAPI):
         )
         tracker = TargetTracker(ttl=settings.cnn_target_ttl, broadcaster=broadcaster)
         cnn_worker.start()
+        classifier_mode = "ensemble" if ensemble_active else ("active" if classifier is not None else "dormant")
         logger.info(
             "CNN worker started (classifier=%s, aggregator=WeightedAggregator(w_max=%.2f, w_mean=%.2f))",
-            "active" if classifier is not None else "dormant",
+            classifier_mode,
             settings.cnn_agg_w_max,
             settings.cnn_agg_w_mean,
         )

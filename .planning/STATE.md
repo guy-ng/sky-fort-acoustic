@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
 milestone: v1.0
-milestone_name: MVP
-status: executing
-stopped_at: Phase 12 context gathered
-last_updated: "2026-04-02T17:40:22.685Z"
-last_activity: 2026-04-02 -- Phase 11 execution started
+milestone_name: milestone
+status: verifying
+stopped_at: Completed 11-02-PLAN.md
+last_updated: "2026-04-02T17:53:31.539Z"
+last_activity: 2026-04-02
 progress:
-  total_phases: 7
-  completed_phases: 5
-  total_plans: 14
-  completed_plans: 13
+  total_phases: 5
+  completed_phases: 2
+  total_plans: 9
+  completed_plans: 8
   percent: 20
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-29)
 
 **Core value:** Reliably detect and classify drones acoustically in real time, publishing target events over ZeroMQ so downstream systems can act on them.
-**Current focus:** Phase 11 — late-fusion-ensemble-conditional
+**Current focus:** Phase 03 — cnn-classification-and-target-tracking
 
 ## Current Position
 
-Phase: 11 (late-fusion-ensemble-conditional) — EXECUTING
-Plan: 1 of 2
-Status: Executing Phase 11
-Last activity: 2026-04-02 -- Phase 11 execution started
+Phase: 03 (cnn-classification-and-target-tracking) — EXECUTING
+Plan: 3 of 3 (Wave 1 complete, Wave 2 pending)
+Status: Phase complete — ready for verification
+Last activity: 2026-04-02
 
 Progress: [##........] 20%
 
@@ -59,15 +59,9 @@ Progress: [##........] 20%
 | Phase 03 P01 | 6min | 1 tasks | 9 files |
 | Phase 03 P02 | 5m19s | 1 tasks | 7 files |
 | Phase 03 P03 | 12min | 2 tasks | 9 files |
-| Phase 10 P01 | 4min | 2 tasks | 8 files |
-| Phase 10 P02 | 7min | 2 tasks | 5 files |
-| Phase 10 P03 | 4min | 2 tasks | 7 files |
+| Phase 11 P02 | 10min | 2 tasks | 7 files |
 
 ## Accumulated Context
-
-### Roadmap Evolution
-
-- Phase 12 added: Add ML Training & Testing UI tab
 
 ### Decisions
 
@@ -94,12 +88,8 @@ Recent decisions affecting current work:
 - [Phase 03]: speed_mps always None -- Doppler deferred to milestone 2 (per D-07)
 - [Phase 03]: CNNWorker uses single-slot queue with drop semantics for non-blocking inference
 - [Phase 03]: Fixed EventBroadcaster to use call_soon_threadsafe for thread-safe async delivery
-- [Phase 10]: Mono downmix via channel mean + resample_poly(1,3) for 48kHz->16kHz
-- [Phase 10]: feed_chunk passive observer pattern avoids ring buffer contention
-- [Phase 10]: Record-first workflow: _unlabeled/ -> {label}/ on label assignment
-- [Phase 10]: response_model=None for FastAPI endpoints with union return types (BaseModel | JSONResponse)
-- [Phase 10]: feed_chunk called before beamforming in pipeline loop (passive observer pattern)
-- [Phase 10]: Sidebar uses local useState for tab switching, no router needed
+- [Phase 11]: Evaluator refactored with evaluate_classifier and evaluate_ensemble, keeping backward-compatible evaluate(model_path)
+- [Phase 11]: Ensemble factory in lifespan runs before single-model with fallback on failure
 
 ### Pending Todos
 
@@ -121,6 +111,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-02T17:40:22.681Z
-Stopped at: Phase 12 context gathered
-Resume file: .planning/phases/12-add-ml-training-testing-ui-tab/12-CONTEXT.md
+Last session: 2026-04-02T17:53:31.535Z
+Stopped at: Completed 11-02-PLAN.md
+Resume file: None

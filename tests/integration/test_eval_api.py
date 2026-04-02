@@ -97,6 +97,73 @@ class TestEvalRun:
 
 
 @pytest.mark.asyncio
+class TestEvalEnsemble:
+    """Tests for ensemble evaluation via POST /api/eval/run."""
+
+    async def test_eval_ensemble_missing_config(self, running_app):
+        """POST with nonexistent ensemble_config_path returns 404."""
+        async with AsyncClient(
+            transport=ASGITransport(app=running_app, raise_app_exceptions=False),
+            base_url="http://test",
+        ) as client:
+            with tempfile.TemporaryDirectory() as tmpdir:
+                # Create valid data dir so data_dir check passes
+                drone_dir = Path(tmpdir) / "drone"
+                drone_dir.mkdir()
+
+                response = await client.post(
+                    "/api/eval/run",
+                    json={
+                        "ensemble_config_path": "/nonexistent/ensemble.json",
+                        "data_dir": tmpdir,
+                    },
+                )
+                assert response.status_code == 404
+                data = response.json()
+                assert "Ensemble config file not found" in data["message"]
+
+    async def test_eval_ensemble_endpoint_accepts_param(self, running_app):
+        """POST with ensemble_config_path parameter is accepted by the endpoint."""
+        import json
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Create ensemble config pointing to nonexistent models
+            config = {
+                "models": [
+                    {"type": "research_cnn", "path": "/fake/model1.pt", "weight": 0.6},
+                    {"type": "research_cnn", "path": "/fake/model2.pt", "weight": 0.4},
+                ]
+            }
+            config_path = Path(tmpdir) / "ensemble.json"
+            config_path.write_text(json.dumps(config))
+
+            # Create valid data dir
+            drone_dir = Path(tmpdir) / "drone"
+            drone_dir.mkdir()
+            sf.write(
+                str(drone_dir / "d.wav"),
+                np.random.randn(16000).astype(np.float32) * 0.01,
+                16000,
+            )
+
+            async with AsyncClient(
+                transport=ASGITransport(app=running_app, raise_app_exceptions=False),
+                base_url="http://test",
+            ) as client:
+                response = await client.post(
+                    "/api/eval/run",
+                    json={
+                        "ensemble_config_path": str(config_path),
+                        "data_dir": tmpdir,
+                    },
+                )
+                # Should return 404 because model files don't exist
+                assert response.status_code == 404
+                data = response.json()
+                assert "Model file not found" in data["message"]
+
+
+@pytest.mark.asyncio
 class TestModelList:
     """Tests for GET /api/models."""
 

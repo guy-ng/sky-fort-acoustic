@@ -12,8 +12,13 @@ import torchaudio
 from acoustic.classification.aggregation import WeightedAggregator
 from acoustic.classification.config import MelConfig
 from acoustic.classification.preprocessing import mel_spectrogram_from_segment
-from acoustic.classification.research_cnn import ResearchCNN
-from acoustic.evaluation.models import DistributionStats, EvaluationResult, FileResult
+from acoustic.classification.protocols import Classifier
+from acoustic.evaluation.models import (
+    DistributionStats,
+    EvaluationResult,
+    FileResult,
+    PerModelResult,
+)
 from acoustic.training.dataset import collect_wav_files
 
 
@@ -44,6 +49,9 @@ class Evaluator:
     def evaluate(self, model_path: str, data_dir: str) -> EvaluationResult:
         """Run evaluation on labeled WAV folders and return metrics.
 
+        Backward-compatible entry point that loads a ResearchCNN from a
+        checkpoint path and delegates to evaluate_classifier.
+
         Args:
             model_path: Path to a .pt checkpoint (ResearchCNN state_dict).
             data_dir: Root directory containing label subdirectories.
@@ -52,70 +60,40 @@ class Evaluator:
             EvaluationResult with confusion matrix, metrics, distribution stats,
             and per-file detail.
         """
-        # Load model
-        model = ResearchCNN()
-        model.load_state_dict(
-            torch.load(model_path, map_location="cpu", weights_only=True)
-        )
-        model.eval()
+        from acoustic.classification.ensemble import load_model
 
-        # Collect files using shared training utility
+        classifier = load_model("research_cnn", model_path)
+        return self.evaluate_classifier(classifier, data_dir)
+
+    def evaluate_classifier(
+        self, classifier: Classifier, data_dir: str
+    ) -> EvaluationResult:
+        """Run evaluation using any Classifier protocol implementor.
+
+        Args:
+            classifier: Any object satisfying the Classifier protocol.
+            data_dir: Root directory containing label subdirectories.
+
+        Returns:
+            EvaluationResult with confusion matrix, metrics, distribution stats,
+            and per-file detail.
+        """
         paths, labels = collect_wav_files(data_dir, self._label_map)
-
-        # Build reverse label map for display (int -> str)
         int_to_label = {1: "drone", 0: "no_drone"}
-
-        # Create aggregator
         aggregator = WeightedAggregator(w_max=self._w_max, w_mean=self._w_mean)
-
         segment_samples = self._config.segment_samples
         file_results: list[FileResult] = []
 
         with torch.no_grad():
             for path, label_int in zip(paths, labels):
-                audio, sr = sf.read(str(path), dtype="float32")
+                segment_probs = self._process_file(path, segment_samples, classifier)
 
-                # Multi-channel -> mono
-                if audio.ndim > 1:
-                    audio = audio.mean(axis=1)
-
-                # Resample if needed
-                if sr != self._config.sample_rate:
-                    waveform = torch.from_numpy(audio).float()
-                    resampler = torchaudio.transforms.Resample(sr, self._config.sample_rate)
-                    audio = resampler(waveform).numpy()
-
-                # Extract non-overlapping segments
-                segment_probs: list[float] = []
-                n_segments = max(1, len(audio) // segment_samples)
-
-                for i in range(n_segments):
-                    start = i * segment_samples
-                    end = start + segment_samples
-
-                    if end <= len(audio):
-                        segment = audio[start:end]
-                    else:
-                        # Zero-pad short/final segment
-                        segment = np.zeros(segment_samples, dtype=np.float32)
-                        remaining = audio[start:]
-                        segment[: len(remaining)] = remaining
-
-                    # Preprocessing (same as live inference)
-                    features = mel_spectrogram_from_segment(segment, self._config)
-
-                    # Inference
-                    prob = model(features).item()
-                    segment_probs.append(prob)
-
-                # Per-file statistics
                 p_max_val = max(segment_probs) if segment_probs else 0.0
                 p_mean_val = (
                     sum(segment_probs) / len(segment_probs) if segment_probs else 0.0
                 )
                 p_agg = aggregator.aggregate(segment_probs)
 
-                # Prediction
                 predicted_int = 1 if p_agg >= 0.5 else 0
                 true_label = int_to_label[label_int]
                 predicted_label = int_to_label[predicted_int]
@@ -132,11 +110,167 @@ class Evaluator:
                     )
                 )
 
-        # Compute metrics
+        return self._build_result(file_results)
+
+    def evaluate_ensemble(
+        self,
+        ensemble: object,
+        model_entries: list,
+        data_dir: str,
+    ) -> EvaluationResult:
+        """Evaluate an ensemble and each individual model in a single pass.
+
+        Returns ensemble metrics as the main EvaluationResult, plus per-model
+        metrics populated in per_model_results.
+
+        Args:
+            ensemble: An EnsembleClassifier instance.
+            model_entries: List of ModelEntry objects from the ensemble config.
+            data_dir: Root directory containing label subdirectories.
+
+        Returns:
+            EvaluationResult with ensemble metrics and per_model_results populated.
+        """
+        from acoustic.classification.ensemble import EnsembleClassifier, ModelEntry, load_model
+
+        paths, labels = collect_wav_files(data_dir, self._label_map)
+        int_to_label = {1: "drone", 0: "no_drone"}
+        aggregator = WeightedAggregator(w_max=self._w_max, w_mean=self._w_mean)
+        segment_samples = self._config.segment_samples
+
+        # Load individual models for per-model evaluation
+        individual_classifiers: list[Classifier] = []
+        for entry in model_entries:
+            individual_classifiers.append(load_model(entry.type, entry.path))
+
+        # Track per-model file results
+        per_model_file_results: list[list[FileResult]] = [
+            [] for _ in model_entries
+        ]
+        ensemble_file_results: list[FileResult] = []
+
+        with torch.no_grad():
+            for path, label_int in zip(paths, labels):
+                # Preprocess segments once
+                features_list = self._extract_features(path, segment_samples)
+                true_label = int_to_label[label_int]
+
+                # Run ensemble prediction
+                ensemble_probs = [
+                    ensemble.predict(features) for features in features_list
+                ]
+                ens_p_max = max(ensemble_probs) if ensemble_probs else 0.0
+                ens_p_mean = (
+                    sum(ensemble_probs) / len(ensemble_probs)
+                    if ensemble_probs
+                    else 0.0
+                )
+                ens_p_agg = aggregator.aggregate(ensemble_probs)
+                ens_predicted = int_to_label[1 if ens_p_agg >= 0.5 else 0]
+
+                ensemble_file_results.append(
+                    FileResult(
+                        filename=path.name,
+                        true_label=true_label,
+                        predicted_label=ens_predicted,
+                        p_agg=ens_p_agg,
+                        p_max=ens_p_max,
+                        p_mean=ens_p_mean,
+                        correct=(ens_predicted == true_label),
+                    )
+                )
+
+                # Run each individual model
+                for idx, clf in enumerate(individual_classifiers):
+                    model_probs = [clf.predict(features) for features in features_list]
+                    m_p_max = max(model_probs) if model_probs else 0.0
+                    m_p_mean = (
+                        sum(model_probs) / len(model_probs)
+                        if model_probs
+                        else 0.0
+                    )
+                    m_p_agg = aggregator.aggregate(model_probs)
+                    m_predicted = int_to_label[1 if m_p_agg >= 0.5 else 0]
+
+                    per_model_file_results[idx].append(
+                        FileResult(
+                            filename=path.name,
+                            true_label=true_label,
+                            predicted_label=m_predicted,
+                            p_agg=m_p_agg,
+                            p_max=m_p_max,
+                            p_mean=m_p_mean,
+                            correct=(m_predicted == true_label),
+                        )
+                    )
+
+        # Build ensemble result
+        result = self._build_result(ensemble_file_results)
+
+        # Compute per-model metrics
+        for idx, entry in enumerate(model_entries):
+            fr_list = per_model_file_results[idx]
+            tp, fp, tn, fn = self._compute_confusion(fr_list)
+            accuracy, precision, recall, f1 = self._compute_metrics(tp, fp, tn, fn)
+            result.per_model_results.append(
+                PerModelResult(
+                    model_type=entry.type,
+                    model_path=entry.path,
+                    weight=entry.weight,
+                    accuracy=accuracy,
+                    precision=precision,
+                    recall=recall,
+                    f1=f1,
+                )
+            )
+
+        return result
+
+    def _extract_features(
+        self, path: Path, segment_samples: int
+    ) -> list[torch.Tensor]:
+        """Extract feature tensors for all segments in a WAV file."""
+        audio, sr = sf.read(str(path), dtype="float32")
+
+        if audio.ndim > 1:
+            audio = audio.mean(axis=1)
+
+        if sr != self._config.sample_rate:
+            waveform = torch.from_numpy(audio).float()
+            resampler = torchaudio.transforms.Resample(sr, self._config.sample_rate)
+            audio = resampler(waveform).numpy()
+
+        features_list: list[torch.Tensor] = []
+        n_segments = max(1, len(audio) // segment_samples)
+
+        for i in range(n_segments):
+            start = i * segment_samples
+            end = start + segment_samples
+
+            if end <= len(audio):
+                segment = audio[start:end]
+            else:
+                segment = np.zeros(segment_samples, dtype=np.float32)
+                remaining = audio[start:]
+                segment[: len(remaining)] = remaining
+
+            features = mel_spectrogram_from_segment(segment, self._config)
+            features_list.append(features)
+
+        return features_list
+
+    def _process_file(
+        self, path: Path, segment_samples: int, classifier: Classifier
+    ) -> list[float]:
+        """Process a single WAV file through a classifier and return segment probs."""
+        features_list = self._extract_features(path, segment_samples)
+        return [classifier.predict(features) for features in features_list]
+
+    def _build_result(self, file_results: list[FileResult]) -> EvaluationResult:
+        """Build an EvaluationResult from file results."""
         tp, fp, tn, fn = self._compute_confusion(file_results)
         accuracy, precision, recall, f1 = self._compute_metrics(tp, fp, tn, fn)
 
-        # Compute distribution stats
         drone_stats = self._compute_distribution(
             [fr for fr in file_results if fr.true_label == "drone"]
         )

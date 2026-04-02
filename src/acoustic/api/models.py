@@ -103,6 +103,7 @@ class EvalRunRequest(BaseModel):
 
     model_path: str | None = None
     data_dir: str | None = None
+    ensemble_config_path: str | None = None
 
 
 class DistributionStatsResponse(BaseModel):
@@ -145,6 +146,18 @@ class EvalSummaryResponse(BaseModel):
     confusion_matrix: ConfusionMatrixResponse
 
 
+class PerModelResultResponse(BaseModel):
+    """Per-model metrics within an ensemble evaluation."""
+
+    model_type: str
+    model_path: str
+    weight: float
+    accuracy: float
+    precision: float
+    recall: float
+    f1: float
+
+
 class EvalResultResponse(BaseModel):
     """Complete evaluation result response."""
 
@@ -154,6 +167,7 @@ class EvalResultResponse(BaseModel):
     model_path: str
     data_dir: str
     message: str  # "Evaluated 556 files: 512 correct, 44 incorrect (92.1% accuracy)"
+    per_model_results: list[PerModelResultResponse] | None = None
 
     @staticmethod
     def from_evaluation(
@@ -209,6 +223,22 @@ class EvalResultResponse(BaseModel):
             f"({result.accuracy * 100:.1f}% accuracy)"
         )
 
+        # Convert per-model results if present (ensemble evaluation)
+        per_model = None
+        if result.per_model_results:
+            per_model = [
+                PerModelResultResponse(
+                    model_type=pmr.model_type,
+                    model_path=pmr.model_path,
+                    weight=pmr.weight,
+                    accuracy=pmr.accuracy,
+                    precision=pmr.precision,
+                    recall=pmr.recall,
+                    f1=pmr.f1,
+                )
+                for pmr in result.per_model_results
+            ]
+
         return EvalResultResponse(
             summary=summary,
             distribution=distribution,
@@ -216,6 +246,7 @@ class EvalResultResponse(BaseModel):
             model_path=model_path,
             data_dir=data_dir,
             message=message,
+            per_model_results=per_model,
         )
 
 

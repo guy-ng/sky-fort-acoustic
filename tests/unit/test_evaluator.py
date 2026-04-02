@@ -6,9 +6,16 @@ import numpy as np
 import soundfile as sf
 import torch
 
+from acoustic.classification.ensemble import EnsembleClassifier
+from acoustic.classification.protocols import Classifier
 from acoustic.classification.research_cnn import ResearchCNN
 from acoustic.evaluation.evaluator import Evaluator
-from acoustic.evaluation.models import DistributionStats, EvaluationResult, FileResult
+from acoustic.evaluation.models import (
+    DistributionStats,
+    EvaluationResult,
+    FileResult,
+    PerModelResult,
+)
 
 
 def _create_wav(path, samples: int = 16000, sr: int = 16000) -> None:
@@ -207,3 +214,135 @@ class TestShortAudioFiles:
         assert result.total_files == 4
         for fr in result.files:
             assert 0.0 <= fr.p_agg <= 1.0
+
+
+class _MockClassifier:
+    """A mock Classifier that returns a fixed probability."""
+
+    def __init__(self, prob: float = 0.8) -> None:
+        self._prob = prob
+
+    def predict(self, features: torch.Tensor) -> float:
+        return self._prob
+
+
+class TestEvaluateClassifierWithMock:
+    """Test 8: evaluate_classifier works with any Classifier implementation."""
+
+    def test_evaluate_classifier_with_mock(self, tmp_path):
+        """evaluate_classifier accepts a mock Classifier and returns valid result."""
+        _create_test_data(tmp_path, drone_count=2, bg_count=2)
+        mock_clf = _MockClassifier(prob=0.9)
+        evaluator = Evaluator()
+        result = evaluator.evaluate_classifier(mock_clf, str(tmp_path))
+
+        assert isinstance(result, EvaluationResult)
+        assert result.total_files == 4
+        assert result.tp + result.fp + result.tn + result.fn == 4
+        for fr in result.files:
+            assert isinstance(fr.filename, str)
+            assert fr.true_label in ("drone", "no_drone")
+
+    def test_evaluate_classifier_returns_empty_per_model_results(self, tmp_path):
+        """Single-classifier evaluation has empty per_model_results."""
+        _create_test_data(tmp_path, drone_count=2, bg_count=2)
+        mock_clf = _MockClassifier(prob=0.3)
+        evaluator = Evaluator()
+        result = evaluator.evaluate_classifier(mock_clf, str(tmp_path))
+
+        assert result.per_model_results == []
+
+
+class _MockModelEntry:
+    """Minimal mock for ModelEntry used in evaluate_ensemble."""
+
+    def __init__(self, type: str, path: str, weight: float) -> None:
+        self.type = type
+        self.path = path
+        self.weight = weight
+
+
+class TestEvaluateEnsemblePerModelResults:
+    """Test 9: evaluate_ensemble produces per-model metrics in single pass."""
+
+    def test_evaluate_ensemble_per_model_results(self, tmp_path):
+        """Ensemble evaluation returns per_model_results with correct count."""
+        _create_test_data(tmp_path, drone_count=2, bg_count=2)
+
+        # Create 2 mock classifiers with different behaviors
+        clf1 = _MockClassifier(prob=0.9)  # always predicts drone
+        clf2 = _MockClassifier(prob=0.1)  # always predicts not-drone
+
+        ensemble = EnsembleClassifier(
+            classifiers=[clf1, clf2],
+            weights=[0.6, 0.4],
+            live_mode=False,
+        )
+
+        # Mock model entries
+        entries = [
+            _MockModelEntry("mock_a", "/fake/model_a.pt", 0.6),
+            _MockModelEntry("mock_b", "/fake/model_b.pt", 0.4),
+        ]
+
+        # Register mock loaders temporarily
+        from acoustic.classification.ensemble import _REGISTRY
+
+        original_registry = dict(_REGISTRY)
+        _REGISTRY["mock_a"] = lambda path: _MockClassifier(prob=0.9)
+        _REGISTRY["mock_b"] = lambda path: _MockClassifier(prob=0.1)
+
+        try:
+            evaluator = Evaluator()
+            result = evaluator.evaluate_ensemble(ensemble, entries, str(tmp_path))
+
+            assert isinstance(result, EvaluationResult)
+            assert result.total_files == 4
+            assert len(result.per_model_results) == 2
+
+            for pmr in result.per_model_results:
+                assert isinstance(pmr, PerModelResult)
+                assert pmr.model_type in ("mock_a", "mock_b")
+                assert 0.0 <= pmr.accuracy <= 1.0
+                assert 0.0 <= pmr.f1 <= 1.0
+        finally:
+            # Restore original registry
+            _REGISTRY.clear()
+            _REGISTRY.update(original_registry)
+
+    def test_ensemble_per_model_has_correct_types(self, tmp_path):
+        """Per-model results preserve model_type and model_path from entries."""
+        _create_test_data(tmp_path, drone_count=1, bg_count=1)
+
+        clf1 = _MockClassifier(prob=0.7)
+        clf2 = _MockClassifier(prob=0.3)
+
+        ensemble = EnsembleClassifier(
+            classifiers=[clf1, clf2],
+            weights=[0.5, 0.5],
+            live_mode=False,
+        )
+
+        entries = [
+            _MockModelEntry("type_x", "/path/x.pt", 0.5),
+            _MockModelEntry("type_y", "/path/y.pt", 0.5),
+        ]
+
+        from acoustic.classification.ensemble import _REGISTRY
+
+        original_registry = dict(_REGISTRY)
+        _REGISTRY["type_x"] = lambda path: _MockClassifier(prob=0.7)
+        _REGISTRY["type_y"] = lambda path: _MockClassifier(prob=0.3)
+
+        try:
+            evaluator = Evaluator()
+            result = evaluator.evaluate_ensemble(ensemble, entries, str(tmp_path))
+
+            types = {pmr.model_type for pmr in result.per_model_results}
+            assert types == {"type_x", "type_y"}
+
+            paths = {pmr.model_path for pmr in result.per_model_results}
+            assert paths == {"/path/x.pt", "/path/y.pt"}
+        finally:
+            _REGISTRY.clear()
+            _REGISTRY.update(original_registry)
