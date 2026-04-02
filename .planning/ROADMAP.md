@@ -170,7 +170,7 @@ Plans:
 Plans:
 - [x] 08-01-PLAN.md — TrainingConfig, data augmentation (SpecAugment + waveform), DroneAudioDataset with lazy loading and random segment extraction
 - [x] 08-02-PLAN.md — TrainingRunner (training loop + early stopping + checkpoint), TrainingManager (background thread + progress + cancellation)
-- [ ] 08-03-PLAN.md — Gap closure: TorchScript export, torch.set_num_threads isolation, confusion matrix tracking
+- [x] 08-03-PLAN.md — Gap closure: TorchScript export, torch.set_num_threads isolation, confusion matrix tracking
 
 ### Phase 9: Evaluation Harness and API
 **Goal**: Operators can evaluate classifier accuracy on labeled test data and control training and evaluation via REST endpoints with real-time progress updates
