@@ -180,6 +180,7 @@ class TrainingRunner:
             val_batches = 0
             val_correct = 0
             val_total = 0
+            tp = fp = tn = fn = 0
             with torch.no_grad():
                 for batch_x, batch_y in val_loader:
                     output = model(batch_x).squeeze(-1)
@@ -191,6 +192,12 @@ class TrainingRunner:
                     preds = (output >= 0.5).float()
                     val_correct += (preds == batch_y).sum().item()
                     val_total += batch_y.numel()
+
+                    # Confusion matrix
+                    tp += int(((preds == 1) & (batch_y == 1)).sum().item())
+                    fp += int(((preds == 1) & (batch_y == 0)).sum().item())
+                    tn += int(((preds == 0) & (batch_y == 0)).sum().item())
+                    fn += int(((preds == 0) & (batch_y == 1)).sum().item())
 
             avg_val_loss = val_loss_sum / max(val_batches, 1)
             val_accuracy = val_correct / max(val_total, 1)
@@ -216,6 +223,7 @@ class TrainingRunner:
                     "val_loss": avg_val_loss,
                     "val_acc": val_accuracy,
                     "best_val_loss": early_stopping.best_loss,
+                    "tp": tp, "fp": fp, "tn": tn, "fn": fn,
                 })
 
             if early_stopping.should_stop:
@@ -223,6 +231,19 @@ class TrainingRunner:
                     "Early stopping triggered after %d epochs", epoch + 1,
                 )
                 break
+
+        # Export to TorchScript deployable format (ROADMAP SC3)
+        if early_stopping.best_loss is not None and ckpt_path.exists():
+            try:
+                export_model = ResearchCNN()
+                export_model.load_state_dict(torch.load(str(ckpt_path), weights_only=True))
+                export_model.eval()
+                jit_path = Path(str(ckpt_path) + ".jit")
+                scripted = torch.jit.script(export_model)
+                scripted.save(str(jit_path))
+                logger.info("Exported TorchScript model to %s", jit_path)
+            except Exception:
+                logger.exception("TorchScript export failed, state_dict checkpoint still available")
 
         # Return checkpoint path if one was saved
         if early_stopping.best_loss is not None and ckpt_path.exists():

@@ -13,6 +13,8 @@ import threading
 from dataclasses import dataclass
 from enum import Enum
 
+import torch
+
 from acoustic.classification.config import MelConfig
 from acoustic.training.config import TrainingConfig
 from acoustic.training.trainer import TrainingRunner
@@ -42,6 +44,10 @@ class TrainingProgress:
     val_acc: float = 0.0
     best_val_loss: float = float("inf")
     error: str | None = None
+    tp: int = 0   # True positives (confusion matrix)
+    fp: int = 0   # False positives
+    tn: int = 0   # True negatives
+    fn: int = 0   # False negatives
 
 
 class TrainingManager:
@@ -118,6 +124,14 @@ class TrainingManager:
         except OSError:
             logger.warning("Could not set os.nice(10), continuing at normal priority")
 
+        # Cap PyTorch intra-op thread pool to avoid starving live detection (per D-12)
+        torch.set_num_threads(2)
+        try:
+            torch.set_num_interop_threads(1)
+        except RuntimeError:
+            # Can only be set once before parallel work starts; ignore if already set
+            pass
+
         try:
             runner = TrainingRunner(config, self._mel_config)
             runner.run(self._stop_event, progress_callback=self._on_progress)
@@ -143,3 +157,7 @@ class TrainingManager:
             self._progress.val_loss = update.get("val_loss", self._progress.val_loss)
             self._progress.val_acc = update.get("val_acc", self._progress.val_acc)
             self._progress.best_val_loss = update.get("best_val_loss", self._progress.best_val_loss)
+            self._progress.tp = update.get("tp", self._progress.tp)
+            self._progress.fp = update.get("fp", self._progress.fp)
+            self._progress.tn = update.get("tn", self._progress.tn)
+            self._progress.fn = update.get("fn", self._progress.fn)
