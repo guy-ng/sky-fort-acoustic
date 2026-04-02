@@ -11,6 +11,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from acoustic.api.models import HeatmapHandshake
 from acoustic.audio.monitor import DeviceMonitor
 from acoustic.tracking.events import EventBroadcaster
+from acoustic.training.manager import TrainingManager, TrainingProgress, TrainingStatus
 
 logger = logging.getLogger(__name__)
 
@@ -203,3 +204,56 @@ async def ws_status(websocket: WebSocket) -> None:
         logger.debug("Status WebSocket client disconnected")
     finally:
         monitor.unsubscribe(queue)
+
+
+def _progress_to_ws_dict(progress: TrainingProgress) -> dict:
+    """Format training progress for WebSocket transmission (per D-12, D-13)."""
+    d: dict = {"status": progress.status.value}
+    if progress.status in (TrainingStatus.RUNNING, TrainingStatus.COMPLETED):
+        d.update({
+            "epoch": progress.epoch,
+            "total_epochs": progress.total_epochs,
+            "train_loss": progress.train_loss,
+            "val_loss": progress.val_loss,
+            "val_acc": progress.val_acc,
+            "confusion_matrix": {
+                "tp": progress.tp,
+                "fp": progress.fp,
+                "tn": progress.tn,
+                "fn": progress.fn,
+            },
+        })
+    elif progress.status == TrainingStatus.FAILED:
+        d["error"] = progress.error or "Unknown error"
+    return d
+
+
+@router.websocket("/ws/training")
+async def ws_training(websocket: WebSocket) -> None:
+    """Push training progress updates to clients.
+
+    Protocol (per D-13):
+    1. On connect, send current status JSON
+    2. If status is completed/failed, include last results
+    3. Push updates when epoch or status changes
+    4. No periodic heartbeats
+    """
+    await websocket.accept()
+    manager: TrainingManager = websocket.app.state.training_manager
+
+    # Send current state immediately
+    progress = manager.get_progress()
+    await websocket.send_json(_progress_to_ws_dict(progress))
+
+    last_epoch = progress.epoch
+    last_status = progress.status
+    try:
+        while True:
+            await asyncio.sleep(0.5)  # Poll at 2 Hz
+            progress = manager.get_progress()
+            if progress.epoch != last_epoch or progress.status != last_status:
+                await websocket.send_json(_progress_to_ws_dict(progress))
+                last_epoch = progress.epoch
+                last_status = progress.status
+    except (WebSocketDisconnect, RuntimeError):
+        logger.debug("Training WebSocket client disconnected")
