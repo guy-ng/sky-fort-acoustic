@@ -21,7 +21,7 @@ created: 2026-04-02
 | Preset | not applicable |
 | Component library | none (custom Tailwind components) |
 | Icon library | material-symbols (outlined) |
-| Font | Inter (400, 500, 600) + JetBrains Mono (400) |
+| Font | Inter (400, 500) + JetBrains Mono (400) |
 
 Source: `web/package.json`, `web/src/index.css`
 
@@ -35,13 +35,12 @@ Declared values (must be multiples of 4):
 |-------|-------|-------|
 | xs | 4px | Icon gaps, inline padding |
 | sm | 8px | Compact element spacing |
-| md | 12px | Panel content padding (established: `p-3`) |
-| lg | 16px | Header horizontal padding (established: `px-4`) |
+| lg | 16px | Panel content padding, header horizontal padding |
 | xl | 24px | Section padding |
 | 2xl | 32px | Layout gaps |
 | 3xl | 48px | Major section breaks |
 
-Exceptions: Panel content uses 12px (`p-3`) as the standard interior padding, not 16px. This is the established pattern from `Panel.tsx` and `Header.tsx`.
+Component-specific overrides (not part of the canonical scale): `Panel.tsx` and `Header.tsx` use Tailwind `p-3` (12px) for interior padding. This is a legacy pattern carried from early components. New components should use 8px (`p-2`) or 16px (`p-4`) from the scale above. Existing `p-3` usage is tolerated but not prescribed.
 
 ---
 
@@ -52,14 +51,15 @@ Exceptions: Panel content uses 12px (`p-3`) as the standard interior padding, no
 | Body | 14px (`text-sm`) | 400 (regular) | 1.5 | Inter |
 | Label | 12px (`text-xs`) | 500 (medium) | 1.5 | Inter |
 | Heading | 14px (`text-sm`) | 500 (medium) | 1.5 | Inter |
-| Display | 18px (`text-lg`) | 600 (semibold) | 1.3 | JetBrains Mono |
+| Display | 18px (`text-lg`) | 500 (medium) | 1.3 | JetBrains Mono |
 
 Notes:
 - Panel titles use `text-sm font-medium uppercase tracking-wider` in `text-hud-text-dim`
 - Status values use `text-sm font-mono` in `text-hud-text`
 - Labels use `text-xs text-hud-text-dim uppercase tracking-wider`
-- The app title uses `font-mono font-semibold text-hud-accent text-lg`
+- The app title uses `font-mono font-medium text-hud-accent text-lg`
 - All numeric/metric values should use JetBrains Mono for tabular alignment
+- Two weights only: 400 (regular) for body text, 500 (medium) for all emphasis (labels, headings, display)
 
 Source: `Panel.tsx`, `Header.tsx`, `Sidebar.tsx`
 
@@ -173,8 +173,8 @@ Display: model filename in `font-mono text-sm`, file size human-readable (KB/MB)
     "confusion_matrix": {"tp": 247, "fp": 17, "tn": 265, "fn": 27}
   },
   "distribution": {
-    "drone": {"p_agg": {"p25": 0.72, "p50": 0.89, "p75": 0.95, "p95": 0.99}, "p_max": {...}, "p_mean": {...}},
-    "background": {"p_agg": {"p25": 0.01, "p50": 0.05, "p75": 0.12, "p95": 0.28}, "p_max": {...}, "p_mean": {...}}
+    "drone": {"p_agg": {"p25": 0.72, "p50": 0.89, "p75": 0.95, "p95": 0.99}, "p_max": {}, "p_mean": {}},
+    "background": {"p_agg": {"p25": 0.01, "p50": 0.05, "p75": 0.12, "p95": 0.28}, "p_max": {}, "p_mean": {}}
   },
   "per_file": [
     {"filename": "drone_001.wav", "true_label": "drone", "predicted_label": "drone", "p_agg": 0.92, "correct": true}
@@ -186,7 +186,7 @@ Display: model filename in `font-mono text-sm`, file size human-readable (KB/MB)
 ```
 
 Display guidance for future UI:
-- Accuracy as large `font-mono text-lg font-semibold` number, colored `hud-success` (>= 0.85) / `hud-warning` (0.70-0.85) / `hud-danger` (< 0.70)
+- Accuracy as large `font-mono text-lg font-medium` number, colored `hud-success` (>= 0.85) / `hud-warning` (0.70-0.85) / `hud-danger` (< 0.70)
 - Confusion matrix as 2x2 grid with `font-mono` values
 - Per-file table with alternating row shading, incorrect rows highlighted with `hud-danger` background tint
 - Distribution percentiles as horizontal bar charts or box plots
@@ -210,7 +210,7 @@ Display guidance for future UI:
 Display guidance for future UI:
 - Progress bar: epoch/total_epochs ratio, `hud-accent` fill
 - Loss values in `font-mono text-sm`, 3 decimal places
-- Accuracy percentage in `font-mono font-semibold`
+- Accuracy percentage in `font-mono font-medium`
 
 ---
 
