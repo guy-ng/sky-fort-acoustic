@@ -181,7 +181,11 @@ Plans:
   2. Evaluation provides per-file detailed output showing segment-level probabilities and final aggregation scores
   3. REST endpoints allow starting a training run, checking training progress, running an evaluation, and retrieving evaluation results
   4. Training progress is streamed via WebSocket so the UI can show real-time updates (epoch, loss, metrics)
-**Plans**: TBD
+**Plans**: 2 plans
+
+Plans:
+- [ ] 09-01-PLAN.md — Evaluation module (Evaluator class, metrics, distribution stats, per-file output) and Pydantic API models
+- [ ] 09-02-PLAN.md — REST endpoints (training, eval, models), WebSocket /ws/training, main.py wiring, integration tests
 
 ### Phase 10: Field Data Collection
 **Goal**: Users can record labeled audio clips from the live UMA-16 microphone array through the web UI, building a training dataset
@@ -221,6 +225,6 @@ Note: Phase 11 is conditional -- build only if Phase 9 evaluation shows single-m
 | 6. Preprocessing Parity Foundation | v2.0 | 2/2 | Complete   | 2026-04-01 |
 | 7. Research CNN and Inference Integration | v2.0 | 0/2 | Not started | - |
 | 8. PyTorch Training Pipeline | v2.0 | 2/3 | In Progress|  |
-| 9. Evaluation Harness and API | v2.0 | 0/? | Not started | - |
+| 9. Evaluation Harness and API | v2.0 | 0/2 | Not started | - |
 | 10. Field Data Collection | v2.0 | 0/? | Not started | - |
 | 11. Late Fusion Ensemble (Conditional) | v2.0 | 0/? | Not started | - |
