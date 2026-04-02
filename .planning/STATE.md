@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: MVP
 status: executing
-stopped_at: Completed 09-01-PLAN.md
-last_updated: "2026-04-02T05:57:28.345Z"
-last_activity: 2026-04-02
+stopped_at: Phase 9 UI-SPEC approved
+last_updated: "2026-04-02T05:45:36.455Z"
+last_activity: 2026-04-02 -- Phase 09 execution started
 progress:
   total_phases: 6
   completed_phases: 3
   total_plans: 9
-  completed_plans: 8
+  completed_plans: 7
   percent: 20
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-29)
 
 **Core value:** Reliably detect and classify drones acoustically in real time, publishing target events over ZeroMQ so downstream systems can act on them.
-**Current focus:** Phase 08 — pytorch-training-pipeline
+**Current focus:** Phase 09 — evaluation-harness-and-api
 
 ## Current Position
 
-Phase: 9
-Plan: Not started
-Status: Executing Phase 08
-Last activity: 2026-04-02
+Phase: 09 (evaluation-harness-and-api) — EXECUTING
+Plan: 1 of 2
+Status: Executing Phase 09
+Last activity: 2026-04-02 -- Phase 09 execution started
 
 Progress: [##........] 20%
 
@@ -60,7 +60,6 @@ Progress: [##........] 20%
 | Phase 03 P02 | 5m19s | 1 tasks | 7 files |
 | Phase 03 P03 | 12min | 2 tasks | 9 files |
 | Phase 08 P02 | 7min | 2 tasks | 8 files |
-| Phase 09 P01 | 7min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -91,7 +90,6 @@ Recent decisions affecting current work:
 - [Phase 03]: Fixed EventBroadcaster to use call_soon_threadsafe for thread-safe async delivery
 - [Phase 08]: ReduceLROnPlateau scheduler for adaptive LR (factor=0.5, patience=3)
 - [Phase 08]: sklearn-free train/val split with fixed seed (42) for reproducibility
-- [Phase 09]: Evaluator reuses collect_wav_files and mel_spectrogram_from_segment -- zero preprocessing divergence between eval and live
 
 ### Pending Todos
 
@@ -113,6 +111,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-02T05:57:28.342Z
-Stopped at: Completed 09-01-PLAN.md
-Resume file: None
+Last session: 2026-04-02T05:13:05.404Z
+Stopped at: Phase 9 UI-SPEC approved
+Resume file: .planning/phases/09-evaluation-harness-and-api/09-UI-SPEC.md
