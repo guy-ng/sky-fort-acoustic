@@ -211,7 +211,11 @@ Plans:
   1. EnsembleClassifier wraps N models via the Classifier protocol with accuracy-weighted soft voting and normalized weights
   2. Ensemble inference runs within real-time latency budget (max 3 models for live detection, N models for offline evaluation)
   3. Ensemble evaluation on the harness shows measurable improvement over the best single-model baseline
-**Plans**: TBD
+**Plans**: 2 plans
+
+Plans:
+- [ ] 11-01-PLAN.md — Core ensemble module: EnsembleClassifier, model registry, config parsing, AcousticSettings extension, unit tests
+- [ ] 11-02-PLAN.md — Integration: Evaluator refactor for ensemble, eval API per-model metrics, main.py ensemble factory wiring
 
 ## Progress
 
@@ -232,4 +236,14 @@ Note: Phase 11 is conditional -- build only if Phase 9 evaluation shows single-m
 | 8. PyTorch Training Pipeline | v2.0 | 2/3 | In Progress|  |
 | 9. Evaluation Harness and API | v2.0 | 2/2 | Complete | 2026-04-02 |
 | 10. Field Data Collection | v2.0 | 3/3 | Complete   | 2026-04-02 |
-| 11. Late Fusion Ensemble (Conditional) | v2.0 | 0/? | Not started | - |
+| 11. Late Fusion Ensemble (Conditional) | v2.0 | 0/2 | Not started | - |
+
+### Phase 12: Add ML Training & Testing UI tab
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 11
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 12 to break down)
