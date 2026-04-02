@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: MVP
 status: executing
-stopped_at: Completed 09-01-PLAN.md
-last_updated: "2026-04-02T05:57:28.345Z"
+stopped_at: Completed 09-02-PLAN.md
+last_updated: "2026-04-02T06:20:23Z"
 last_activity: 2026-04-02
 progress:
   total_phases: 6
   completed_phases: 3
   total_plans: 9
-  completed_plans: 8
-  percent: 20
+  completed_plans: 9
+  percent: 22
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-29)
 
 **Core value:** Reliably detect and classify drones acoustically in real time, publishing target events over ZeroMQ so downstream systems can act on them.
-**Current focus:** Phase 08 — pytorch-training-pipeline
+**Current focus:** Phase 09 — evaluation-harness-and-api
 
 ## Current Position
 
 Phase: 9
-Plan: Not started
-Status: Executing Phase 08
+Plan: 2 of 2 complete
+Status: Executing Phase 09
 Last activity: 2026-04-02
 
-Progress: [##........] 20%
+Progress: [##........] 22%
 
 ## Performance Metrics
 
@@ -61,6 +61,7 @@ Progress: [##........] 20%
 | Phase 03 P03 | 12min | 2 tasks | 9 files |
 | Phase 08 P02 | 7min | 2 tasks | 8 files |
 | Phase 09 P01 | 7min | 2 tasks | 5 files |
+| Phase 09 P02 | 17min | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -92,6 +93,9 @@ Recent decisions affecting current work:
 - [Phase 08]: ReduceLROnPlateau scheduler for adaptive LR (factor=0.5, patience=3)
 - [Phase 08]: sklearn-free train/val split with fixed seed (42) for reproducibility
 - [Phase 09]: Evaluator reuses collect_wav_files and mel_spectrogram_from_segment -- zero preprocessing divergence between eval and live
+- [Phase 09]: TrainingManager wired via app.state in lifespan for clean DI across routes and WebSocket
+- [Phase 09]: Evaluation endpoint uses run_in_executor to avoid blocking async event loop
+- [Phase 09]: WebSocket /ws/training polls at 2Hz with change detection, no heartbeats
 
 ### Pending Todos
 
@@ -113,6 +117,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-02T05:57:28.342Z
-Stopped at: Completed 09-01-PLAN.md
+Last session: 2026-04-02T06:20:23Z
+Stopped at: Completed 09-02-PLAN.md
 Resume file: None
