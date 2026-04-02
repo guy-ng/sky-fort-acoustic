@@ -217,6 +217,21 @@ Plans:
 - [ ] 11-01-PLAN.md — Core ensemble module: EnsembleClassifier, model registry, config parsing, AcousticSettings extension, unit tests
 - [ ] 11-02-PLAN.md — Integration: Evaluator refactor for ensemble, eval API per-model metrics, main.py ensemble factory wiring
 
+### Phase 12: Add ML Training & Testing UI Tab
+**Goal**: Operators can control CNN training, view evaluation results, and manage models from a new Training tab in the web UI sidebar
+**Depends on**: Phase 9 (backend training/eval APIs), Phase 10 (recording UI patterns)
+**Requirements**: TRN-04
+**Success Criteria** (what must be TRUE):
+  1. Training tab accessible from sidebar with collapsible Train/Evaluate/Models accordion sections
+  2. Operator can start training with configurable hyperparameters and see live loss chart via WebSocket
+  3. Evaluation results display accuracy, precision, recall, F1, confusion matrix, and per-file details
+  4. Model list shows available .pt files with active model highlighted
+**Plans**: 2 plans
+
+Plans:
+- [ ] 12-01-PLAN.md — Install Recharts, TypeScript interfaces for training/eval/model APIs, data hooks (useTraining, useTrainingSocket, useEvaluation, useModels)
+- [ ] 12-02-PLAN.md — UI components (TrainingPanel accordion, TrainSection, TrainingProgress chart, EvalSection, EvaluationResults, ModelsSection) + Sidebar integration + visual verification
+
 ## Progress
 
 **Execution Order:**
@@ -237,13 +252,4 @@ Note: Phase 11 is conditional -- build only if Phase 9 evaluation shows single-m
 | 9. Evaluation Harness and API | v2.0 | 2/2 | Complete | 2026-04-02 |
 | 10. Field Data Collection | v2.0 | 3/3 | Complete   | 2026-04-02 |
 | 11. Late Fusion Ensemble (Conditional) | v2.0 | 0/2 | Not started | - |
-
-### Phase 12: Add ML Training & Testing UI tab
-
-**Goal:** [To be planned]
-**Requirements**: TBD
-**Depends on:** Phase 11
-**Plans:** 0 plans
-
-Plans:
-- [ ] TBD (run /gsd:plan-phase 12 to break down)
+| 12. Add ML Training & Testing UI Tab | v2.0 | 0/2 | Not started | - |
