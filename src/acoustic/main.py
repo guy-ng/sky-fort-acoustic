@@ -354,11 +354,19 @@ async def lifespan(app: FastAPI):
     except Exception:
         logger.exception("Failed to initialize CNN worker — running without it")
 
+    # Recording manager for field data collection (Phase 10)
+    from acoustic.recording.config import RecordingConfig
+    from acoustic.recording.manager import RecordingManager
+
+    recording_config = RecordingConfig()
+    recording_manager = RecordingManager(config=recording_config)
+
     pipeline = BeamformingPipeline(
         settings,
         cnn_worker=cnn_worker,
         state_machine=state_machine,
         tracker=tracker,
+        recording_manager=recording_manager,
     )
 
     if settings.audio_source == "simulated":
@@ -390,6 +398,7 @@ async def lifespan(app: FastAPI):
     app.state.device_monitor = device_monitor
     app.state.event_broadcaster = broadcaster
     app.state.tracker = tracker
+    app.state.recording_manager = recording_manager
 
     # Training manager for REST endpoints (Phase 9)
     from acoustic.classification.config import MelConfig
@@ -436,6 +445,11 @@ from acoustic.api.training_routes import router as training_router
 app.include_router(training_router)
 app.include_router(eval_router)
 app.include_router(model_router)
+
+# Phase 10: Recording routes
+from acoustic.api.recording_routes import router as recording_router
+
+app.include_router(recording_router)
 
 
 @app.get("/health")

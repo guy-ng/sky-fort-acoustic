@@ -11,6 +11,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from acoustic.api.models import HeatmapHandshake
 from acoustic.audio.monitor import DeviceMonitor
 from acoustic.tracking.events import EventBroadcaster
+from acoustic.recording.manager import RecordingManager
 from acoustic.training.manager import TrainingManager, TrainingProgress, TrainingStatus
 
 logger = logging.getLogger(__name__)
@@ -204,6 +205,27 @@ async def ws_status(websocket: WebSocket) -> None:
         logger.debug("Status WebSocket client disconnected")
     finally:
         monitor.unsubscribe(queue)
+
+
+@router.websocket("/ws/recording")
+async def ws_recording(websocket: WebSocket) -> None:
+    """Stream recording state (status, elapsed, remaining, level_db) at 10Hz.
+
+    Sends JSON with current recording state on every change,
+    polled at 10Hz for responsive level meter feedback.
+    """
+    await websocket.accept()
+    manager: RecordingManager = websocket.app.state.recording_manager
+    last_state: dict | None = None
+    try:
+        while True:
+            state = manager.get_state()
+            if state != last_state:
+                await websocket.send_json(state)
+                last_state = state
+            await asyncio.sleep(0.1)  # 10Hz for level meter
+    except (WebSocketDisconnect, RuntimeError):
+        logger.debug("Recording WebSocket client disconnected")
 
 
 def _progress_to_ws_dict(progress: TrainingProgress) -> dict:

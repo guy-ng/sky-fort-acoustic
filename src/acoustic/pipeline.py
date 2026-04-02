@@ -39,6 +39,7 @@ class BeamformingPipeline:
         cnn_worker: CNNWorker | None = None,
         state_machine: DetectionStateMachine | None = None,
         tracker: TargetTracker | None = None,
+        recording_manager: object | None = None,
     ) -> None:
         self._settings = settings
         self._az_size = int((2 * settings.az_range / settings.az_resolution) + 1)
@@ -58,6 +59,9 @@ class BeamformingPipeline:
         self._cnn_segment_samples: int = int(settings.sample_rate * 0.5)
         self._last_cnn_push: float = 0.0
         self._cnn_interval: float = 0.25  # Push every 0.25s for 50% overlap of 0.5s segments
+
+        # Recording integration (passive observer -- receives chunks from pipeline)
+        self._recording_manager = recording_manager
 
     def process_chunk(self, chunk: np.ndarray) -> PeakDetection | None:
         """Stub: produce a zero beamforming map with no peak detection.
@@ -80,6 +84,9 @@ class BeamformingPipeline:
             chunk = ring_buffer.read()
             if chunk is not None:
                 try:
+                    # Forward to recording manager (passive observer)
+                    if self._recording_manager is not None:
+                        self._recording_manager.feed_chunk(chunk)
                     peak = self.process_chunk(chunk)
                     self._process_cnn(chunk, peak)
                 except Exception:
