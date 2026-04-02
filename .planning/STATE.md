@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: verifying
-stopped_at: "Completed 03-03 (checkpoint:human-verify pending)"
-last_updated: "2026-03-31T17:07:46.166Z"
-last_activity: 2026-03-31
+stopped_at: Completed 11-02-PLAN.md
+last_updated: "2026-04-02T17:53:31.539Z"
+last_activity: 2026-04-02
 progress:
   total_phases: 5
   completed_phases: 2
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-03-29)
 Phase: 03 (cnn-classification-and-target-tracking) — EXECUTING
 Plan: 3 of 3 (Wave 1 complete, Wave 2 pending)
 Status: Phase complete — ready for verification
-Last activity: 2026-04-01 - Completed quick task 260401-0fb: Beamforming map focus on drone data
+Last activity: 2026-04-02
 
 Progress: [##........] 20%
 
@@ -59,6 +59,7 @@ Progress: [##........] 20%
 | Phase 03 P01 | 6min | 1 tasks | 9 files |
 | Phase 03 P02 | 5m19s | 1 tasks | 7 files |
 | Phase 03 P03 | 12min | 2 tasks | 9 files |
+| Phase 11 P02 | 10min | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -87,6 +88,8 @@ Recent decisions affecting current work:
 - [Phase 03]: speed_mps always None -- Doppler deferred to milestone 2 (per D-07)
 - [Phase 03]: CNNWorker uses single-slot queue with drop semantics for non-blocking inference
 - [Phase 03]: Fixed EventBroadcaster to use call_soon_threadsafe for thread-safe async delivery
+- [Phase 11]: Evaluator refactored with evaluate_classifier and evaluate_ensemble, keeping backward-compatible evaluate(model_path)
+- [Phase 11]: Ensemble factory in lifespan runs before single-model with fallback on failure
 
 ### Pending Todos
 
@@ -108,6 +111,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-31T17:07:46.149Z
-Stopped at: Completed 03-03 (checkpoint:human-verify pending)
+Last session: 2026-04-02T17:53:31.535Z
+Stopped at: Completed 11-02-PLAN.md
 Resume file: None
