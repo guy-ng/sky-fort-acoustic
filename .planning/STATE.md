@@ -1,14 +1,14 @@
 ---
 gsd_state_version: 1.0
 milestone: v1.0
-milestone_name: milestone
-status: verifying
-stopped_at: "Completed 03-03 (checkpoint:human-verify pending)"
-last_updated: "2026-03-31T17:07:46.166Z"
-last_activity: 2026-03-31
+milestone_name: MVP
+status: executing
+stopped_at: Completed 09-01-PLAN.md
+last_updated: "2026-04-02T05:57:28.345Z"
+last_activity: 2026-04-02
 progress:
-  total_phases: 5
-  completed_phases: 2
+  total_phases: 6
+  completed_phases: 3
   total_plans: 9
   completed_plans: 8
   percent: 20
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-29)
 
 **Core value:** Reliably detect and classify drones acoustically in real time, publishing target events over ZeroMQ so downstream systems can act on them.
-**Current focus:** Phase 03 — cnn-classification-and-target-tracking
+**Current focus:** Phase 08 — pytorch-training-pipeline
 
 ## Current Position
 
-Phase: 03 (cnn-classification-and-target-tracking) — EXECUTING
-Plan: 3 of 3 (Wave 1 complete, Wave 2 pending)
-Status: Phase complete — ready for verification
-Last activity: 2026-04-01 - Completed quick task 260401-0fb: Beamforming map focus on drone data
+Phase: 9
+Plan: Not started
+Status: Executing Phase 08
+Last activity: 2026-04-02
 
 Progress: [##........] 20%
 
@@ -59,6 +59,8 @@ Progress: [##........] 20%
 | Phase 03 P01 | 6min | 1 tasks | 9 files |
 | Phase 03 P02 | 5m19s | 1 tasks | 7 files |
 | Phase 03 P03 | 12min | 2 tasks | 9 files |
+| Phase 08 P02 | 7min | 2 tasks | 8 files |
+| Phase 09 P01 | 7min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -87,6 +89,9 @@ Recent decisions affecting current work:
 - [Phase 03]: speed_mps always None -- Doppler deferred to milestone 2 (per D-07)
 - [Phase 03]: CNNWorker uses single-slot queue with drop semantics for non-blocking inference
 - [Phase 03]: Fixed EventBroadcaster to use call_soon_threadsafe for thread-safe async delivery
+- [Phase 08]: ReduceLROnPlateau scheduler for adaptive LR (factor=0.5, patience=3)
+- [Phase 08]: sklearn-free train/val split with fixed seed (42) for reproducibility
+- [Phase 09]: Evaluator reuses collect_wav_files and mel_spectrogram_from_segment -- zero preprocessing divergence between eval and live
 
 ### Pending Todos
 
@@ -108,6 +113,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-31T17:07:46.149Z
-Stopped at: Completed 03-03 (checkpoint:human-verify pending)
+Last session: 2026-04-02T05:57:28.342Z
+Stopped at: Completed 09-01-PLAN.md
 Resume file: None
