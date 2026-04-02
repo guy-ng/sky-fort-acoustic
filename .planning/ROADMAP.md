@@ -184,7 +184,7 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 09-01-PLAN.md — Evaluation module (Evaluator class, metrics, distribution stats, per-file output) and Pydantic API models
+- [x] 09-01-PLAN.md — Evaluation module (Evaluator class, metrics, distribution stats, per-file output) and Pydantic API models
 - [ ] 09-02-PLAN.md — REST endpoints (training, eval, models), WebSocket /ws/training, main.py wiring, integration tests
 
 ### Phase 10: Field Data Collection
