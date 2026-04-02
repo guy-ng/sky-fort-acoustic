@@ -210,4 +210,6 @@ class TestThreadLimits:
                 thread.join(timeout=60)
 
         assert 2 in num_threads_calls, f"torch.set_num_threads(2) not called. Calls: {num_threads_calls}"
+        # set_num_interop_threads may fail at runtime (can only be called once),
+        # but the code must attempt to call it with value 1
         assert 1 in interop_threads_calls, f"torch.set_num_interop_threads(1) not called. Calls: {interop_threads_calls}"
