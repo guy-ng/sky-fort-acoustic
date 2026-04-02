@@ -4,6 +4,7 @@ import type { HealthStatus } from '../../utils/types'
 import type { DeviceStatusState } from '../../hooks/useDeviceStatus'
 import { RecordingPanel } from '../recording/RecordingPanel'
 import { RecordingsList } from '../recording/RecordingsList'
+import { TrainingPanel } from '../training/TrainingPanel'
 import { useRecordingsList } from '../../hooks/useRecordings'
 
 interface SidebarProps {
@@ -46,7 +47,7 @@ function deviceLabel(ds: DeviceStatusState): string {
 }
 
 export function Sidebar({ health, deviceStatus }: SidebarProps) {
-  const [tab, setTab] = useState<'system' | 'recordings'>('system')
+  const [tab, setTab] = useState<'system' | 'recordings' | 'training'>('system')
   const { data: recordings } = useRecordingsList()
   const pipelineRunning = health?.pipeline_running ?? false
 
@@ -82,6 +83,16 @@ export function Sidebar({ health, deviceStatus }: SidebarProps) {
             </span>
           )}
         </button>
+        <button
+          onClick={() => setTab('training')}
+          className={`flex-1 px-3 py-2 text-xs uppercase tracking-wider font-semibold ${
+            tab === 'training'
+              ? 'text-hud-text border-b-2 border-hud-accent'
+              : 'text-hud-text-dim hover:text-hud-text'
+          }`}
+        >
+          TRAIN
+        </button>
       </div>
 
       {tab === 'system' ? (
@@ -109,10 +120,14 @@ export function Sidebar({ health, deviceStatus }: SidebarProps) {
             {formatFrameAge(health?.last_frame_time)}
           </StatRow>
         </div>
-      ) : (
+      ) : tab === 'recordings' ? (
         <div className="flex flex-col gap-3 h-full overflow-y-auto">
           <RecordingPanel deviceDetected={deviceStatus.detected} />
           <RecordingsList />
+        </div>
+      ) : (
+        <div className="flex flex-col gap-1 h-full overflow-y-auto">
+          <TrainingPanel />
         </div>
       )}
     </Panel>
