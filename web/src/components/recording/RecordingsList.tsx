@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useRecordingsList, useDeleteRecording } from '../../hooks/useRecordings'
 import type { Recording } from '../../hooks/useRecordings'
 import { MetadataEditor } from './MetadataEditor'
@@ -41,6 +41,25 @@ export function RecordingsList() {
   const deleteMutation = useDeleteRecording()
   const [editingId, setEditingId] = useState<string | null>(null)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  const [playingId, setPlayingId] = useState<string | null>(null)
+  const audioRef = useRef<HTMLAudioElement | null>(null)
+
+  function handlePlay(id: string) {
+    if (playingId === id) {
+      audioRef.current?.pause()
+      setPlayingId(null)
+      return
+    }
+    if (audioRef.current) {
+      audioRef.current.pause()
+    }
+    const audio = new Audio(`/api/recordings/${id}/audio`)
+    audio.onended = () => setPlayingId(null)
+    audio.onerror = () => setPlayingId(null)
+    audio.play()
+    audioRef.current = audio
+    setPlayingId(id)
+  }
 
   if (isLoading) {
     return <div className="text-sm text-hud-text-dim text-center py-4">Loading...</div>
@@ -83,6 +102,15 @@ export function RecordingsList() {
               <span className="font-mono text-xs text-hud-text-dim flex-1 text-right">
                 {formatTimestamp(rec.recorded_at)}
               </span>
+              <button
+                onClick={() => handlePlay(rec.id)}
+                className={`${playingId === rec.id ? 'text-hud-accent' : 'text-hud-text-dim hover:text-hud-accent'}`}
+                aria-label={playingId === rec.id ? 'Stop playback' : 'Play recording'}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: 20 }}>
+                  {playingId === rec.id ? 'stop' : 'play_arrow'}
+                </span>
+              </button>
               <button
                 onClick={() => setEditingId(isEditing ? null : rec.id)}
                 className="text-hud-text-dim hover:text-hud-accent"

@@ -248,7 +248,7 @@ class RecordingManager:
         remaining = max(0, self._config.max_duration_s - elapsed)
         return {
             "status": "recording",
-            "elapsed_s": round(elapsed, 1),
-            "remaining_s": round(remaining, 1),
-            "level_db": round(session.rms_db, 1),
+            "elapsed_s": round(float(elapsed), 1),
+            "remaining_s": round(float(remaining), 1),
+            "level_db": round(float(session.rms_db), 1),
         }

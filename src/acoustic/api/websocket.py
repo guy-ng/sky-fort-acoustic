@@ -220,7 +220,9 @@ async def ws_recording(websocket: WebSocket) -> None:
     try:
         while True:
             state = manager.get_state()
-            if state != last_state:
+            # Always send while recording (timer/level change every tick)
+            # Only deduplicate when idle to avoid unnecessary traffic
+            if state.get("status") == "recording" or state != last_state:
                 await websocket.send_json(state)
                 last_state = state
             await asyncio.sleep(0.1)  # 10Hz for level meter

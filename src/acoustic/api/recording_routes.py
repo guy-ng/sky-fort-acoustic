@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 
 from fastapi import APIRouter, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
@@ -143,6 +144,21 @@ async def update_recording(rec_id: str, body: MetadataUpdateRequest, request: Re
     if result is None:
         return JSONResponse(status_code=404, content={"message": f"Recording {rec_id} not found"})
     return result
+
+
+@router.get("/{rec_id}/audio", response_model=None)
+async def get_recording_audio(rec_id: str, request: Request) -> FileResponse | JSONResponse:
+    """Serve the WAV file for playback."""
+    from acoustic.recording.manager import RecordingManager
+
+    manager: RecordingManager = request.app.state.recording_manager
+    rec = manager.get_recording(rec_id)
+    if rec is None:
+        return JSONResponse(status_code=404, content={"message": f"Recording {rec_id} not found"})
+    wav_path = Path(manager._config.data_root) / rec["directory"] / f"{rec_id}.wav"
+    if not wav_path.exists():
+        return JSONResponse(status_code=404, content={"message": "WAV file not found"})
+    return FileResponse(wav_path, media_type="audio/wav", filename=f"{rec_id}.wav")
 
 
 @router.delete("/{rec_id}", response_model=None)
