@@ -290,15 +290,97 @@ async def lifespan(app: FastAPI):
     tracker = None
     broadcaster = None
     try:
-        from acoustic.classification.inference import OnnxDroneClassifier
+        import os
+
+        import torch
+
+        from acoustic.classification.aggregation import WeightedAggregator
+        from acoustic.classification.preprocessing import ResearchPreprocessor
+        from acoustic.classification.research_cnn import ResearchClassifier, ResearchCNN
         from acoustic.classification.state_machine import DetectionStateMachine
         from acoustic.classification.worker import CNNWorker
         from acoustic.tracking.events import EventBroadcaster
         from acoustic.tracking.tracker import TargetTracker
 
         broadcaster = EventBroadcaster()
-        classifier = OnnxDroneClassifier(settings.cnn_model_path)
-        cnn_worker = CNNWorker(classifier, fs_in=settings.sample_rate)
+        preprocessor = ResearchPreprocessor()
+
+        # Classifier factory: ensemble detection first, then single-model fallback
+        classifier = None
+        ensemble_active = False
+
+        # Ensemble factory (D-06): detect ensemble config file
+        if settings.ensemble_config_path and os.path.isfile(settings.ensemble_config_path):
+            try:
+                from acoustic.classification.ensemble import (
+                    EnsembleClassifier,
+                    EnsembleConfig,
+                    load_model as load_ensemble_model,
+                )
+
+                config = EnsembleConfig.from_file(settings.ensemble_config_path)
+                if len(config.models) > 1:
+                    classifiers_list = []
+                    weights_list = []
+                    for entry in config.models:
+                        clf = load_ensemble_model(entry.type, entry.path)
+                        classifiers_list.append(clf)
+                        weights_list.append(entry.weight)
+                    classifier = EnsembleClassifier(
+                        classifiers_list, weights_list, live_mode=True
+                    )
+                    ensemble_active = True
+                    logger.info(
+                        "Loaded ensemble with %d models from %s",
+                        len(classifiers_list),
+                        settings.ensemble_config_path,
+                    )
+                elif len(config.models) == 1:
+                    # Single model in ensemble config -- use it directly
+                    entry = config.models[0]
+                    classifier = load_ensemble_model(entry.type, entry.path)
+                    logger.info(
+                        "Ensemble config has 1 model, using single-model mode: %s",
+                        entry.path,
+                    )
+            except Exception:
+                logger.exception(
+                    "Failed to load ensemble from %s -- falling back to single model",
+                    settings.ensemble_config_path,
+                )
+
+        # Single-model fallback (D-06): load model if file exists, else dormant
+        if classifier is None and os.path.isfile(settings.cnn_model_path):
+            try:
+                model = ResearchCNN()
+                model.load_state_dict(torch.load(settings.cnn_model_path, weights_only=True))
+                model.eval()
+                # Validate model with dummy forward pass
+                dummy = torch.zeros(1, 1, 128, 64)
+                with torch.no_grad():
+                    out = model(dummy)
+                assert out.shape == (1, 1), f"Unexpected model output shape: {out.shape}"
+                classifier = ResearchClassifier(model)
+                logger.info("Loaded CNN model from %s", settings.cnn_model_path)
+            except Exception:
+                logger.exception("Failed to load CNN model -- running without classifier")
+        elif classifier is None:
+            logger.warning(
+                "CNN model not found at %s -- running in dormant mode",
+                settings.cnn_model_path,
+            )
+
+        aggregator = WeightedAggregator(
+            w_max=settings.cnn_agg_w_max,
+            w_mean=settings.cnn_agg_w_mean,
+        )
+
+        cnn_worker = CNNWorker(
+            preprocessor=preprocessor,
+            classifier=classifier,
+            aggregator=aggregator,
+            fs_in=settings.sample_rate,
+        )
         state_machine = DetectionStateMachine(
             enter_threshold=settings.cnn_enter_threshold,
             exit_threshold=settings.cnn_exit_threshold,
@@ -306,17 +388,29 @@ async def lifespan(app: FastAPI):
         )
         tracker = TargetTracker(ttl=settings.cnn_target_ttl, broadcaster=broadcaster)
         cnn_worker.start()
-        logger.info("CNN classification enabled (model: %s)", settings.cnn_model_path)
-    except FileNotFoundError:
-        logger.warning("CNN model not found at %s — running without classification", settings.cnn_model_path)
+        classifier_mode = "ensemble" if ensemble_active else ("active" if classifier is not None else "dormant")
+        logger.info(
+            "CNN worker started (classifier=%s, aggregator=WeightedAggregator(w_max=%.2f, w_mean=%.2f))",
+            classifier_mode,
+            settings.cnn_agg_w_max,
+            settings.cnn_agg_w_mean,
+        )
     except Exception:
-        logger.exception("Failed to initialize CNN classification — running without it")
+        logger.exception("Failed to initialize CNN worker — running without it")
+
+    # Recording manager for field data collection (Phase 10)
+    from acoustic.recording.config import RecordingConfig
+    from acoustic.recording.manager import RecordingManager
+
+    recording_config = RecordingConfig()
+    recording_manager = RecordingManager(config=recording_config)
 
     pipeline = BeamformingPipeline(
         settings,
         cnn_worker=cnn_worker,
         state_machine=state_machine,
         tracker=tracker,
+        recording_manager=recording_manager,
     )
 
     if settings.audio_source == "simulated":
@@ -348,6 +442,15 @@ async def lifespan(app: FastAPI):
     app.state.device_monitor = device_monitor
     app.state.event_broadcaster = broadcaster
     app.state.tracker = tracker
+    app.state.recording_manager = recording_manager
+
+    # Training manager for REST endpoints (Phase 9)
+    from acoustic.classification.config import MelConfig
+    from acoustic.training.config import TrainingConfig
+    from acoustic.training.manager import TrainingManager
+
+    training_manager = TrainingManager(config=TrainingConfig(), mel_config=MelConfig())
+    app.state.training_manager = training_manager
 
     # Start background lifecycle task for hot-plug recovery and initial scan
     if capture is None and settings.audio_source != "simulated":
@@ -377,6 +480,20 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Sky Fort Acoustic Service", lifespan=lifespan)
 app.include_router(api_router)
 app.include_router(ws_router)
+
+# Phase 9: Training, evaluation, and model listing routes
+from acoustic.api.eval_routes import router as eval_router
+from acoustic.api.model_routes import router as model_router
+from acoustic.api.training_routes import router as training_router
+
+app.include_router(training_router)
+app.include_router(eval_router)
+app.include_router(model_router)
+
+# Phase 10: Recording routes
+from acoustic.api.recording_routes import router as recording_router
+
+app.include_router(recording_router)
 
 
 @app.get("/health")
