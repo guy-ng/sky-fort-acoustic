@@ -391,6 +391,14 @@ async def lifespan(app: FastAPI):
     app.state.event_broadcaster = broadcaster
     app.state.tracker = tracker
 
+    # Training manager for REST endpoints (Phase 9)
+    from acoustic.classification.config import MelConfig
+    from acoustic.training.config import TrainingConfig
+    from acoustic.training.manager import TrainingManager
+
+    training_manager = TrainingManager(config=TrainingConfig(), mel_config=MelConfig())
+    app.state.training_manager = training_manager
+
     # Start background lifecycle task for hot-plug recovery and initial scan
     if capture is None and settings.audio_source != "simulated":
         # No device at startup — start scanning immediately
@@ -419,6 +427,15 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Sky Fort Acoustic Service", lifespan=lifespan)
 app.include_router(api_router)
 app.include_router(ws_router)
+
+# Phase 9: Training, evaluation, and model listing routes
+from acoustic.api.eval_routes import router as eval_router
+from acoustic.api.model_routes import router as model_router
+from acoustic.api.training_routes import router as training_router
+
+app.include_router(training_router)
+app.include_router(eval_router)
+app.include_router(model_router)
 
 
 @app.get("/health")
