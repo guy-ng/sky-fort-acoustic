@@ -1,17 +1,17 @@
 ---
 gsd_state_version: 1.0
 milestone: v1.0
-milestone_name: milestone
-status: verifying
-stopped_at: Completed 10-01-PLAN.md
-last_updated: "2026-04-02T15:10:05.816Z"
-last_activity: 2026-04-02
+milestone_name: MVP
+status: executing
+stopped_at: Phase 10 UI-SPEC approved
+last_updated: "2026-04-02T15:01:15.400Z"
+last_activity: 2026-04-02 -- Phase 10 execution started
 progress:
-  total_phases: 5
-  completed_phases: 2
-  total_plans: 9
-  completed_plans: 8
-  percent: 20
+  total_phases: 6
+  completed_phases: 4
+  total_plans: 12
+  completed_plans: 9
+  percent: 22
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-29)
 
 **Core value:** Reliably detect and classify drones acoustically in real time, publishing target events over ZeroMQ so downstream systems can act on them.
-**Current focus:** Phase 03 — cnn-classification-and-target-tracking
+**Current focus:** Phase 10 — field-data-collection
 
 ## Current Position
 
-Phase: 03 (cnn-classification-and-target-tracking) — EXECUTING
-Plan: 3 of 3 (Wave 1 complete, Wave 2 pending)
-Status: Phase complete — ready for verification
-Last activity: 2026-04-02
+Phase: 10 (field-data-collection) — EXECUTING
+Plan: 1 of 3
+Status: Executing Phase 10
+Last activity: 2026-04-02 -- Phase 10 execution started
 
-Progress: [##........] 20%
+Progress: [##........] 22%
 
 ## Performance Metrics
 
@@ -59,7 +59,9 @@ Progress: [##........] 20%
 | Phase 03 P01 | 6min | 1 tasks | 9 files |
 | Phase 03 P02 | 5m19s | 1 tasks | 7 files |
 | Phase 03 P03 | 12min | 2 tasks | 9 files |
-| Phase 10 P01 | 4min | 2 tasks | 8 files |
+| Phase 08 P02 | 7min | 2 tasks | 8 files |
+| Phase 09 P01 | 7min | 2 tasks | 5 files |
+| Phase 09 P02 | 17min | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -88,9 +90,12 @@ Recent decisions affecting current work:
 - [Phase 03]: speed_mps always None -- Doppler deferred to milestone 2 (per D-07)
 - [Phase 03]: CNNWorker uses single-slot queue with drop semantics for non-blocking inference
 - [Phase 03]: Fixed EventBroadcaster to use call_soon_threadsafe for thread-safe async delivery
-- [Phase 10]: Mono downmix via channel mean + resample_poly(1,3) for 48kHz->16kHz
-- [Phase 10]: feed_chunk passive observer pattern avoids ring buffer contention
-- [Phase 10]: Record-first workflow: _unlabeled/ -> {label}/ on label assignment
+- [Phase 08]: ReduceLROnPlateau scheduler for adaptive LR (factor=0.5, patience=3)
+- [Phase 08]: sklearn-free train/val split with fixed seed (42) for reproducibility
+- [Phase 09]: Evaluator reuses collect_wav_files and mel_spectrogram_from_segment -- zero preprocessing divergence between eval and live
+- [Phase 09]: TrainingManager wired via app.state in lifespan for clean DI across routes and WebSocket
+- [Phase 09]: Evaluation endpoint uses run_in_executor to avoid blocking async event loop
+- [Phase 09]: WebSocket /ws/training polls at 2Hz with change detection, no heartbeats
 
 ### Pending Todos
 
@@ -112,6 +117,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-02T15:10:05.813Z
-Stopped at: Completed 10-01-PLAN.md
-Resume file: None
+Last session: 2026-04-02T06:53:30.622Z
+Stopped at: Phase 10 UI-SPEC approved
+Resume file: .planning/phases/10-field-data-collection/10-UI-SPEC.md
