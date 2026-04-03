@@ -17,4 +17,5 @@ class RecordingConfig(BaseSettings):
     max_duration_s: float = 300.0
     target_sample_rate: int = 16000
     source_sample_rate: int = 48000
+    gain_db: float = 20.0
     top_labels: list[str] = ["drone", "background", "other"]

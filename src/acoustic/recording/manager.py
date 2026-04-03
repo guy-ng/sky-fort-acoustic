@@ -57,6 +57,7 @@ class RecordingManager:
                 output_path=wav_path,
                 source_sr=self._config.source_sample_rate,
                 target_sr=self._config.target_sample_rate,
+                gain_db=self._config.gain_db,
             )
             session.start()
 

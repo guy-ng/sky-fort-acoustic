@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useRunEvaluation } from '../../hooks/useEvaluation'
 import { useModels } from '../../hooks/useModels'
 import { EvaluationResults } from './EvaluationResults'
+import { Tooltip } from './Tooltip'
 
 const INPUT_CLASS =
   'w-full bg-hud-bg border border-hud-border rounded px-2 py-1.5 text-sm text-hud-text focus:border-hud-accent focus:outline-none'
@@ -24,9 +25,11 @@ export function EvalSection() {
   return (
     <div className="flex flex-col gap-2">
       {/* Model dropdown (per D-08) */}
-      <label className="text-xs uppercase tracking-wider text-hud-text-dim font-semibold">
-        Model
-      </label>
+      <Tooltip text="Trained model to evaluate (default: latest)">
+        <label className="text-xs uppercase tracking-wider text-hud-text-dim font-semibold">
+          Model
+        </label>
+      </Tooltip>
       <select
         value={selectedModel}
         onChange={e => setSelectedModel(e.target.value)}
@@ -64,9 +67,11 @@ export function EvalSection() {
 
       {showDataDir && (
         <div>
-          <label className="text-xs uppercase tracking-wider text-hud-text-dim font-semibold">
-            Data Directory
-          </label>
+          <Tooltip text="Path to evaluation data (default: test split)">
+            <label className="text-xs uppercase tracking-wider text-hud-text-dim font-semibold">
+              Data Directory
+            </label>
+          </Tooltip>
           <input
             type="text"
             placeholder="audio-data/data/"

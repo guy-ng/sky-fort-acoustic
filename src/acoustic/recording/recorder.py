@@ -24,10 +24,12 @@ class RecordingSession:
         output_path: Path,
         source_sr: int = 48000,
         target_sr: int = 16000,
+        gain_db: float = 20.0,
     ) -> None:
         self._path = output_path
         self._source_sr = source_sr
         self._target_sr = target_sr
+        self._gain_linear: float = 10.0 ** (gain_db / 20.0)
         self._file: sf.SoundFile | None = None
         self._samples_written = 0
         self._running = False
@@ -55,6 +57,9 @@ class RecordingSession:
 
         # Mono downmix: average all channels (D-12)
         mono = chunk.mean(axis=1)
+
+        # Apply gain amplification
+        mono = mono * self._gain_linear
 
         # Resample 48kHz -> 16kHz (ratio 1:3)
         resampled = resample_poly(mono, up=1, down=3).astype(np.float32)

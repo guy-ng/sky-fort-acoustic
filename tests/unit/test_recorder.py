@@ -48,7 +48,7 @@ class TestRecordingSession:
     def test_mono_downmix(self, tmp_path):
         """16 channels averaged to mono."""
         wav_path = tmp_path / "test.wav"
-        session = RecordingSession(output_path=wav_path)
+        session = RecordingSession(output_path=wav_path, gain_db=0.0)
         session.start()
 
         # Create chunk with known values: channel 0=1.0, channel 1=3.0, rest=0

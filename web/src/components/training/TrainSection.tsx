@@ -4,6 +4,7 @@ import { useTrainingSocket } from '../../hooks/useTrainingSocket'
 import { useRunEvaluation } from '../../hooks/useEvaluation'
 import { useQueryClient } from '@tanstack/react-query'
 import { TrainingProgress } from './TrainingProgress'
+import { Tooltip } from './Tooltip'
 import type { TrainingStatus } from '../../utils/types'
 
 const INPUT_CLASS =
@@ -110,9 +111,11 @@ export function TrainSection() {
         <div className="flex flex-col gap-2">
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="text-xs uppercase tracking-wider text-hud-text-dim font-semibold">
-                Learning Rate
-              </label>
+              <Tooltip text="Step size for gradient descent (e.g. 0.001)">
+                <label className="text-xs uppercase tracking-wider text-hud-text-dim font-semibold">
+                  Learning Rate
+                </label>
+              </Tooltip>
               <input
                 type="text"
                 value={lr}
@@ -121,9 +124,11 @@ export function TrainSection() {
               />
             </div>
             <div>
-              <label className="text-xs uppercase tracking-wider text-hud-text-dim font-semibold">
-                Batch Size
-              </label>
+              <Tooltip text="Number of samples per training step">
+                <label className="text-xs uppercase tracking-wider text-hud-text-dim font-semibold">
+                  Batch Size
+                </label>
+              </Tooltip>
               <input
                 type="text"
                 value={batchSize}
@@ -134,9 +139,11 @@ export function TrainSection() {
           </div>
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="text-xs uppercase tracking-wider text-hud-text-dim font-semibold">
-                Max Epochs
-              </label>
+              <Tooltip text="Maximum training passes over the dataset">
+                <label className="text-xs uppercase tracking-wider text-hud-text-dim font-semibold">
+                  Max Epochs
+                </label>
+              </Tooltip>
               <input
                 type="text"
                 value={epochs}
@@ -145,9 +152,11 @@ export function TrainSection() {
               />
             </div>
             <div>
-              <label className="text-xs uppercase tracking-wider text-hud-text-dim font-semibold">
-                Patience
-              </label>
+              <Tooltip text="Epochs without improvement before early stop">
+                <label className="text-xs uppercase tracking-wider text-hud-text-dim font-semibold">
+                  Patience
+                </label>
+              </Tooltip>
               <input
                 type="text"
                 value={patience}
@@ -157,9 +166,11 @@ export function TrainSection() {
             </div>
           </div>
           <div>
-            <label className="text-xs uppercase tracking-wider text-hud-text-dim font-semibold">
-              Data Root
-            </label>
+            <Tooltip text="Path to labeled audio data directory">
+              <label className="text-xs uppercase tracking-wider text-hud-text-dim font-semibold">
+                Data Root
+              </label>
+            </Tooltip>
             <input
               type="text"
               value={dataRoot}
@@ -174,7 +185,9 @@ export function TrainSection() {
               onChange={e => setAugEnabled(e.target.checked)}
               className="accent-hud-accent"
             />
-            <span className="uppercase tracking-wider font-semibold">Augmentation</span>
+            <Tooltip text="Apply random gain and noise to training data">
+              <span className="uppercase tracking-wider font-semibold">Augmentation</span>
+            </Tooltip>
           </label>
         </div>
       )}
