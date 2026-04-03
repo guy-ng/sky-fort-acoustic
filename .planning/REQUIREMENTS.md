@@ -149,3 +149,16 @@
 | TRN-02 | Phase 5 | Complete |
 | TRN-03 | Phase 5 | Complete |
 | TRN-04 | Phase 5 | Complete |
+| BF-10 | Phase 17 | Pending |
+| BF-11 | Phase 17 | Pending |
+| BF-12 | Phase 17 | Pending |
+| BF-13 | Phase 17 | Pending |
+| BF-14 | Phase 17 | Pending |
+| BF-15 | Phase 17 | Pending |
+| DOA-01 | Phase 18 | Pending |
+| DOA-02 | Phase 18 | Pending |
+| DOA-03 | Phase 18 | Pending |
+| DIR-01 | Phase 18 | Pending |
+| DIR-02 | Phase 18 | Pending |
+| VIZ-01 | Phase 19 | Pending |
+| VIZ-02 | Phase 19 | Pending |

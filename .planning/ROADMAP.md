@@ -5,6 +5,7 @@
 - 🚧 **v1.0 MVP** - Phases 1-5 (in progress)
 - 📋 **v2.0 Research Classification Migration** - Phases 6-12 (planned)
 - 📋 **v3.0 DADS-Powered Detection Upgrade** - Phases 13-16 (planned)
+- 📋 **v4.0 Research-Based Beamforming & Direction Calculation** - Phases 17-19 (planned)
 
 ## Phases
 
@@ -33,6 +34,19 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [ ] **Phase 9: Evaluation Harness and API** - Model evaluation with metrics, REST endpoints for training and evaluation, WebSocket progress streaming
 - [ ] **Phase 10: Field Data Collection** - Record labeled audio from live UMA-16 via web UI with metadata and auto-organized directory structure
 - [ ] **Phase 11: Late Fusion Ensemble (Conditional)** - Multi-model ensemble with accuracy-weighted soft voting, conditional on single-model accuracy results
+
+### v3.0 DADS-Powered Detection Upgrade (Phases 13-16)
+
+- [ ] **Phase 13: DADS Dataset Integration and Training Data Pipeline** - Download, validate, integrate DADS dataset with session-level splitting
+- [ ] **Phase 14: EfficientAT Model Architecture with AudioSet Transfer Learning** - MobileNetV3 mn10 with three-stage unfreezing transfer learning
+- [ ] **Phase 15: Advanced Training Enhancements** - Focal loss, noise augmentation, balanced sampling, waveform augmentations
+- [ ] **Phase 16: Edge Export Pipeline** - ONNX, TensorRT, TFLite quantization for edge deployment
+
+### v4.0 Research-Based Beamforming & Direction Calculation (Phases 17-19)
+
+- [ ] **Phase 17: Beamforming Engine Upgrade and Pipeline Integration** - Research-validated SRP-PHAT with bandpass filtering, MCRA noise estimation, sub-grid interpolation, multi-peak detection, wired into live pipeline
+- [ ] **Phase 18: Direction of Arrival and WebSocket Broadcasting** - Pan/tilt calculation with coordinate transforms, per-target direction tracking, WebSocket direction events
+- [ ] **Phase 19: Functional Beamforming Visualization** - Sidelobe-suppressed heatmap display with corrected frequency band and configurable nu parameter
 
 ## Phase Details
 
@@ -233,30 +247,6 @@ Plans:
 - [x] 12-01-PLAN.md — Install Recharts, TypeScript interfaces for training/eval/model APIs, data hooks (useTraining, useTrainingSocket, useEvaluation, useModels)
 - [ ] 12-02-PLAN.md — UI components (TrainingPanel accordion, TrainSection, TrainingProgress chart, EvalSection, EvaluationResults, ModelsSection) + Sidebar integration + visual verification
 
-## Progress
-
-**Execution Order:**
-Phases execute in numeric order. Phase 11 is conditional. v3.0 phases: 13 -> 14 -> 15 -> 16.
-
-| Phase | Milestone | Plans Complete | Status | Completed |
-|-------|-----------|----------------|--------|-----------|
-| 1. Audio Capture, Beamforming, and Infrastructure | v1.0 | 3/3 | Complete | 2026-03-30 |
-| 2. REST API and Live Monitoring UI | v1.0 | 1/3 | In Progress | |
-| 3. CNN Classification and Target Tracking | v1.0 | 3/3 | Complete | |
-| 4. Recording and Playback | v1.0 | 0/2 | Not started | - |
-| 5. CNN Training Pipeline | v1.0 | 0/2 | Not started | - |
-| 6. Preprocessing Parity Foundation | v2.0 | 2/2 | Complete   | 2026-04-01 |
-| 7. Research CNN and Inference Integration | v2.0 | 0/2 | Not started | - |
-| 8. PyTorch Training Pipeline | v2.0 | 2/3 | In Progress|  |
-| 9. Evaluation Harness and API | v2.0 | 2/2 | Complete | 2026-04-02 |
-| 10. Field Data Collection | v2.0 | 3/3 | Complete   | 2026-04-02 |
-| 11. Late Fusion Ensemble (Conditional) | v2.0 | 0/2 | Complete    | 2026-04-02 |
-| 12. Add ML Training & Testing UI Tab | v2.0 | 1/2 | In Progress|  |
-| 13. DADS Dataset Integration and Training Data Pipeline | v3.0 | 2/2 | Complete   | 2026-04-03 |
-| 14. EfficientAT Model Architecture with AudioSet Transfer Learning | v3.0 | 0/0 | Not started | - |
-| 15. Advanced Training Enhancements | v3.0 | 0/0 | Not started | - |
-| 16. Edge Export Pipeline - ONNX TensorRT TFLite Quantization | v3.0 | 0/0 | Not started | - |
-
 ### v3.0 DADS-Powered Detection Upgrade
 
 **Milestone Goal:** Upgrade the detection model using the DADS public dataset (180K files, 60.9 hours), adopt EfficientAT MobileNetV3 architecture with AudioSet pretraining, enhance training with focal loss and noise augmentation, and add edge export pipeline for TensorRT/TFLite deployment.
@@ -319,3 +309,78 @@ Plans:
 
 Plans:
 - [ ] TBD (run /gsd:plan-phase 16 to break down)
+
+### v4.0 Research-Based Beamforming & Direction Calculation
+
+**Milestone Goal:** Upgrade the beamforming engine based on research to produce accurate azimuth/elevation DOA estimates, wire beamforming back into the live pipeline (replacing the current stub), add functional beamforming for clean visualization, and publish direction data over WebSocket.
+
+### Phase 17: Beamforming Engine Upgrade and Pipeline Integration
+**Goal**: The beamforming engine operates with research-validated parameters and is wired into the live pipeline, producing real-time spatial maps with accurate peak detection
+**Depends on**: Phase 1 (existing beamforming modules in src/acoustic/beamforming/)
+**Requirements**: BF-10, BF-11, BF-12, BF-13, BF-14, BF-15
+**Success Criteria** (what must be TRUE):
+  1. Beamforming processes audio in the 500-4000 Hz band with a 4th-order Butterworth bandpass pre-filter applied per-channel, and the spatial aliasing limit is not exceeded
+  2. Peak DOA is refined to sub-degree accuracy via parabolic interpolation on the SRP-PHAT grid, producing smoother bearing estimates than grid-only resolution
+  3. Multiple simultaneous sources are detected as separate peaks with configurable minimum angular separation and threshold
+  4. MCRA noise estimator provides an adaptive noise floor that adjusts to changing outdoor conditions without manual recalibration
+  5. The live pipeline's process_chunk calls the real beamforming engine (not the zero-map stub) and produces updating spatial maps at the 150ms chunk rate
+**Plans**: TBD
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 17 to break down)
+
+### Phase 18: Direction of Arrival and WebSocket Broadcasting
+**Goal**: Each detected source has accurate pan/tilt degrees that update as the source moves, and direction data is broadcast to WebSocket subscribers in real time
+**Depends on**: Phase 17 (beamforming peaks feed DOA calculation)
+**Requirements**: DOA-01, DOA-02, DOA-03, DIR-01, DIR-02
+**Success Criteria** (what must be TRUE):
+  1. Pan (azimuth) and tilt (elevation) degrees are calculated from each beamforming peak and correctly account for the UMA-16v2 vertical mounting orientation
+  2. Coordinate transform correctly maps the array's x-y plane to world azimuth/elevation so that a source at physical 0/0 produces 0/0 in the output
+  3. Per-target direction tracking persists bearing across updates and smoothly tracks a moving source without jumps or resets
+  4. WebSocket /ws/events broadcasts detection events containing target ID, azimuth, elevation, pan, and tilt degrees for each active target
+  5. Periodic direction updates are published per active target at a configurable rate (default matching the beamforming chunk rate)
+**Plans**: TBD
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 18 to break down)
+
+### Phase 19: Functional Beamforming Visualization
+**Goal**: The heatmap displays a clean, sidelobe-suppressed beamforming map using functional beamforming with the corrected frequency band
+**Depends on**: Phase 17 (upgraded beamforming engine output)
+**Requirements**: VIZ-01, VIZ-02
+**Success Criteria** (what must be TRUE):
+  1. The heatmap reflects beamforming output computed in the 500-4000 Hz band, showing sharper source localization than the previous 100-2000 Hz band
+  2. Functional beamforming with a configurable nu parameter (default nu=100) suppresses sidelobes so that the heatmap shows distinct source peaks instead of smeared energy
+  3. The nu parameter is adjustable at runtime via config or API so operators can tune visualization sharpness for different environments
+**Plans**: TBD
+**UI hint**: yes
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 19 to break down)
+
+## Progress
+
+**Execution Order:**
+Phases execute in numeric order. Phase 11 is conditional. v3.0 phases: 13 -> 14 -> 15 -> 16. v4.0 phases: 17 -> 18 -> 19.
+
+| Phase | Milestone | Plans Complete | Status | Completed |
+|-------|-----------|----------------|--------|-----------|
+| 1. Audio Capture, Beamforming, and Infrastructure | v1.0 | 3/3 | Complete | 2026-03-30 |
+| 2. REST API and Live Monitoring UI | v1.0 | 1/3 | In Progress | |
+| 3. CNN Classification and Target Tracking | v1.0 | 3/3 | Complete | |
+| 4. Recording and Playback | v1.0 | 0/2 | Not started | - |
+| 5. CNN Training Pipeline | v1.0 | 0/2 | Not started | - |
+| 6. Preprocessing Parity Foundation | v2.0 | 2/2 | Complete   | 2026-04-01 |
+| 7. Research CNN and Inference Integration | v2.0 | 0/2 | Not started | - |
+| 8. PyTorch Training Pipeline | v2.0 | 2/3 | In Progress|  |
+| 9. Evaluation Harness and API | v2.0 | 2/2 | Complete | 2026-04-02 |
+| 10. Field Data Collection | v2.0 | 3/3 | Complete   | 2026-04-02 |
+| 11. Late Fusion Ensemble (Conditional) | v2.0 | 0/2 | Complete    | 2026-04-02 |
+| 12. Add ML Training & Testing UI Tab | v2.0 | 1/2 | In Progress|  |
+| 13. DADS Dataset Integration and Training Data Pipeline | v3.0 | 2/2 | Complete   | 2026-04-03 |
+| 14. EfficientAT Model Architecture with AudioSet Transfer Learning | v3.0 | 0/0 | Not started | - |
+| 15. Advanced Training Enhancements | v3.0 | 0/0 | Not started | - |
+| 16. Edge Export Pipeline - ONNX TensorRT TFLite Quantization | v3.0 | 0/0 | Not started | - |
+| 17. Beamforming Engine Upgrade and Pipeline Integration | v4.0 | 0/0 | Not started | - |
+| 18. Direction of Arrival and WebSocket Broadcasting | v4.0 | 0/0 | Not started | - |
+| 19. Functional Beamforming Visualization | v4.0 | 0/0 | Not started | - |

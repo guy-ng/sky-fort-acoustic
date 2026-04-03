@@ -4,10 +4,10 @@ milestone: v4.0
 milestone_name: Research-Based Beamforming & Direction Calculation
 status: planning
 stopped_at: null
-last_updated: "2026-04-03T21:00:00.000Z"
-last_activity: 2026-04-03
+last_updated: "2026-04-04T10:00:00.000Z"
+last_activity: 2026-04-04
 progress:
-  total_phases: 0
+  total_phases: 3
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-03)
 
 **Core value:** Reliably detect and classify drones acoustically in real time, publishing target events over ZeroMQ so downstream systems can act on them.
-**Current focus:** Defining requirements for v4.0
+**Current focus:** v4.0 Phase 17 — Beamforming Engine Upgrade and Pipeline Integration
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-04-03 — Milestone v4.0 started
+Phase: 17 — Beamforming Engine Upgrade and Pipeline Integration
+Plan: TBD (run /gsd:plan-phase 17)
+Status: Not started
+Last activity: 2026-04-04 — v4.0 roadmap created (Phases 17-19)
 
 ## Performance Metrics
 
@@ -70,7 +70,11 @@ Last activity: 2026-04-03 — Milestone v4.0 started
 - Phase 14 added: EfficientAT Model Architecture with AudioSet Transfer Learning
 - Phase 15 added: Advanced Training Enhancements - Focal Loss, Noise Augmentation, Balanced Sampling
 - Phase 16 added: Edge Export Pipeline - ONNX TensorRT TFLite Quantization
-- Source: Research document (docs/compass_artifact...md) — acoustic drone detection with CNNs for edge deployment
+- v4.0 milestone added (2026-04-04): Research-Based Beamforming & Direction Calculation (Phases 17-19)
+- Phase 17 added: Beamforming Engine Upgrade and Pipeline Integration (BF-10 through BF-15)
+- Phase 18 added: Direction of Arrival and WebSocket Broadcasting (DOA-01 through DOA-03, DIR-01, DIR-02)
+- Phase 19 added: Functional Beamforming Visualization (VIZ-01, VIZ-02)
+- Source: Research-validated beamforming parameters, spatial aliasing analysis for UMA-16v2
 
 ### Decisions
 
@@ -113,6 +117,7 @@ None yet.
 - Doppler speed estimation feasibility uncertain (UMA-16v2 aperture may be too small -- validate during Phase 3)
 - UMA-16v2 channel mapping needs empirical verification (tap test) before beamforming work
 - Callback-based capture not yet proven with UMA-16v2 (prototype early in Phase 1)
+- Beamforming is currently stubbed in pipeline.py -- Phase 17 must re-integrate the real SRP-PHAT engine
 
 ### Quick Tasks Completed
 
@@ -124,6 +129,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-03T18:54:09.718Z
-Stopped at: Completed 13-02-PLAN.md
+Last session: 2026-04-04T10:00:00.000Z
+Stopped at: v4.0 roadmap created
 Resume file: None
