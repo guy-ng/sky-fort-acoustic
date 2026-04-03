@@ -317,13 +317,14 @@ Plans:
 ### Phase 17: Beamforming Engine Upgrade and Pipeline Integration
 **Goal**: The beamforming engine operates with research-validated parameters and is wired into the live pipeline, producing real-time spatial maps with accurate peak detection
 **Depends on**: Phase 1 (existing beamforming modules in src/acoustic/beamforming/)
-**Requirements**: BF-10, BF-11, BF-12, BF-13, BF-14, BF-15
+**Requirements**: BF-10, BF-11, BF-12, BF-13, BF-14, BF-15, BF-16
 **Success Criteria** (what must be TRUE):
   1. Beamforming processes audio in the 500-4000 Hz band with a 4th-order Butterworth bandpass pre-filter applied per-channel, and the spatial aliasing limit is not exceeded
   2. Peak DOA is refined to sub-degree accuracy via parabolic interpolation on the SRP-PHAT grid, producing smoother bearing estimates than grid-only resolution
   3. Multiple simultaneous sources are detected as separate peaks with configurable minimum angular separation and threshold
   4. MCRA noise estimator provides an adaptive noise floor that adjusts to changing outdoor conditions without manual recalibration
   5. The live pipeline's process_chunk calls the real beamforming engine (not the zero-map stub) and produces updating spatial maps at the 150ms chunk rate
+  6. Beamforming activates only after CNN drone detection and deactivates after 5 seconds of no detection — idle state returns zero maps to save compute
 **Plans**: TBD
 
 Plans:

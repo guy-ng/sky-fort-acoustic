@@ -75,6 +75,7 @@
 - [ ] **BF-13**: Multi-peak detection identifies multiple simultaneous sources with configurable threshold and minimum separation
 - [ ] **BF-14**: MCRA noise estimator tracks adaptive noise floor for outdoor robustness
 - [ ] **BF-15**: Beamforming is wired into the live pipeline's process_chunk (replacing current stub)
+- [ ] **BF-16**: Beamforming activates only after CNN drone detection and deactivates after 5 seconds of no detection (demand-driven to save compute)
 
 ### Direction of Arrival
 
@@ -155,6 +156,7 @@
 | BF-13 | Phase 17 | Pending |
 | BF-14 | Phase 17 | Pending |
 | BF-15 | Phase 17 | Pending |
+| BF-16 | Phase 17 | Pending |
 | DOA-01 | Phase 18 | Pending |
 | DOA-02 | Phase 18 | Pending |
 | DOA-03 | Phase 18 | Pending |
