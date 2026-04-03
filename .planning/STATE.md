@@ -1,17 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v4.0
-milestone_name: Research-Based Beamforming & Direction Calculation
-status: planning
-stopped_at: null
-last_updated: "2026-04-04T10:00:00.000Z"
-last_activity: 2026-04-04
+milestone: v1.0
+milestone_name: MVP
+status: executing
+stopped_at: Completed 14-01-PLAN.md
+last_updated: "2026-04-03T22:32:07.809Z"
+last_activity: 2026-04-03
 progress:
-  total_phases: 3
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
-  percent: 0
+  total_phases: 14
+  completed_phases: 7
+  total_plans: 22
+  completed_plans: 18
 ---
 
 # Project State
@@ -21,14 +20,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-03)
 
 **Core value:** Reliably detect and classify drones acoustically in real time, publishing target events over ZeroMQ so downstream systems can act on them.
-**Current focus:** v4.0 Phase 17 — Beamforming Engine Upgrade and Pipeline Integration
+**Current focus:** Phase 14 — efficientat-model-architecture-with-audioset-transfer-learning
 
 ## Current Position
 
-Phase: 17 — Beamforming Engine Upgrade and Pipeline Integration
-Plan: TBD (run /gsd:plan-phase 17)
-Status: Not started
-Last activity: 2026-04-04 — v4.0 roadmap created (Phases 17-19)
+Phase: 14 (efficientat-model-architecture-with-audioset-transfer-learning) — EXECUTING
+Plan: 2 of 2
+Status: Ready to execute
+Last activity: 2026-04-03
 
 ## Performance Metrics
 
@@ -60,6 +59,7 @@ Last activity: 2026-04-04 — v4.0 roadmap created (Phases 17-19)
 | Phase 11 P02 | 10min | 2 tasks | 7 files |
 | Phase 13 P01 | 3m40s | 1 tasks | 2 files |
 | Phase 13 P02 | 4m01s | 2 tasks | 5 files |
+| Phase 14 P01 | 19min | 2 tasks | 13 files |
 
 ## Accumulated Context
 
@@ -107,6 +107,8 @@ Recent decisions affecting current work:
 - [Phase 13]: 44-byte WAV header skip for in-memory Parquet audio decoding (no soundfile dep for this path)
 - [Phase 13]: TrainingRunner branches on presence of train-*.parquet files in dads_path, not config flag
 - [Phase 13]: Parquet created as post-processing after WAV write, keeping streaming WAV writer unchanged
+- [Phase 14]: Vendored EfficientAT source as package (not pip) -- model code under efficientat/ with registry auto-registration
+- [Phase 14]: Added channel unsqueeze between AugmentMelSTFT 3D output and Conv2D 4D input for EfficientAT inference
 
 ### Pending Todos
 
@@ -129,6 +131,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-04T10:00:00.000Z
-Stopped at: v4.0 roadmap created
+Last session: 2026-04-03T22:32:07.751Z
+Stopped at: Completed 14-01-PLAN.md
 Resume file: None
