@@ -9,6 +9,9 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
+import pyarrow as pa
+import pyarrow.parquet as pq
+
 from acoustic.recording.config import RecordingConfig
 from acoustic.recording.metadata import (
     RecordingMetadata,
@@ -161,6 +164,16 @@ class RecordingManager:
             updates.update(extra)
         update_metadata(unlabeled_json, updates)
         shutil.move(str(unlabeled_json), str(target_json))
+
+        # Create Parquet version for training pipeline (D-08)
+        label_int = 1 if label == "drone" else 0
+        wav_bytes = target_wav.read_bytes()
+        parquet_table = pa.table({
+            "audio": [{"bytes": wav_bytes, "path": target_wav.name}],
+            "label": [label_int],
+        })
+        parquet_path = target_wav.with_suffix(".parquet")
+        pq.write_table(parquet_table, str(parquet_path))
 
         return target_wav
 

@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import io
 from pathlib import Path
 
 import numpy as np
+import pyarrow as pa
+import pyarrow.parquet as pq
 import soundfile as sf
 from scipy.signal import resample_poly
 
@@ -86,6 +89,11 @@ class RecordingSession:
         """Whether the session is actively recording."""
         return self._running
 
+    @property
+    def path(self) -> Path:
+        """Path to the output WAV file."""
+        return self._path
+
     def stop(self) -> float:
         """Close the WAV file and return the total duration in seconds."""
         self._running = False
@@ -93,3 +101,27 @@ class RecordingSession:
             self._file.close()
             self._file = None
         return self.duration_s
+
+    def to_parquet(self, label: int) -> Path:
+        """Convert the completed WAV recording to a single-row Parquet file.
+
+        Must be called after stop(). Reads the WAV file, packages audio bytes
+        with label into DADS-compatible Parquet schema.
+
+        Args:
+            label: Integer class label (1=drone, 0=no-drone).
+
+        Returns:
+            Path to the created .parquet file.
+        """
+        wav_path = self._path
+        wav_bytes = wav_path.read_bytes()
+
+        table = pa.table({
+            "audio": [{"bytes": wav_bytes, "path": wav_path.name}],
+            "label": [label],
+        })
+
+        parquet_path = wav_path.with_suffix(".parquet")
+        pq.write_table(table, str(parquet_path))
+        return parquet_path
