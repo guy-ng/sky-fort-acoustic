@@ -291,10 +291,11 @@ Plans:
   3. Class-balanced sampling targets ~50/50 drone/no-drone ratio per batch regardless of dataset imbalance
   4. Waveform augmentations (pitch shift ±3 semitones, time stretch 0.85-1.15x, gain -6 to +6 dB) are applied via audiomentations with configurable probabilities
   5. Model achieves <5% false positive rate with >95% recall on DADS test set
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] TBD (run /gsd:plan-phase 15 to break down)
+- [ ] 15-01-PLAN.md — FocalLoss module, BackgroundNoiseMixer, AudiomentationsAugmentation, config extensions, unit tests
+- [ ] 15-02-PLAN.md — Trainer integration: wire focal loss, new augmentations, ResearchCNN logits mode, dataset type widening, integration tests
 
 ### Phase 16: Edge Export Pipeline - ONNX TensorRT TFLite Quantization
 **Goal**: Export trained models to ONNX format with optional TensorRT FP16/INT8 and TFLite INT8 quantization for edge deployment on Jetson and Raspberry Pi
@@ -381,7 +382,7 @@ Phases execute in numeric order. Phase 11 is conditional. v3.0 phases: 13 -> 14 
 | 12. Add ML Training & Testing UI Tab | v2.0 | 1/2 | In Progress|  |
 | 13. DADS Dataset Integration and Training Data Pipeline | v3.0 | 2/2 | Complete   | 2026-04-03 |
 | 14. EfficientAT Model Architecture with AudioSet Transfer Learning | v3.0 | 0/2 | Not started | - |
-| 15. Advanced Training Enhancements | v3.0 | 0/0 | Not started | - |
+| 15. Advanced Training Enhancements | v3.0 | 0/2 | Not started | - |
 | 16. Edge Export Pipeline - ONNX TensorRT TFLite Quantization | v3.0 | 0/0 | Not started | - |
 | 17. Beamforming Engine Upgrade and Pipeline Integration | v4.0 | 0/0 | Not started | - |
 | 18. Direction of Arrival and WebSocket Broadcasting | v4.0 | 0/0 | Not started | - |
