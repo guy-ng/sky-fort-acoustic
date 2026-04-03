@@ -3,7 +3,8 @@
 ## Milestones
 
 - 🚧 **v1.0 MVP** - Phases 1-5 (in progress)
-- 📋 **v2.0 Research Classification Migration** - Phases 6-11 (planned)
+- 📋 **v2.0 Research Classification Migration** - Phases 6-12 (planned)
+- 📋 **v3.0 DADS-Powered Detection Upgrade** - Phases 13-16 (planned)
 
 ## Phases
 
@@ -235,9 +236,7 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 6 -> 7 -> 8 -> 9 -> 10 -> 11
-
-Note: Phase 11 is conditional -- build only if Phase 9 evaluation shows single-model accuracy is insufficient.
+Phases execute in numeric order. Phase 11 is conditional. v3.0 phases: 13 -> 14 -> 15 -> 16.
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
@@ -253,3 +252,70 @@ Note: Phase 11 is conditional -- build only if Phase 9 evaluation shows single-m
 | 10. Field Data Collection | v2.0 | 3/3 | Complete   | 2026-04-02 |
 | 11. Late Fusion Ensemble (Conditional) | v2.0 | 0/2 | Complete    | 2026-04-02 |
 | 12. Add ML Training & Testing UI Tab | v2.0 | 1/2 | In Progress|  |
+| 13. DADS Dataset Integration and Training Data Pipeline | v3.0 | 0/2 | Not started | - |
+| 14. EfficientAT Model Architecture with AudioSet Transfer Learning | v3.0 | 0/0 | Not started | - |
+| 15. Advanced Training Enhancements | v3.0 | 0/0 | Not started | - |
+| 16. Edge Export Pipeline - ONNX TensorRT TFLite Quantization | v3.0 | 0/0 | Not started | - |
+
+### v3.0 DADS-Powered Detection Upgrade
+
+**Milestone Goal:** Upgrade the detection model using the DADS public dataset (180K files, 60.9 hours), adopt EfficientAT MobileNetV3 architecture with AudioSet pretraining, enhance training with focal loss and noise augmentation, and add edge export pipeline for TensorRT/TFLite deployment.
+
+### Phase 13: DADS Dataset Integration and Training Data Pipeline
+**Goal**: Download, validate, and integrate the DADS dataset (geronimobasso/drone-audio-detection-samples from HuggingFace) into the training pipeline with proper session-level data splitting
+**Depends on**: Phase 8 (training pipeline), Phase 9 (evaluation harness)
+**Requirements**: DAT-01, DAT-02, DAT-03
+**Success Criteria** (what must be TRUE):
+  1. DADS dataset (180,320 WAV files, ~60.9 hours) is downloaded and validated (PCM 16-bit, mono, 16 kHz)
+  2. Dataset loader handles the DADS directory structure (drone/no-drone folders) and integrates with the existing DroneAudioDataset
+  3. Session-level (file-level) data splitting prevents data leakage — all segments from the same recording go into the same split (70/15/15 train/val/test)
+  4. Training pipeline can train on DADS data end-to-end and produce a model with >90% baseline accuracy
+**Plans**: 2 plans
+
+Plans:
+- [ ] 13-01-PLAN.md — ParquetDataset class with shard scanning, WAV byte decoding, deterministic 70/15/15 split, unit tests
+- [ ] 13-02-PLAN.md — TrainingRunner Parquet integration, config extension (dads_path), field recording Parquet output, integration tests
+
+### Phase 14: EfficientAT Model Architecture with AudioSet Transfer Learning
+**Goal**: Replace the custom 3-layer CNN with EfficientAT MobileNetV3 (mn10, ~4.5M params) pretrained on AudioSet, using the three-stage unfreezing transfer learning recipe
+**Depends on**: Phase 13 (DADS dataset for training), Phase 6 (Classifier protocol)
+**Requirements**: MDL-10, MDL-11, MDL-12
+**Success Criteria** (what must be TRUE):
+  1. EfficientAT mn10 model (~4.5M params, ~18MB) loads with AudioSet-pretrained weights and implements the Classifier protocol
+  2. Three-stage transfer learning works: Stage 1 (head only, lr=1e-3), Stage 2 (last 2-3 blocks, lr=1e-4), Stage 3 (all layers, lr=1e-5) with cosine annealing
+  3. Fine-tuned model achieves >95% binary detection accuracy on DADS test set
+  4. Model can be swapped in at startup via config without code changes (classifier factory)
+**Plans**: TBD
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 14 to break down)
+
+### Phase 15: Advanced Training Enhancements - Focal Loss, Noise Augmentation, Balanced Sampling
+**Goal**: Enhance training with focal loss, background noise augmentation (ESC-50/UrbanSound8K mixing), class-balanced sampling, and waveform augmentations for robust real-world performance
+**Depends on**: Phase 14 (EfficientAT model), Phase 13 (DADS dataset)
+**Requirements**: TRN-10, TRN-11, TRN-12
+**Success Criteria** (what must be TRUE):
+  1. Focal Loss (gamma=2.0, alpha=0.25) replaces BCE as the default training loss, with fallback to weighted BCE
+  2. Background noise augmentation mixes drone audio with ESC-50/UrbanSound8K at SNR -10 to +20 dB during training (most impactful augmentation per research)
+  3. Class-balanced sampling targets ~50/50 drone/no-drone ratio per batch regardless of dataset imbalance
+  4. Waveform augmentations (pitch shift ±3 semitones, time stretch 0.85-1.15x, gain -6 to +6 dB) are applied via audiomentations with configurable probabilities
+  5. Model achieves <5% false positive rate with >95% recall on DADS test set
+**Plans**: TBD
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 15 to break down)
+
+### Phase 16: Edge Export Pipeline - ONNX TensorRT TFLite Quantization
+**Goal**: Export trained models to ONNX format with optional TensorRT FP16/INT8 and TFLite INT8 quantization for edge deployment on Jetson and Raspberry Pi
+**Depends on**: Phase 14 (EfficientAT model to export)
+**Requirements**: DEP-01, DEP-02, DEP-03
+**Success Criteria** (what must be TRUE):
+  1. Trained PyTorch model exports to ONNX (opset 13+) with verified numerical parity (atol=1e-4)
+  2. ONNX model converts to TensorRT FP16 engine with <30ms inference latency on Jetson
+  3. ONNX model converts to TFLite INT8 with post-training quantization using calibration dataset
+  4. Quantized models maintain >94% accuracy (within 1% of full-precision baseline)
+  5. REST API endpoint allows model export with format selection (onnx, tensorrt, tflite)
+**Plans**: TBD
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 16 to break down)
