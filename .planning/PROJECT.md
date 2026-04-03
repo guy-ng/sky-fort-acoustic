@@ -74,7 +74,7 @@ Reliably detect and classify drones acoustically in real time, publishing target
 - Bandpass filtering pipeline (50–4000 Hz pre-filter)
 - Wire beamforming into the live pipeline (currently stubbed in process_chunk)
 - Pan/tilt degree calculation with proper vertical mounting coordinate mapping
-- ZeroMQ PUB/SUB direction publishing (bearing, pan, tilt per target)
+- WebSocket direction broadcasting (bearing, pan, tilt per target via /ws/events)
 - Functional Beamforming (ν parameter) for cleaner heatmap visualization
 
 ## Key Decisions

@@ -87,10 +87,10 @@
 - [ ] **VIZ-01**: Heatmap displays beamforming output using corrected 500–4000 Hz frequency band
 - [ ] **VIZ-02**: Functional Beamforming with configurable ν parameter produces sidelobe-suppressed clean maps for display
 
-### Event Publishing
+### Direction Broadcasting
 
-- [ ] **PUB-01**: ZeroMQ PUB/SUB publishes detection events with target ID, bearing (az/el), pan, and tilt degrees
-- [ ] **PUB-02**: ZeroMQ publishes periodic updates (bearing, pan, tilt) per active target at configurable rate
+- [ ] **DIR-01**: WebSocket /ws/events broadcasts detection events with target ID, bearing (az/el), pan, and tilt degrees
+- [ ] **DIR-02**: WebSocket publishes periodic direction updates (bearing, pan, tilt) per active target at configurable rate
 
 ## v2 Requirements (Deferred)
 
