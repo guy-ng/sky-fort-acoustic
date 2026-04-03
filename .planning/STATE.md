@@ -1,36 +1,34 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.0
-milestone_name: MVP
-status: executing
-stopped_at: Completed 13-02-PLAN.md
-last_updated: "2026-04-03T18:54:09.722Z"
+milestone: v4.0
+milestone_name: Research-Based Beamforming & Direction Calculation
+status: planning
+stopped_at: null
+last_updated: "2026-04-03T21:00:00.000Z"
 last_activity: 2026-04-03
 progress:
-  total_phases: 11
-  completed_phases: 7
-  total_plans: 18
-  completed_plans: 17
-  percent: 20
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-03-29)
+See: .planning/PROJECT.md (updated 2026-04-03)
 
 **Core value:** Reliably detect and classify drones acoustically in real time, publishing target events over ZeroMQ so downstream systems can act on them.
-**Current focus:** Phase 13 — dads-dataset-integration-and-training-data-pipeline
+**Current focus:** Defining requirements for v4.0
 
 ## Current Position
 
-Phase: 13 (dads-dataset-integration-and-training-data-pipeline) — EXECUTING
-Plan: 2 of 2
-Status: Ready to execute
-Last activity: 2026-04-03
-
-Progress: [##........] 20%
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-04-03 — Milestone v4.0 started
 
 ## Performance Metrics
 

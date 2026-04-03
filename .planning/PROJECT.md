@@ -62,18 +62,20 @@ Reliably detect and classify drones acoustically in real time, publishing target
 - **Real-time**: Audio processing must keep up with 48kHz 16-channel stream
 - **Deployment**: Must run independently — no dependency on other POC components
 
-## Current Milestone: v2.0 Research Classification Migration
+## Current Milestone: v4.0 Research-Based Beamforming & Direction Calculation
 
-**Goal:** Replace the current EfficientNet-B0 classification with the Acoustic-UAV-Identification research pipeline — new CNN architecture, mel-spectrogram preprocessing, segment aggregation, PyTorch training, late fusion ensemble, and field data collection.
+**Goal:** Upgrade the beamforming engine based on research to produce accurate azimuth/elevation DOA estimates and publish direction data over ZeroMQ.
 
 **Target features:**
-- Port research CNN architecture (3-layer CNN with GlobalAvgPool) to PyTorch, replacing EfficientNet-B0 ONNX
-- Adapt preprocessing to research params (64 mels, 128 frames, 16kHz, log-dB normalization)
-- Add segment-level aggregation (p_max, p_mean, p_agg, weighted combination)
-- PyTorch training pipeline integrated into service
-- Late fusion ensemble support (multi-model soft/hard voting)
-- UMA-16 dataset collection via web UI
-- Model evaluation harness (confusion matrix, distribution stats, per-file analysis)
+- Upgrade SRP-PHAT frequency band to 500–4000 Hz (respecting spatial aliasing limit at ~4083 Hz)
+- Sub-grid parabolic interpolation for sub-degree DOA accuracy
+- Multi-peak detection for simultaneous multi-drone direction tracking
+- MCRA noise estimation for adaptive outdoor thresholding
+- Bandpass filtering pipeline (50–4000 Hz pre-filter)
+- Wire beamforming into the live pipeline (currently stubbed in process_chunk)
+- Pan/tilt degree calculation with proper vertical mounting coordinate mapping
+- ZeroMQ PUB/SUB direction publishing (bearing, pan, tilt per target)
+- Functional Beamforming (ν parameter) for cleaner heatmap visualization
 
 ## Key Decisions
 
@@ -103,4 +105,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-02 — Phase 8 complete, PyTorch training pipeline with background execution, data augmentation, TorchScript export, and confusion matrix tracking*
+*Last updated: 2026-04-03 — Milestone v4.0 started: Research-Based Beamforming & Direction Calculation*
