@@ -45,3 +45,13 @@ class TrainingConfig(BaseSettings):
     wave_snr_range_low: float = 10.0
     wave_snr_range_high: float = 40.0
     wave_gain_db: float = 6.0
+
+    # EfficientAT transfer learning stages (MDL-11)
+    model_type: str = "research_cnn"  # "research_cnn" or "efficientat_mn10"
+    pretrained_weights: str = "models/pretrained/mn10_as.pt"
+    stage1_epochs: int = 10
+    stage2_epochs: int = 15
+    stage3_epochs: int = 20
+    stage1_lr: float = 1e-3
+    stage2_lr: float = 1e-4
+    stage3_lr: float = 1e-5
