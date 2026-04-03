@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: MVP
 status: executing
-stopped_at: Phase 13 context gathered
-last_updated: "2026-04-03T17:39:34.473Z"
-last_activity: 2026-04-02 -- Phase 12 execution started
+stopped_at: Completed 13-01-PLAN.md
+last_updated: "2026-04-03T18:44:19.358Z"
+last_activity: 2026-04-03
 progress:
   total_phases: 11
   completed_phases: 6
-  total_plans: 16
-  completed_plans: 15
+  total_plans: 18
+  completed_plans: 16
   percent: 20
 ---
 
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-03-29)
 ## Current Position
 
 Phase: 12 (add-ml-training-testing-ui-tab) — EXECUTING
-Plan: 1 of 2
-Status: Executing Phase 12
-Last activity: 2026-04-02 -- Phase 12 execution started
+Plan: 2 of 2
+Status: Ready to execute
+Last activity: 2026-04-03
 
 Progress: [##........] 20%
 
@@ -60,6 +60,7 @@ Progress: [##........] 20%
 | Phase 03 P02 | 5m19s | 1 tasks | 7 files |
 | Phase 03 P03 | 12min | 2 tasks | 9 files |
 | Phase 11 P02 | 10min | 2 tasks | 7 files |
+| Phase 13 P01 | 3m40s | 1 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -99,6 +100,8 @@ Recent decisions affecting current work:
 - [Phase 03]: Fixed EventBroadcaster to use call_soon_threadsafe for thread-safe async delivery
 - [Phase 11]: Evaluator refactored with evaluate_classifier and evaluate_ensemble, keeping backward-compatible evaluate(model_path)
 - [Phase 11]: Ensemble factory in lifespan runs before single-model with fallback on failure
+- [Phase 13]: Builder pattern for ParquetDataset to avoid 3x shard scanning for train/val/test splits
+- [Phase 13]: 44-byte WAV header skip for in-memory Parquet audio decoding (no soundfile dep for this path)
 
 ### Pending Todos
 
@@ -120,6 +123,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-03T17:39:34.469Z
-Stopped at: Phase 13 context gathered
-Resume file: .planning/phases/13-dads-dataset-integration-and-training-data-pipeline/13-CONTEXT.md
+Last session: 2026-04-03T18:44:19.354Z
+Stopped at: Completed 13-01-PLAN.md
+Resume file: None
