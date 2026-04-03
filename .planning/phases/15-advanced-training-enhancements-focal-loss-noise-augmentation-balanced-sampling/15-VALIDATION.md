@@ -7,7 +7,7 @@ wave_0_complete: false
 created: 2026-04-04
 ---
 
-# Phase 15 — Validation Strategy
+# Phase 15 -- Validation Strategy
 
 > Per-phase validation contract for feedback sampling during execution.
 
@@ -38,22 +38,21 @@ created: 2026-04-04
 
 | Task ID | Plan | Wave | Requirement | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|-----------|-------------------|-------------|--------|
-| 15-01-01 | 01 | 1 | TRN-10 | unit | `python -m pytest tests/test_focal_loss.py -v` | ❌ W0 | ⬜ pending |
-| 15-01-02 | 01 | 1 | TRN-11 | unit | `python -m pytest tests/test_noise_augmentation.py -v` | ❌ W0 | ⬜ pending |
-| 15-01-03 | 01 | 1 | TRN-12 | unit | `python -m pytest tests/test_balanced_sampling.py -v` | ❌ W0 | ⬜ pending |
-| 15-01-04 | 01 | 1 | TRN-12 | unit | `python -m pytest tests/test_waveform_augmentations.py -v` | ❌ W0 | ⬜ pending |
-| 15-02-01 | 02 | 2 | TRN-10,TRN-11,TRN-12 | integration | `python -m pytest tests/test_training_integration.py -v` | ❌ W0 | ⬜ pending |
+| 15-01-01 | 01 | 1 | TRN-10 | unit | `python -m pytest tests/unit/test_focal_loss.py -v` | W0 | pending |
+| 15-01-02 | 01 | 1 | TRN-11 | unit | `python -m pytest tests/unit/test_noise_augmentation.py -v` | W0 | pending |
+| 15-01-03 | 01 | 1 | TRN-12 | unit | `python -m pytest tests/unit/test_audiomentations_aug.py -v` | W0 | pending |
+| 15-02-01 | 02 | 2 | TRN-10,TRN-11,TRN-12 | integration | `python -m pytest tests/unit/test_training_enhancements_integration.py -v` | W0 | pending |
 
-*Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
+*Status: pending / green / red / flaky*
 
 ---
 
 ## Wave 0 Requirements
 
-- [ ] `tests/test_focal_loss.py` — stubs for TRN-10 (focal loss)
-- [ ] `tests/test_noise_augmentation.py` — stubs for TRN-11 (background noise mixing)
-- [ ] `tests/test_balanced_sampling.py` — stubs for TRN-12 (class-balanced sampling)
-- [ ] `tests/test_waveform_augmentations.py` — stubs for TRN-12 (audiomentations pipeline)
+- [ ] `tests/unit/test_focal_loss.py` -- stubs for TRN-10 (focal loss)
+- [ ] `tests/unit/test_noise_augmentation.py` -- stubs for TRN-11 (background noise mixing)
+- [ ] `tests/unit/test_audiomentations_aug.py` -- stubs for TRN-12 (audiomentations pipeline + ComposedAugmentation picklability)
+- [ ] `tests/unit/test_training_enhancements_integration.py` -- stubs for TRN-10/11/12 integration + weighted sampler at DADS scale
 
 *Existing pytest infrastructure covers framework and fixtures.*
 
