@@ -23,6 +23,9 @@ class TrainingConfig(BaseSettings):
     data_root: str = "data/field"
     label_map: dict[str, int] = {"drone": 1, "background": 0, "other": 0}
 
+    # DADS Parquet data (D-09)
+    dads_path: str = "data/"
+
     # Validation split (D-03)
     val_split: float = 0.2
 

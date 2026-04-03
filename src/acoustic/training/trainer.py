@@ -107,29 +107,49 @@ class TrainingRunner:
                 num_freq_masks=cfg.spec_num_freq_masks,
             )
 
-        # Collect files and split at file level (sklearn-free)
-        all_paths, all_labels = collect_wav_files(cfg.data_root, cfg.label_map)
-        indices = list(range(len(all_paths)))
-        rng = random.Random(42)
-        rng.shuffle(indices)
+        # --- Data source selection ---
+        dads_dir = Path(cfg.dads_path) if cfg.dads_path else None
+        use_parquet = dads_dir is not None and dads_dir.is_dir() and list(dads_dir.glob("train-*.parquet"))
 
-        split_idx = max(1, int(len(indices) * (1.0 - cfg.val_split)))
-        train_indices = indices[:split_idx]
-        val_indices = indices[split_idx:]
+        if use_parquet:
+            from acoustic.training.parquet_dataset import ParquetDatasetBuilder, split_indices
 
-        train_paths = [all_paths[i] for i in train_indices]
-        train_labels = [all_labels[i] for i in train_indices]
-        val_paths = [all_paths[i] for i in val_indices]
-        val_labels = [all_labels[i] for i in val_indices]
+            logger.info("Using DADS Parquet data from %s", dads_dir)
+            builder = ParquetDatasetBuilder(dads_dir)
+            train_idx, val_idx, _test_idx = split_indices(builder.total_rows, seed=42)
 
-        # Create datasets (val set never augmented)
-        train_ds = DroneAudioDataset(
-            train_paths, train_labels, self._mel_config,
-            waveform_aug=wave_aug, spec_aug=spec_aug,
-        )
-        val_ds = DroneAudioDataset(
-            val_paths, val_labels, self._mel_config,
-        )
+            train_ds = builder.build(
+                train_idx, mel_config=self._mel_config,
+                waveform_aug=wave_aug, spec_aug=spec_aug,
+            )
+            val_ds = builder.build(val_idx, mel_config=self._mel_config)
+            train_labels = train_ds.labels
+            val_labels = val_ds.labels
+        else:
+            # Legacy WAV path (existing code, unchanged)
+            logger.info("Using WAV data from %s", cfg.data_root)
+            all_paths, all_labels = collect_wav_files(cfg.data_root, cfg.label_map)
+            indices = list(range(len(all_paths)))
+            rng = random.Random(42)
+            rng.shuffle(indices)
+
+            split_idx = max(1, int(len(indices) * (1.0 - cfg.val_split)))
+            train_indices = indices[:split_idx]
+            val_indices = indices[split_idx:]
+
+            train_paths = [all_paths[i] for i in train_indices]
+            train_labels = [all_labels[i] for i in train_indices]
+            val_paths = [all_paths[i] for i in val_indices]
+            val_labels = [all_labels[i] for i in val_indices]
+
+            # Create datasets (val set never augmented)
+            train_ds = DroneAudioDataset(
+                train_paths, train_labels, self._mel_config,
+                waveform_aug=wave_aug, spec_aug=spec_aug,
+            )
+            val_ds = DroneAudioDataset(
+                val_paths, val_labels, self._mel_config,
+            )
 
         # Create data loaders
         train_sampler = build_weighted_sampler(train_labels)
