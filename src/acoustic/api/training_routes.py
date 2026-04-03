@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import APIRouter, Request
@@ -42,13 +41,13 @@ async def start_training(body: TrainingStartRequest, request: Request) -> Traini
 
     # Build config with overrides from request body
     config = TrainingConfig()
-    overrides = {k: v for k, v in body.model_dump().items() if v is not None}
+    overrides = {k: v for k, v in body.model_dump().items() if v is not None and k != "model_name"}
     if overrides:
         config = config.model_copy(update=overrides)
 
-    # Generate unique checkpoint path per run (timestamp-based)
-    ts = datetime.now(tz=timezone.utc).strftime("%Y%m%d_%H%M%S")
-    config = config.model_copy(update={"checkpoint_path": f"models/research_cnn_{ts}.pt"})
+    # Checkpoint path derived from mandatory model_name
+    safe_name = body.model_name.replace(" ", "_").replace("/", "_")
+    config = config.model_copy(update={"checkpoint_path": f"models/{safe_name}.pt"})
 
     # Validate data_root if provided
     if body.data_root is not None and not Path(body.data_root).is_dir():
@@ -59,7 +58,7 @@ async def start_training(body: TrainingStartRequest, request: Request) -> Traini
             },
         )
 
-    manager.start(config)
+    manager.start(config, model_name=body.model_name)
     return TrainingStartResponse(
         message=f"Training started with {config.max_epochs} max epochs, lr={config.learning_rate}, batch_size={config.batch_size}"
     )
@@ -86,6 +85,10 @@ async def get_progress(request: Request) -> TrainingProgressResponse:
             tp=progress.tp, fp=progress.fp, tn=progress.tn, fn=progress.fn
         ),
         error=progress.error,
+        model_name=progress.model_name,
+        cache_loaded=progress.cache_loaded,
+        cache_total=progress.cache_total,
+        stage=progress.stage,
     )
 
 

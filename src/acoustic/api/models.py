@@ -51,6 +51,8 @@ class HeatmapHandshake(BaseModel):
 class TrainingStartRequest(BaseModel):
     """Request to start a training run with optional overrides."""
 
+    model_name: str
+    model_type: str | None = None  # "research_cnn" or "efficientat_mn10"
     learning_rate: float | None = None
     batch_size: int | None = None
     max_epochs: int | None = None
@@ -89,6 +91,10 @@ class TrainingProgressResponse(BaseModel):
     best_epoch: int = 0
     confusion_matrix: ConfusionMatrixResponse
     error: str | None = None
+    model_name: str | None = None  # Name set at training start, persists across reloads
+    cache_loaded: int = 0    # Audio samples cached in memory
+    cache_total: int = 0     # Total audio samples in dataset
+    stage: int = 0           # Current training stage (0=N/A, 1-3 for EfficientAT)
 
 
 class TrainingCancelResponse(BaseModel):

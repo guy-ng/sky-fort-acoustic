@@ -232,7 +232,12 @@ async def ws_recording(websocket: WebSocket) -> None:
 
 def _progress_to_ws_dict(progress: TrainingProgress) -> dict:
     """Format training progress for WebSocket transmission (per D-12, D-13)."""
-    d: dict = {"status": progress.status.value}
+    d: dict = {
+        "status": progress.status.value,
+        "model_name": progress.model_name,
+        "cache_loaded": progress.cache_loaded,
+        "cache_total": progress.cache_total,
+    }
     if progress.status in (TrainingStatus.RUNNING, TrainingStatus.COMPLETED):
         d.update({
             "epoch": progress.epoch,
@@ -242,6 +247,7 @@ def _progress_to_ws_dict(progress: TrainingProgress) -> dict:
             "train_loss": progress.train_loss,
             "val_loss": progress.val_loss,
             "val_acc": progress.val_acc,
+            "stage": progress.stage,
             "confusion_matrix": {
                 "tp": progress.tp,
                 "fp": progress.fp,
@@ -274,6 +280,7 @@ async def ws_training(websocket: WebSocket) -> None:
     last_epoch = progress.epoch
     last_status = progress.status
     last_batch = progress.batch
+    last_cache = progress.cache_loaded
     last_send_time = asyncio.get_event_loop().time()
     try:
         while True:
@@ -284,6 +291,7 @@ async def ws_training(websocket: WebSocket) -> None:
                 progress.epoch != last_epoch
                 or progress.status != last_status
                 or progress.batch != last_batch
+                or progress.cache_loaded != last_cache
             )
             heartbeat_due = (now - last_send_time) >= 15.0
             if changed or heartbeat_due:
@@ -291,6 +299,7 @@ async def ws_training(websocket: WebSocket) -> None:
                 last_epoch = progress.epoch
                 last_status = progress.status
                 last_batch = progress.batch
+                last_cache = progress.cache_loaded
                 last_send_time = now
     except (WebSocketDisconnect, RuntimeError):
         logger.debug("Training WebSocket client disconnected")

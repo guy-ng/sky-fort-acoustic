@@ -42,6 +42,8 @@ export interface BeamformingMapResponse {
 // --- Training types (Phase 12) ---
 
 export interface TrainingStartParams {
+  model_name: string
+  model_type?: 'research_cnn' | 'efficientat_mn10'
   learning_rate?: number
   batch_size?: number
   max_epochs?: number
@@ -68,6 +70,10 @@ export interface TrainingProgressResponse {
   best_epoch: number
   confusion_matrix: ConfusionMatrixData
   error: string | null
+  model_name: string | null  // Name set at training start, persists across reloads
+  cache_loaded: number   // Audio samples cached in memory
+  cache_total: number    // Total audio samples in dataset
+  stage: number          // Current training stage (0=N/A, 1-3 for EfficientAT)
 }
 
 export type TrainingStatus = TrainingProgressResponse['status']
@@ -158,6 +164,10 @@ export interface TrainingWsMessage {
   val_acc?: number
   confusion_matrix?: ConfusionMatrixData
   error?: string
+  model_name?: string
+  cache_loaded: number
+  cache_total: number
+  stage?: number
 }
 
 export interface LossDataPoint {

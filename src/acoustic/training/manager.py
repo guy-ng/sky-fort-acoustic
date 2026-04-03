@@ -37,6 +37,7 @@ class TrainingProgress:
     """Snapshot of training progress, readable from any thread."""
 
     status: TrainingStatus = TrainingStatus.IDLE
+    model_name: str | None = None
     epoch: int = 0
     total_epochs: int = 0
     batch: int = 0           # Current batch within epoch
@@ -50,6 +51,9 @@ class TrainingProgress:
     fp: int = 0   # False positives
     tn: int = 0   # True negatives
     fn: int = 0   # False negatives
+    cache_loaded: int = 0   # Audio samples cached in memory
+    cache_total: int = 0    # Total audio samples in dataset
+    stage: int = 0          # Current training stage (0=N/A, 1-3 for EfficientAT)
 
 
 class TrainingManager:
@@ -71,6 +75,13 @@ class TrainingManager:
         self._stop_event = threading.Event()
         self._thread: threading.Thread | None = None
 
+    @staticmethod
+    def _compute_total_epochs(cfg: TrainingConfig) -> int:
+        """Return total training epochs based on model type."""
+        if cfg.model_type == "efficientat_mn10":
+            return cfg.stage1_epochs + cfg.stage2_epochs + cfg.stage3_epochs
+        return cfg.max_epochs
+
     def get_progress(self) -> TrainingProgress:
         """Return a copy of the current training progress (thread-safe)."""
         with self._lock:
@@ -80,11 +91,12 @@ class TrainingManager:
         """Return True if the training thread is currently alive."""
         return self._thread is not None and self._thread.is_alive()
 
-    def start(self, config: TrainingConfig | None = None) -> None:
+    def start(self, config: TrainingConfig | None = None, model_name: str | None = None) -> None:
         """Launch training in a background daemon thread.
 
         Args:
             config: Optional override config. Uses constructor config if None.
+            model_name: Name for this training run, persisted in progress.
 
         Raises:
             RuntimeError: If training is already in progress.
@@ -100,7 +112,8 @@ class TrainingManager:
         with self._lock:
             self._progress = TrainingProgress(
                 status=TrainingStatus.RUNNING,
-                total_epochs=cfg.max_epochs,
+                model_name=model_name,
+                total_epochs=self._compute_total_epochs(cfg),
             )
 
         self._thread = threading.Thread(
@@ -135,7 +148,12 @@ class TrainingManager:
             pass
 
         try:
-            runner = TrainingRunner(config, self._mel_config)
+            if config.model_type == "efficientat_mn10":
+                from acoustic.training.efficientat_trainer import EfficientATTrainingRunner
+
+                runner = EfficientATTrainingRunner(config)
+            else:
+                runner = TrainingRunner(config, self._mel_config)
             runner.run(self._stop_event, progress_callback=self._on_progress)
 
             with self._lock:
@@ -165,3 +183,6 @@ class TrainingManager:
             self._progress.fp = update.get("fp", self._progress.fp)
             self._progress.tn = update.get("tn", self._progress.tn)
             self._progress.fn = update.get("fn", self._progress.fn)
+            self._progress.cache_loaded = update.get("cache_loaded", self._progress.cache_loaded)
+            self._progress.cache_total = update.get("cache_total", self._progress.cache_total)
+            self._progress.stage = update.get("stage", self._progress.stage)
