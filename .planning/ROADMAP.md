@@ -252,7 +252,7 @@ Phases execute in numeric order. Phase 11 is conditional. v3.0 phases: 13 -> 14 
 | 10. Field Data Collection | v2.0 | 3/3 | Complete   | 2026-04-02 |
 | 11. Late Fusion Ensemble (Conditional) | v2.0 | 0/2 | Complete    | 2026-04-02 |
 | 12. Add ML Training & Testing UI Tab | v2.0 | 1/2 | In Progress|  |
-| 13. DADS Dataset Integration and Training Data Pipeline | v3.0 | 1/2 | In Progress|  |
+| 13. DADS Dataset Integration and Training Data Pipeline | v3.0 | 2/2 | Complete   | 2026-04-03 |
 | 14. EfficientAT Model Architecture with AudioSet Transfer Learning | v3.0 | 0/0 | Not started | - |
 | 15. Advanced Training Enhancements | v3.0 | 0/0 | Not started | - |
 | 16. Edge Export Pipeline - ONNX TensorRT TFLite Quantization | v3.0 | 0/0 | Not started | - |
@@ -274,7 +274,7 @@ Phases execute in numeric order. Phase 11 is conditional. v3.0 phases: 13 -> 14 
 
 Plans:
 - [x] 13-01-PLAN.md — ParquetDataset class with shard scanning, WAV byte decoding, deterministic 70/15/15 split, unit tests
-- [ ] 13-02-PLAN.md — TrainingRunner Parquet integration, config extension (dads_path), field recording Parquet output, integration tests
+- [x] 13-02-PLAN.md — TrainingRunner Parquet integration, config extension (dads_path), field recording Parquet output, integration tests
 
 ### Phase 14: EfficientAT Model Architecture with AudioSet Transfer Learning
 **Goal**: Replace the custom 3-layer CNN with EfficientAT MobileNetV3 (mn10, ~4.5M params) pretrained on AudioSet, using the three-stage unfreezing transfer learning recipe
