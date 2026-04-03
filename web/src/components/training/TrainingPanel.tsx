@@ -32,6 +32,16 @@ export function TrainingPanel() {
     setOpenSection(prev => (prev === section ? null : section))
   }
 
+  /** Called from ModelsSection when user clicks Evaluate on a model */
+  function handleEvaluateModel(modelPath: string) {
+    setOpenSection('evaluate')
+    setEvalModelPath(modelPath)
+    setEvalTrigger(c => c + 1)
+  }
+
+  const [evalModelPath, setEvalModelPath] = useState<string | undefined>(undefined)
+  const [evalTrigger, setEvalTrigger] = useState(0)
+
   return (
     <div className="flex flex-col gap-0">
       <AccordionHeader
@@ -52,7 +62,10 @@ export function TrainingPanel() {
       />
       {openSection === 'evaluate' && (
         <div className="py-2">
-          <EvalSection />
+          <EvalSection
+            requestedModelPath={evalModelPath}
+            requestTrigger={evalTrigger}
+          />
         </div>
       )}
 
@@ -63,7 +76,7 @@ export function TrainingPanel() {
       />
       {openSection === 'models' && (
         <div className="py-2">
-          <ModelsSection />
+          <ModelsSection onEvaluateModel={handleEvaluateModel} />
         </div>
       )}
     </div>

@@ -151,6 +151,8 @@ export interface TrainingWsMessage {
   status: TrainingStatus
   epoch?: number
   total_epochs?: number
+  batch?: number
+  total_batches?: number
   train_loss?: number
   val_loss?: number
   val_acc?: number

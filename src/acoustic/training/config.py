@@ -20,7 +20,7 @@ class TrainingConfig(BaseSettings):
     patience: int = 5
 
     # Data (D-04)
-    data_root: str = "audio-data/data/"
+    data_root: str = "data/field"
     label_map: dict[str, int] = {"drone": 1, "background": 0, "other": 0}
 
     # Validation split (D-03)

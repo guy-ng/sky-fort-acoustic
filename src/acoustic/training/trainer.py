@@ -163,6 +163,7 @@ class TrainingRunner:
             model.train()
             train_loss_sum = 0.0
             train_batches = 0
+            total_batches = len(train_loader)
             for batch_x, batch_y in train_loader:
                 optimizer.zero_grad()
                 output = model(batch_x).squeeze(-1)
@@ -171,6 +172,16 @@ class TrainingRunner:
                 optimizer.step()
                 train_loss_sum += loss.item()
                 train_batches += 1
+
+                # Batch-level progress (every 10 batches to avoid callback overhead)
+                if progress_callback is not None and train_batches % 10 == 0:
+                    progress_callback({
+                        "epoch": epoch + 1,
+                        "total_epochs": cfg.max_epochs,
+                        "batch": train_batches,
+                        "total_batches": total_batches,
+                        "train_loss": train_loss_sum / train_batches,
+                    })
 
             avg_train_loss = train_loss_sum / max(train_batches, 1)
 

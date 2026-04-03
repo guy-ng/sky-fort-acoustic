@@ -25,11 +25,14 @@ export function DashboardLayout() {
 
   const effectiveHealth = healthError ? undefined : health
   const pipelineRunning = effectiveHealth?.pipeline_running ?? false
-  const statusText = heatmapConnected && targetsConnected
-    ? 'LIVE'
-    : heatmapConnected
-      ? 'TARGETS OFFLINE'
-      : 'CONNECTING...'
+  const deviceDetected = deviceStatus.detected
+  const statusText = !heatmapConnected && !targetsConnected
+    ? 'CONNECTING...'
+    : !deviceDetected
+      ? 'NO DEVICE'
+      : heatmapConnected && targetsConnected
+        ? 'LIVE'
+        : 'TARGETS OFFLINE'
 
   return (
     <div
@@ -55,16 +58,17 @@ export function DashboardLayout() {
         <Panel title="BEAMFORMING MAP" className="h-full">
           <div className="flex h-full gap-2">
             <div className="relative flex-1">
-              {!heatmapConnected && (
+              {!deviceDetected && (
+                <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-hud-panel/80">
+                  <span className="material-symbols-outlined text-3xl text-hud-text-dim mb-2">mic_off</span>
+                  <span className="text-hud-text-dim text-sm uppercase tracking-wider">No Audio Device</span>
+                  <span className="text-hud-text-dim text-xs mt-1">Connect UMA-16v2 to enable beamforming</span>
+                </div>
+              )}
+              {deviceDetected && !heatmapConnected && (
                 <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-hud-panel/80">
                   <div className="w-3 h-3 rounded-full bg-hud-danger mb-2" />
                   <span className="text-hud-text-dim text-sm uppercase tracking-wider">No Signal</span>
-                </div>
-              )}
-              {!deviceStatus.detected && (
-                <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-white/50">
-                  <div className="w-3 h-3 rounded-full bg-amber-500 mb-2 animate-pulse" />
-                  <span className="text-gray-800 text-sm font-semibold uppercase tracking-wider">Device Disconnected</span>
                 </div>
               )}
               <HeatmapCanvas ref={heatmapRef} gridInfo={gridInfo} />

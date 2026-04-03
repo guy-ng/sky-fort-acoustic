@@ -39,6 +39,8 @@ class TrainingProgress:
     status: TrainingStatus = TrainingStatus.IDLE
     epoch: int = 0
     total_epochs: int = 0
+    batch: int = 0           # Current batch within epoch
+    total_batches: int = 0   # Total batches per epoch
     train_loss: float = 0.0
     val_loss: float = 0.0
     val_acc: float = 0.0
@@ -153,6 +155,8 @@ class TrainingManager:
         with self._lock:
             self._progress.epoch = update.get("epoch", self._progress.epoch)
             self._progress.total_epochs = update.get("total_epochs", self._progress.total_epochs)
+            self._progress.batch = update.get("batch", self._progress.batch)
+            self._progress.total_batches = update.get("total_batches", self._progress.total_batches)
             self._progress.train_loss = update.get("train_loss", self._progress.train_loss)
             self._progress.val_loss = update.get("val_loss", self._progress.val_loss)
             self._progress.val_acc = update.get("val_acc", self._progress.val_acc)

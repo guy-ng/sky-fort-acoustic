@@ -83,17 +83,33 @@ export function TrainingProgress({ state, lossHistory }: TrainingProgressProps) 
         </ResponsiveContainer>
       )}
 
-      {/* Metrics row */}
-      <div className="flex items-center justify-between text-xs text-hud-text-dim">
-        <span>
-          Epoch {state.epoch ?? '-'}/{state.total_epochs ?? '-'}
-        </span>
-        <span>
-          Val Acc: {state.val_acc != null ? `${(state.val_acc * 100).toFixed(1)}%` : '-'}
-        </span>
-        <span>
-          Best Loss: {bestValLoss != null ? bestValLoss.toFixed(4) : '-'}
-        </span>
+      {/* Epoch + batch progress */}
+      <div className="flex flex-col gap-1">
+        <div className="flex items-center justify-between text-xs text-hud-text-dim">
+          <span>
+            Epoch {state.epoch ?? '-'}/{state.total_epochs ?? '-'}
+          </span>
+          <span>
+            Val Acc: {state.val_acc != null ? `${(state.val_acc * 100).toFixed(1)}%` : '-'}
+          </span>
+          <span>
+            Best Loss: {bestValLoss != null ? bestValLoss.toFixed(4) : '-'}
+          </span>
+        </div>
+        {/* Batch progress bar (intra-epoch) */}
+        {state.status === 'running' && state.total_batches != null && state.total_batches > 0 && (
+          <div className="flex items-center gap-2">
+            <div className="flex-1 h-1.5 bg-hud-border rounded-full overflow-hidden">
+              <div
+                className="h-full bg-hud-accent rounded-full transition-all duration-300"
+                style={{ width: `${Math.min(100, ((state.batch ?? 0) / state.total_batches) * 100)}%` }}
+              />
+            </div>
+            <span className="text-[10px] text-hud-text-dim font-mono whitespace-nowrap">
+              {state.batch ?? 0}/{state.total_batches}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Confusion matrix */}

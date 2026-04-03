@@ -44,7 +44,8 @@ export function useTrainingSocket(): TrainingWsState {
             msg.status === 'running' &&
             msg.epoch !== undefined &&
             msg.train_loss !== undefined &&
-            msg.val_loss !== undefined
+            msg.val_loss !== undefined &&
+            msg.val_loss > 0  // Only add to history on epoch completion (val_loss=0 means batch-level update)
           ) {
             // Clear history when a new training run starts (epoch 1)
             if (msg.epoch === 1) {
@@ -52,10 +53,14 @@ export function useTrainingSocket(): TrainingWsState {
                 { epoch: msg.epoch, train_loss: msg.train_loss, val_loss: msg.val_loss },
               ])
             } else {
-              setLossHistory(prev => [
-                ...prev,
-                { epoch: msg.epoch!, train_loss: msg.train_loss!, val_loss: msg.val_loss! },
-              ])
+              setLossHistory(prev => {
+                // Avoid duplicate epoch entries
+                if (prev.length > 0 && prev[prev.length - 1].epoch === msg.epoch) return prev
+                return [
+                  ...prev,
+                  { epoch: msg.epoch!, train_loss: msg.train_loss!, val_loss: msg.val_loss! },
+                ]
+              })
             }
           }
         } catch {

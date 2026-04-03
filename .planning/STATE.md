@@ -21,13 +21,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-29)
 
 **Core value:** Reliably detect and classify drones acoustically in real time, publishing target events over ZeroMQ so downstream systems can act on them.
-**Current focus:** Phase 12 — add-ml-training-testing-ui-tab
+**Current focus:** Phase 13 — dads-dataset-integration-and-training-data-pipeline
 
 ## Current Position
 
-Phase: 12 (add-ml-training-testing-ui-tab) — EXECUTING
-Plan: 2 of 2
-Status: Ready to execute
+Phase: 13 (dads-dataset-integration-and-training-data-pipeline) — EXECUTING
+Plan: 1 of 2
+Status: Completed 13-01-PLAN.md
 Last activity: 2026-04-03
 
 Progress: [##........] 20%

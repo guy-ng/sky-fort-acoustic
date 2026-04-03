@@ -31,7 +31,7 @@ export function TrainSection() {
   const [epochs, setEpochs] = useState('50')
   const [patience, setPatience] = useState('5')
   const [augEnabled, setAugEnabled] = useState(true)
-  const [dataRoot, setDataRoot] = useState('audio-data/data/')
+  const [dataRoot, setDataRoot] = useState('data/field')
 
   // Auto-eval tracking (per D-07)
   const autoEvalFired = useRef(false)

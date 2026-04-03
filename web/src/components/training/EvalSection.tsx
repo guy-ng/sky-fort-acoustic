@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRunEvaluation } from '../../hooks/useEvaluation'
 import { useModels } from '../../hooks/useModels'
 import { EvaluationResults } from './EvaluationResults'
@@ -7,13 +7,33 @@ import { Tooltip } from './Tooltip'
 const INPUT_CLASS =
   'w-full bg-hud-bg border border-hud-border rounded px-2 py-1.5 text-sm text-hud-text focus:border-hud-accent focus:outline-none'
 
-export function EvalSection() {
+interface EvalSectionProps {
+  /** When set, auto-triggers evaluation of this model path */
+  requestedModelPath?: string
+  /** Monotonic counter — increments each time a new eval is requested */
+  requestTrigger?: number
+}
+
+export function EvalSection({ requestedModelPath, requestTrigger = 0 }: EvalSectionProps) {
   const evalMutation = useRunEvaluation()
   const { data: modelsData } = useModels()
 
   const [selectedModel, setSelectedModel] = useState('')
   const [showDataDir, setShowDataDir] = useState(false)
   const [dataDir, setDataDir] = useState('')
+
+  // Handle externally-requested evaluation (from ModelsSection)
+  const lastTriggerRef = useRef(0)
+  useEffect(() => {
+    if (requestTrigger > 0 && requestTrigger !== lastTriggerRef.current && requestedModelPath) {
+      lastTriggerRef.current = requestTrigger
+      setSelectedModel(requestedModelPath)
+      evalMutation.mutate({
+        model_path: requestedModelPath,
+        data_dir: dataDir || undefined,
+      })
+    }
+  }, [requestTrigger, requestedModelPath]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleRun() {
     evalMutation.mutate({
@@ -74,7 +94,7 @@ export function EvalSection() {
           </Tooltip>
           <input
             type="text"
-            placeholder="audio-data/data/"
+            placeholder="data/field"
             value={dataDir}
             onChange={e => setDataDir(e.target.value)}
             className={INPUT_CLASS}

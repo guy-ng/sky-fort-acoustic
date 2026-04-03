@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import APIRouter, Request
@@ -45,6 +46,10 @@ async def start_training(body: TrainingStartRequest, request: Request) -> Traini
     if overrides:
         config = config.model_copy(update=overrides)
 
+    # Generate unique checkpoint path per run (timestamp-based)
+    ts = datetime.now(tz=timezone.utc).strftime("%Y%m%d_%H%M%S")
+    config = config.model_copy(update={"checkpoint_path": f"models/research_cnn_{ts}.pt"})
+
     # Validate data_root if provided
     if body.data_root is not None and not Path(body.data_root).is_dir():
         return JSONResponse(
@@ -70,6 +75,8 @@ async def get_progress(request: Request) -> TrainingProgressResponse:
         status=progress.status.value,
         epoch=progress.epoch,
         total_epochs=progress.total_epochs,
+        batch=progress.batch,
+        total_batches=progress.total_batches,
         train_loss=progress.train_loss,
         val_loss=progress.val_loss,
         val_acc=progress.val_acc,

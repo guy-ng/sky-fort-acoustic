@@ -80,6 +80,8 @@ class TrainingProgressResponse(BaseModel):
     status: str  # idle/running/completed/cancelled/failed
     epoch: int
     total_epochs: int
+    batch: int = 0
+    total_batches: int = 0
     train_loss: float
     val_loss: float
     val_acc: float
@@ -266,3 +268,20 @@ class ModelListResponse(BaseModel):
     """List of available model files."""
 
     models: list[ModelInfo]
+
+
+# --- Pipeline activation (Phase 12) ---
+
+
+class ActivateModelRequest(BaseModel):
+    """Request to activate a trained model in the live detection pipeline."""
+
+    model_path: str
+
+
+class ActivateModelResponse(BaseModel):
+    """Response after activating a model."""
+
+    message: str
+    model_path: str
+    active: bool

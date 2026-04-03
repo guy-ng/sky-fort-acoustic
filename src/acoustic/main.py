@@ -490,6 +490,11 @@ app.include_router(training_router)
 app.include_router(eval_router)
 app.include_router(model_router)
 
+# Phase 12: Pipeline control (model activation)
+from acoustic.api.pipeline_routes import router as pipeline_router
+
+app.include_router(pipeline_router)
+
 # Phase 10: Recording routes
 from acoustic.api.recording_routes import router as recording_router
 

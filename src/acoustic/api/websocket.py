@@ -237,6 +237,8 @@ def _progress_to_ws_dict(progress: TrainingProgress) -> dict:
         d.update({
             "epoch": progress.epoch,
             "total_epochs": progress.total_epochs,
+            "batch": progress.batch,
+            "total_batches": progress.total_batches,
             "train_loss": progress.train_loss,
             "val_loss": progress.val_loss,
             "val_acc": progress.val_acc,
@@ -260,7 +262,7 @@ async def ws_training(websocket: WebSocket) -> None:
     1. On connect, send current status JSON
     2. If status is completed/failed, include last results
     3. Push updates when epoch or status changes
-    4. No periodic heartbeats
+    4. Heartbeat every 15s to keep connection alive during long epochs
     """
     await websocket.accept()
     manager: TrainingManager = websocket.app.state.training_manager
@@ -271,13 +273,24 @@ async def ws_training(websocket: WebSocket) -> None:
 
     last_epoch = progress.epoch
     last_status = progress.status
+    last_batch = progress.batch
+    last_send_time = asyncio.get_event_loop().time()
     try:
         while True:
             await asyncio.sleep(0.5)  # Poll at 2 Hz
             progress = manager.get_progress()
-            if progress.epoch != last_epoch or progress.status != last_status:
+            now = asyncio.get_event_loop().time()
+            changed = (
+                progress.epoch != last_epoch
+                or progress.status != last_status
+                or progress.batch != last_batch
+            )
+            heartbeat_due = (now - last_send_time) >= 15.0
+            if changed or heartbeat_due:
                 await websocket.send_json(_progress_to_ws_dict(progress))
                 last_epoch = progress.epoch
                 last_status = progress.status
+                last_batch = progress.batch
+                last_send_time = now
     except (WebSocketDisconnect, RuntimeError):
         logger.debug("Training WebSocket client disconnected")

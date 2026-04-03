@@ -97,6 +97,17 @@ class CNNWorker:
             except queue.Full:
                 pass
 
+    def set_classifier(self, classifier: Classifier | None) -> None:
+        """Hot-swap the classifier used for inference (thread-safe).
+
+        Args:
+            classifier: New classifier to use, or None to enter dormant mode.
+        """
+        with self._lock:
+            self._classifier = classifier
+            self._segment_probs.clear()
+        logger.info("CNN classifier hot-swapped: %s", type(classifier).__name__ if classifier else "dormant")
+
     def get_latest(self) -> ClassificationResult | None:
         """Return the most recent classification result, or None."""
         with self._lock:
