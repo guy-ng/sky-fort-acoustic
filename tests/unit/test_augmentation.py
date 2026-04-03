@@ -21,7 +21,7 @@ class TestTrainingConfig:
         assert cfg.max_epochs == 50
         assert cfg.patience == 5
         assert cfg.augmentation_enabled is True
-        assert cfg.data_root == "audio-data/data/"
+        assert cfg.data_root == "data/field"
         assert cfg.checkpoint_path.endswith(".pt")
 
     def test_env_var_override(self, monkeypatch):
