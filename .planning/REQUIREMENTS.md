@@ -65,6 +65,33 @@
 - [x] **INF-03**: Service configurable via environment variables (device, ports, model path, ZMQ endpoint, frequency band)
 - [x] **INF-04**: Service includes health check endpoint reporting device status and pipeline state
 
+## v4.0 Requirements — Research-Based Beamforming & Direction Calculation
+
+### Beamforming Engine
+
+- [ ] **BF-10**: Beamforming operates in 500–4000 Hz frequency band respecting UMA-16v2 spatial aliasing limit at ~4083 Hz
+- [ ] **BF-11**: Bandpass filter (50–4000 Hz, 4th-order Butterworth) applied per-channel before beamforming
+- [ ] **BF-12**: Sub-grid parabolic interpolation refines peak DOA to sub-degree accuracy
+- [ ] **BF-13**: Multi-peak detection identifies multiple simultaneous sources with configurable threshold and minimum separation
+- [ ] **BF-14**: MCRA noise estimator tracks adaptive noise floor for outdoor robustness
+- [ ] **BF-15**: Beamforming is wired into the live pipeline's process_chunk (replacing current stub)
+
+### Direction of Arrival
+
+- [ ] **DOA-01**: Pan (azimuth) and tilt (elevation) degrees calculated from beamforming peak for each detected source
+- [ ] **DOA-02**: Vertical mounting coordinate transform maps array x-y plane to world azimuth/elevation correctly
+- [ ] **DOA-03**: Per-target persistent direction tracking updates bearing as the source moves
+
+### Visualization
+
+- [ ] **VIZ-01**: Heatmap displays beamforming output using corrected 500–4000 Hz frequency band
+- [ ] **VIZ-02**: Functional Beamforming with configurable ν parameter produces sidelobe-suppressed clean maps for display
+
+### Event Publishing
+
+- [ ] **PUB-01**: ZeroMQ PUB/SUB publishes detection events with target ID, bearing (az/el), pan, and tilt degrees
+- [ ] **PUB-02**: ZeroMQ publishes periodic updates (bearing, pan, tilt) per active target at configurable rate
+
 ## v2 Requirements (Deferred)
 
 - Multi-array support -- multiple UMA-16v2 arrays for triangulation
