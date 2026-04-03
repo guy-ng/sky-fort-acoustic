@@ -352,16 +352,12 @@ async def lifespan(app: FastAPI):
         # Single-model fallback (D-06): load model if file exists, else dormant
         if classifier is None and os.path.isfile(settings.cnn_model_path):
             try:
-                model = ResearchCNN()
-                model.load_state_dict(torch.load(settings.cnn_model_path, weights_only=True))
-                model.eval()
-                # Validate model with dummy forward pass
-                dummy = torch.zeros(1, 1, 128, 64)
-                with torch.no_grad():
-                    out = model(dummy)
-                assert out.shape == (1, 1), f"Unexpected model output shape: {out.shape}"
-                classifier = ResearchClassifier(model)
-                logger.info("Loaded CNN model from %s", settings.cnn_model_path)
+                # Import efficientat package to trigger register_model side effect
+                import acoustic.classification.efficientat  # noqa: F401
+                from acoustic.classification.ensemble import load_model
+
+                classifier = load_model(settings.cnn_model_type, settings.cnn_model_path)
+                logger.info("Loaded %s model from %s", settings.cnn_model_type, settings.cnn_model_path)
             except Exception:
                 logger.exception("Failed to load CNN model -- running without classifier")
         elif classifier is None:

@@ -153,3 +153,26 @@ class TestAggregationConfigEnvOverride:
         with patch.dict(os.environ, {"ACOUSTIC_CNN_AGG_W_MEAN": "0.3"}):
             s = AcousticSettings()
             assert s.cnn_agg_w_mean == 0.3
+
+
+class TestModelTypeConfig:
+    """Verify cnn_model_type config field for model architecture selection."""
+
+    def setup_method(self):
+        self._saved = {
+            k: os.environ.pop(k) for k in list(os.environ) if k.startswith("ACOUSTIC_")
+        }
+
+    def teardown_method(self):
+        os.environ.update(self._saved)
+
+    def test_model_type_config_default(self):
+        """cnn_model_type defaults to 'research_cnn'."""
+        s = AcousticSettings()
+        assert s.cnn_model_type == "research_cnn"
+
+    def test_model_type_config_env_override(self):
+        """ACOUSTIC_CNN_MODEL_TYPE=efficientat_mn10 overrides default."""
+        with patch.dict(os.environ, {"ACOUSTIC_CNN_MODEL_TYPE": "efficientat_mn10"}):
+            s = AcousticSettings()
+            assert s.cnn_model_type == "efficientat_mn10"
