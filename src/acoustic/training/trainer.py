@@ -7,6 +7,7 @@ Saves best checkpoint as .pt state_dict for ResearchClassifier.
 from __future__ import annotations
 
 import logging
+import os
 import random
 import threading
 from collections.abc import Callable
@@ -73,6 +74,17 @@ class TrainingRunner:
     ) -> None:
         self._config = config
         self._mel_config = mel_config or MelConfig()
+
+    @staticmethod
+    def _warm_caches(*datasets: object, limit: int = 0) -> None:
+        """Call warm_cache() on each dataset that supports it.
+
+        Args:
+            limit: Max samples per dataset.  0 = load everything.
+        """
+        for ds in datasets:
+            if hasattr(ds, "warm_cache"):
+                ds.warm_cache(limit=limit)  # type: ignore[union-attr]
 
     def run(
         self,
@@ -151,17 +163,54 @@ class TrainingRunner:
                 val_paths, val_labels, self._mel_config,
             )
 
-        # Create data loaders
+        # Two-phase cache warm-up:
+        # Phase 1 (blocking): quick-load first 1000 samples so epoch 1 starts fast.
+        # Phase 2 (background): load the rest while training runs.
+        _QUICK_PRIME = 1000
+        self._warm_caches(train_ds, val_ds, limit=_QUICK_PRIME)
+        logger.info("Quick-primed %d samples, starting background cache load", _QUICK_PRIME)
+
+        cache_thread = threading.Thread(
+            target=self._warm_caches, args=(train_ds, val_ds), daemon=True,
+        )
+        cache_thread.start()
+
+        # Create data loaders (workers prefetch data while GPU trains)
+        # Scale workers with dataset size — spawning 8 workers for 8 files is wasteful.
+        # For tiny datasets (<32 samples) skip multiprocessing entirely to avoid
+        # process-spawn overhead that dominates on small workloads.
+        dataset_len = len(train_ds)
+        if dataset_len < 32:
+            num_workers = 0
+        else:
+            num_workers = min(8, os.cpu_count() or 1)
         train_sampler = build_weighted_sampler(train_labels)
+        loader_kwargs: dict = dict(
+            num_workers=num_workers, pin_memory=True,
+            persistent_workers=num_workers > 0,
+        )
+        if num_workers > 0:
+            loader_kwargs["prefetch_factor"] = 4
         train_loader = DataLoader(
-            train_ds, batch_size=cfg.batch_size, sampler=train_sampler, num_workers=0,
+            train_ds, batch_size=cfg.batch_size, sampler=train_sampler,
+            **loader_kwargs,
         )
         val_loader = DataLoader(
-            val_ds, batch_size=cfg.batch_size, shuffle=False, num_workers=0,
+            val_ds, batch_size=cfg.batch_size, shuffle=False,
+            **loader_kwargs,
         )
 
+        # Device selection: MPS (Apple Silicon GPU) > CUDA > CPU
+        if torch.backends.mps.is_available():
+            device = torch.device("mps")
+        elif torch.cuda.is_available():
+            device = torch.device("cuda")
+        else:
+            device = torch.device("cpu")
+        logger.info("Training on device: %s", device)
+
         # Model, optimizer, loss, scheduler
-        model = ResearchCNN()
+        model = ResearchCNN().to(device)
         optimizer = torch.optim.Adam(model.parameters(), lr=cfg.learning_rate)
         criterion = nn.BCELoss()
         early_stopping = EarlyStopping(patience=cfg.patience)
@@ -172,6 +221,19 @@ class TrainingRunner:
         # Ensure checkpoint directory exists
         ckpt_path = Path(cfg.checkpoint_path)
         ckpt_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # Don't block — background thread continues loading while we train.
+        # Cache misses are handled gracefully via lazy per-sample I/O.
+
+        # Helper to gather cache stats for progress callbacks
+        def _cache_info() -> dict:
+            cached = 0
+            total = 0
+            for ds in (train_ds, val_ds):
+                if hasattr(ds, "_audio_cache"):
+                    cached += len(ds._audio_cache)
+                    total += len(ds)
+            return {"cache_loaded": cached, "cache_total": total}
 
         # Training loop
         for epoch in range(cfg.max_epochs):
@@ -185,6 +247,7 @@ class TrainingRunner:
             train_batches = 0
             total_batches = len(train_loader)
             for batch_x, batch_y in train_loader:
+                batch_x, batch_y = batch_x.to(device), batch_y.to(device)
                 optimizer.zero_grad()
                 output = model(batch_x).squeeze(-1)
                 loss = criterion(output, batch_y)
@@ -201,6 +264,7 @@ class TrainingRunner:
                         "batch": train_batches,
                         "total_batches": total_batches,
                         "train_loss": train_loss_sum / train_batches,
+                        **_cache_info(),
                     })
 
             avg_train_loss = train_loss_sum / max(train_batches, 1)
@@ -214,6 +278,7 @@ class TrainingRunner:
             tp = fp = tn = fn = 0
             with torch.no_grad():
                 for batch_x, batch_y in val_loader:
+                    batch_x, batch_y = batch_x.to(device), batch_y.to(device)
                     output = model(batch_x).squeeze(-1)
                     loss = criterion(output, batch_y)
                     val_loss_sum += loss.item()
@@ -255,6 +320,7 @@ class TrainingRunner:
                     "val_acc": val_accuracy,
                     "best_val_loss": early_stopping.best_loss,
                     "tp": tp, "fp": fp, "tn": tn, "fn": fn,
+                    **_cache_info(),
                 })
 
             if early_stopping.should_stop:
@@ -267,7 +333,7 @@ class TrainingRunner:
         if early_stopping.best_loss is not None and ckpt_path.exists():
             try:
                 export_model = ResearchCNN()
-                export_model.load_state_dict(torch.load(str(ckpt_path), weights_only=True))
+                export_model.load_state_dict(torch.load(str(ckpt_path), weights_only=True, map_location="cpu"))
                 export_model.eval()
                 jit_path = Path(str(ckpt_path) + ".jit")
                 scripted = torch.jit.script(export_model)

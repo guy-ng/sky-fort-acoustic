@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: MVP
-status: completed
-stopped_at: Completed 15-01-PLAN.md
-last_updated: "2026-04-04T07:21:42.390Z"
-last_activity: 2026-04-04 - Completed 15-01 focal loss, noise augmentation, audiomentations building blocks
+status: executing
+stopped_at: Completed 14-02-PLAN.md
+last_updated: "2026-04-04T07:10:37.307Z"
+last_activity: 2026-04-04 -- Phase 15 execution started
 progress:
   total_phases: 14
   completed_phases: 8
   total_plans: 22
-  completed_plans: 20
+  completed_plans: 19
 ---
 
 # Project State
@@ -20,14 +20,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-03)
 
 **Core value:** Reliably detect and classify drones acoustically in real time, publishing target events over ZeroMQ so downstream systems can act on them.
-**Current focus:** Phase 14 — efficientat-model-architecture-with-audioset-transfer-learning
+**Current focus:** Phase 15 — advanced-training-enhancements-focal-loss-noise-augmentation-balanced-sampling
 
 ## Current Position
 
 Phase: 15 (advanced-training-enhancements-focal-loss-noise-augmentation-balanced-sampling) — EXECUTING
 Plan: 1 of 2
-Status: Plan 15-01 complete
-Last activity: 2026-04-04 - Completed 15-01 focal loss, noise augmentation, audiomentations building blocks
+Status: Executing Phase 15
+Last activity: 2026-04-04 -- Phase 15 execution started
 
 ## Performance Metrics
 
@@ -112,9 +112,6 @@ Recent decisions affecting current work:
 - [Phase 14]: Added channel unsqueeze between AugmentMelSTFT 3D output and Conv2D 4D input for EfficientAT inference
 - [Phase 14]: Runner dispatch in TrainingManager._run() via config.model_type -- simpler than manager subclass
 - [Phase 14]: EarlyStopping shared globally across all 3 EfficientAT training stages for cross-stage convergence
-- [Phase 15]: FocalLoss wraps torchvision sigmoid_focal_loss rather than custom implementation
-- [Phase 15]: AudiomentationsAugmentation replaces WaveformAugmentation as primary waveform aug
-- [Phase 15]: noise_augmentation_enabled defaults to False (requires noise dataset download)
 
 ### Pending Todos
 
@@ -137,6 +134,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-04T07:21:42.386Z
-Stopped at: Completed 15-01-PLAN.md
+Last session: 2026-04-03T23:14:07.927Z
+Stopped at: Completed 14-02-PLAN.md
 Resume file: None

@@ -26,12 +26,12 @@ export function TrainSection() {
   const qc = useQueryClient()
 
   const [showAdvanced, setShowAdvanced] = useState(false)
+  const [modelName, setModelName] = useState('')
   const [lr, setLr] = useState('0.001')
   const [batchSize, setBatchSize] = useState('32')
   const [epochs, setEpochs] = useState('50')
   const [patience, setPatience] = useState('5')
   const [augEnabled, setAugEnabled] = useState(true)
-  const [dataRoot, setDataRoot] = useState('data/field')
 
   // Auto-eval tracking (per D-07)
   const autoEvalFired = useRef(false)
@@ -49,14 +49,17 @@ export function TrainSection() {
     prevStatus.current = wsState.status
   }, [wsState.status, evalMutation, qc])
 
+  const canStart = modelName.trim().length > 0
+
   function handleStart() {
+    if (!canStart) return
     startMutation.mutate({
+      model_name: modelName.trim(),
       learning_rate: Number(lr),
       batch_size: Number(batchSize),
       max_epochs: Number(epochs),
       patience: Number(patience),
       augmentation_enabled: augEnabled,
-      data_root: dataRoot,
     })
   }
 
@@ -69,17 +72,43 @@ export function TrainSection() {
       <div className="flex items-center gap-2">
         <span className={`inline-block w-2 h-2 rounded-full ${statusStyle.dot}`} />
         <span className="text-xs text-hud-text-dim">{statusStyle.text}</span>
+        {wsState.model_name && (
+          <span className="text-xs text-hud-accent font-mono truncate">{wsState.model_name}</span>
+        )}
         {wsState.error && (
           <span className="text-xs text-hud-danger truncate ml-auto">{wsState.error}</span>
         )}
+      </div>
+      {/* Cache warm-up progress */}
+      {status === 'running' && wsState.cache_total > 0 && wsState.cache_loaded < wsState.cache_total && (
+        <div className="text-xs text-hud-text-dim">
+          Cache: {wsState.cache_loaded.toLocaleString()} / {wsState.cache_total.toLocaleString()} samples
+          ({Math.round((wsState.cache_loaded / wsState.cache_total) * 100)}%)
+        </div>
+      )}
+
+      {/* Model name input */}
+      <div>
+        <Tooltip text="Required name for the trained model (e.g. dads_v1). Used as checkpoint filename.">
+          <label className="text-xs uppercase tracking-wider text-hud-text-dim font-semibold">
+            Model Name
+          </label>
+        </Tooltip>
+        <input
+          type="text"
+          value={modelName}
+          onChange={e => setModelName(e.target.value)}
+          placeholder="e.g. dads_v1"
+          className={INPUT_CLASS}
+        />
       </div>
 
       {/* Start Training button */}
       <button
         onClick={handleStart}
-        disabled={status === 'running' || startMutation.isPending}
+        disabled={status === 'running' || startMutation.isPending || !canStart}
         className={`w-full py-2 text-sm font-semibold rounded ${
-          status === 'running'
+          status === 'running' || !canStart
             ? 'bg-hud-border text-hud-text-dim cursor-not-allowed'
             : 'bg-hud-accent text-white hover:opacity-90'
         }`}
@@ -164,19 +193,6 @@ export function TrainSection() {
                 className={INPUT_CLASS}
               />
             </div>
-          </div>
-          <div>
-            <Tooltip text="Path to labeled audio data directory">
-              <label className="text-xs uppercase tracking-wider text-hud-text-dim font-semibold">
-                Data Root
-              </label>
-            </Tooltip>
-            <input
-              type="text"
-              value={dataRoot}
-              onChange={e => setDataRoot(e.target.value)}
-              className={INPUT_CLASS}
-            />
           </div>
           <label className="flex items-center gap-2 text-xs text-hud-text-dim cursor-pointer">
             <input

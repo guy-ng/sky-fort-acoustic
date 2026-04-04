@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { TrainingWsMessage, LossDataPoint } from '../utils/types'
 
-const INITIAL: TrainingWsMessage = { status: 'idle' }
+const INITIAL: TrainingWsMessage = { status: 'idle', cache_loaded: 0, cache_total: 0 }
 
 export interface TrainingWsState {
   state: TrainingWsMessage
