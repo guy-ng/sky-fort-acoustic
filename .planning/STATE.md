@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: MVP
 status: executing
-stopped_at: Completed 14-02-PLAN.md
-last_updated: "2026-04-04T07:10:37.307Z"
-last_activity: 2026-04-04 -- Phase 15 execution started
+stopped_at: Completed 15-02-PLAN.md
+last_updated: "2026-04-04T07:35:56.069Z"
+last_activity: 2026-04-04
 progress:
   total_phases: 14
-  completed_phases: 8
+  completed_phases: 9
   total_plans: 22
-  completed_plans: 19
+  completed_plans: 21
 ---
 
 # Project State
@@ -25,9 +25,9 @@ See: .planning/PROJECT.md (updated 2026-04-03)
 ## Current Position
 
 Phase: 15 (advanced-training-enhancements-focal-loss-noise-augmentation-balanced-sampling) — EXECUTING
-Plan: 1 of 2
-Status: Executing Phase 15
-Last activity: 2026-04-04 -- Phase 15 execution started
+Plan: 2 of 2
+Status: Ready to execute
+Last activity: 2026-04-04
 
 ## Performance Metrics
 
@@ -61,6 +61,7 @@ Last activity: 2026-04-04 -- Phase 15 execution started
 | Phase 13 P02 | 4m01s | 2 tasks | 5 files |
 | Phase 14 P01 | 19min | 2 tasks | 13 files |
 | Phase 14 P02 | 23min | 2 tasks | 8 files |
+| Phase 15 P02 | 7m17s | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -112,6 +113,9 @@ Recent decisions affecting current work:
 - [Phase 14]: Added channel unsqueeze between AugmentMelSTFT 3D output and Conv2D 4D input for EfficientAT inference
 - [Phase 14]: Runner dispatch in TrainingManager._run() via config.model_type -- simpler than manager subclass
 - [Phase 14]: EarlyStopping shared globally across all 3 EfficientAT training stages for cross-stage convergence
+- [Phase 15]: All training uses logits mode -- both FocalLoss and BCEWithLogitsLoss expect raw logits
+- [Phase 15]: TorchScript export with logits_mode=False for inference-ready sigmoid output
+- [Phase 15]: ComposedAugmentation class over closure for DataLoader num_workers picklability
 
 ### Pending Todos
 
@@ -134,6 +138,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-03T23:14:07.927Z
-Stopped at: Completed 14-02-PLAN.md
+Last session: 2026-04-04T07:35:56.065Z
+Stopped at: Completed 15-02-PLAN.md
 Resume file: None
