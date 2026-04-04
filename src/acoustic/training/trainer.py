@@ -19,9 +19,16 @@ from torch.utils.data import DataLoader
 
 from acoustic.classification.config import MelConfig
 from acoustic.classification.research_cnn import ResearchCNN
-from acoustic.training.augmentation import SpecAugment, WaveformAugmentation
+from acoustic.training.augmentation import (
+    AudiomentationsAugmentation,
+    BackgroundNoiseMixer,
+    ComposedAugmentation,
+    SpecAugment,
+    WaveformAugmentation,
+)
 from acoustic.training.config import TrainingConfig
 from acoustic.training.dataset import DroneAudioDataset, build_weighted_sampler, collect_wav_files
+from acoustic.training.losses import build_loss_function
 
 logger = logging.getLogger(__name__)
 
@@ -105,19 +112,53 @@ class TrainingRunner:
         cfg = self._config
 
         # Build augmentation objects
-        wave_aug: WaveformAugmentation | None = None
+        wave_aug = None
+        noise_mixer: BackgroundNoiseMixer | None = None
         spec_aug: SpecAugment | None = None
+
         if cfg.augmentation_enabled:
-            wave_aug = WaveformAugmentation(
-                snr_range=(cfg.wave_snr_range_low, cfg.wave_snr_range_high),
-                gain_db=cfg.wave_gain_db,
-            )
+            # Waveform augmentation: audiomentations (TRN-12) or legacy
+            if cfg.use_audiomentations:
+                wave_aug = AudiomentationsAugmentation(
+                    pitch_semitones=cfg.pitch_shift_semitones,
+                    time_stretch_range=(cfg.time_stretch_min, cfg.time_stretch_max),
+                    gain_db=cfg.waveform_gain_db,
+                    p=cfg.augmentation_probability,
+                    sample_rate=self._mel_config.sample_rate,
+                )
+            else:
+                wave_aug = WaveformAugmentation(
+                    snr_range=(cfg.wave_snr_range_low, cfg.wave_snr_range_high),
+                    gain_db=cfg.wave_gain_db,
+                )
+
+            # Background noise augmentation (TRN-11)
+            if cfg.noise_augmentation_enabled and cfg.noise_dirs:
+                noise_mixer = BackgroundNoiseMixer(
+                    noise_dirs=[Path(d) for d in cfg.noise_dirs],
+                    snr_range=(cfg.noise_snr_range_low, cfg.noise_snr_range_high),
+                    sample_rate=self._mel_config.sample_rate,
+                    p=cfg.noise_probability,
+                )
+                noise_mixer.warm_cache()
+                logger.info("Noise mixer loaded %d files", len(noise_mixer._noise_cache))
+
             spec_aug = SpecAugment(
                 time_mask_param=cfg.spec_time_mask_param,
                 freq_mask_param=cfg.spec_freq_mask_param,
                 num_time_masks=cfg.spec_num_time_masks,
                 num_freq_masks=cfg.spec_num_freq_masks,
             )
+
+        # Compose waveform augmentation pipeline using picklable ComposedAugmentation
+        # (closures are NOT picklable and break DataLoader num_workers > 0)
+        composed_wave_aug = None
+        if noise_mixer is not None and wave_aug is not None:
+            composed_wave_aug = ComposedAugmentation([noise_mixer, wave_aug])
+        elif noise_mixer is not None:
+            composed_wave_aug = noise_mixer
+        elif wave_aug is not None:
+            composed_wave_aug = wave_aug
 
         # --- Data source selection ---
         dads_dir = Path(cfg.dads_path) if cfg.dads_path else None
@@ -132,7 +173,7 @@ class TrainingRunner:
 
             train_ds = builder.build(
                 train_idx, mel_config=self._mel_config,
-                waveform_aug=wave_aug, spec_aug=spec_aug,
+                waveform_aug=composed_wave_aug, spec_aug=spec_aug,
             )
             val_ds = builder.build(val_idx, mel_config=self._mel_config)
             train_labels = train_ds.labels
@@ -157,7 +198,7 @@ class TrainingRunner:
             # Create datasets (val set never augmented)
             train_ds = DroneAudioDataset(
                 train_paths, train_labels, self._mel_config,
-                waveform_aug=wave_aug, spec_aug=spec_aug,
+                waveform_aug=composed_wave_aug, spec_aug=spec_aug,
             )
             val_ds = DroneAudioDataset(
                 val_paths, val_labels, self._mel_config,
@@ -184,6 +225,9 @@ class TrainingRunner:
             num_workers = 0
         else:
             num_workers = min(8, os.cpu_count() or 1)
+        from collections import Counter
+        label_counts = Counter(train_labels)
+        logger.info("Class distribution: %s (total=%d)", dict(label_counts), len(train_labels))
         train_sampler = build_weighted_sampler(train_labels)
         loader_kwargs: dict = dict(
             num_workers=num_workers, pin_memory=True,
@@ -210,9 +254,15 @@ class TrainingRunner:
         logger.info("Training on device: %s", device)
 
         # Model, optimizer, loss, scheduler
-        model = ResearchCNN().to(device)
+        model = ResearchCNN(logits_mode=True).to(device)
         optimizer = torch.optim.Adam(model.parameters(), lr=cfg.learning_rate)
-        criterion = nn.BCELoss()
+        criterion = build_loss_function(
+            cfg.loss_function,
+            focal_alpha=cfg.focal_alpha,
+            focal_gamma=cfg.focal_gamma,
+            bce_pos_weight=cfg.bce_pos_weight,
+        )
+        logger.info("Loss function: %s", cfg.loss_function)
         early_stopping = EarlyStopping(patience=cfg.patience)
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             optimizer, mode="min", factor=0.5, patience=3, min_lr=1e-5,
@@ -285,7 +335,7 @@ class TrainingRunner:
                     val_batches += 1
 
                     # Accuracy: threshold at 0.5
-                    preds = (output >= 0.5).float()
+                    preds = (torch.sigmoid(output) >= 0.5).float()
                     val_correct += (preds == batch_y).sum().item()
                     val_total += batch_y.numel()
 
@@ -332,7 +382,7 @@ class TrainingRunner:
         # Export to TorchScript deployable format (ROADMAP SC3)
         if early_stopping.best_loss is not None and ckpt_path.exists():
             try:
-                export_model = ResearchCNN()
+                export_model = ResearchCNN(logits_mode=False)
                 export_model.load_state_dict(torch.load(str(ckpt_path), weights_only=True, map_location="cpu"))
                 export_model.eval()
                 jit_path = Path(str(ckpt_path) + ".jit")

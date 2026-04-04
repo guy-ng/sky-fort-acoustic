@@ -76,8 +76,8 @@ class TestResearchCNNArchitecture:
         assert len(dropout_layers) == 1
         assert dropout_layers[0].p == 0.3
 
-        sigmoid_layers = [m for m in model.classifier if isinstance(m, nn.Sigmoid)]
-        assert len(sigmoid_layers) == 1
+        # Sigmoid moved to separate attribute for logits_mode support
+        assert isinstance(model._sigmoid, nn.Sigmoid)
 
 
 class TestResearchClassifier:
