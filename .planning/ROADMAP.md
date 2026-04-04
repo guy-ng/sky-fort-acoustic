@@ -113,7 +113,7 @@ Plans:
   2. User can browse a list of recordings showing label, date, duration, and notes
   3. User can play back a recording and see it processed through beamforming, CNN, and tracking as if it were live
   4. User can attach and edit metadata on recordings (drone type, distance, conditions, notes)
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
 - [ ] 04-01: Recording manager (capture, storage, metadata CRUD)
@@ -128,7 +128,7 @@ Plans:
   2. Training runs as a background process without interrupting live detection
   3. Training produces a new model file and reports validation metrics (accuracy, confusion matrix)
   4. User can see training progress and results in the web UI
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
 - [ ] 05-01: Training pipeline (dataset preparation, PyTorch training loop, model output)
@@ -307,10 +307,12 @@ Plans:
   3. ONNX model converts to TFLite INT8 with post-training quantization using calibration dataset
   4. Quantized models maintain >94% accuracy (within 1% of full-precision baseline)
   5. REST API endpoint allows model export with format selection (onnx, tensorrt, tflite)
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] TBD (run /gsd:plan-phase 16 to break down)
+- [ ] 16-01-PLAN.md — Core ONNX export pipeline: model wrappers, ExportPipeline class, parity validation, unit tests
+- [ ] 16-02-PLAN.md — Optional TensorRT FP16 and TFLite INT8 converters with graceful skip
+- [ ] 16-03-PLAN.md — REST API export endpoint, background task execution, main.py wiring, integration tests
 
 ### v4.0 Research-Based Beamforming & Direction Calculation
 
@@ -327,7 +329,7 @@ Plans:
   4. MCRA noise estimator provides an adaptive noise floor that adjusts to changing outdoor conditions without manual recalibration
   5. The live pipeline's process_chunk calls the real beamforming engine (not the zero-map stub) and produces updating spatial maps at the 150ms chunk rate
   6. Beamforming activates only after CNN drone detection and deactivates after 5 seconds of no detection — idle state returns zero maps to save compute
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
 - [ ] TBD (run /gsd:plan-phase 17 to break down)
@@ -342,7 +344,7 @@ Plans:
   3. Per-target direction tracking persists bearing across updates and smoothly tracks a moving source without jumps or resets
   4. WebSocket /ws/events broadcasts detection events containing target ID, azimuth, elevation, pan, and tilt degrees for each active target
   5. Periodic direction updates are published per active target at a configurable rate (default matching the beamforming chunk rate)
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
 - [ ] TBD (run /gsd:plan-phase 18 to break down)
@@ -355,7 +357,7 @@ Plans:
   1. The heatmap reflects beamforming output computed in the 500-4000 Hz band, showing sharper source localization than the previous 100-2000 Hz band
   2. Functional beamforming with a configurable nu parameter (default nu=100) suppresses sidelobes so that the heatmap shows distinct source peaks instead of smeared energy
   3. The nu parameter is adjustable at runtime via config or API so operators can tune visualization sharpness for different environments
-**Plans**: TBD
+**Plans**: 3 plans
 **UI hint**: yes
 
 Plans:
@@ -383,7 +385,7 @@ Phases execute in numeric order. Phase 11 is conditional. v3.0 phases: 13 -> 14 
 | 13. DADS Dataset Integration and Training Data Pipeline | v3.0 | 2/2 | Complete   | 2026-04-03 |
 | 14. EfficientAT Model Architecture with AudioSet Transfer Learning | v3.0 | 2/2 | Complete    | 2026-04-04 |
 | 15. Advanced Training Enhancements | v3.0 | 2/2 | Complete   | 2026-04-04 |
-| 16. Edge Export Pipeline - ONNX TensorRT TFLite Quantization | v3.0 | 0/0 | Not started | - |
+| 16. Edge Export Pipeline - ONNX TensorRT TFLite Quantization | v3.0 | 0/3 | Not started | - |
 | 17. Beamforming Engine Upgrade and Pipeline Integration | v4.0 | 0/0 | Not started | - |
 | 18. Direction of Arrival and WebSocket Broadcasting | v4.0 | 0/0 | Not started | - |
 | 19. Functional Beamforming Visualization | v4.0 | 0/0 | Not started | - |
