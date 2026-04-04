@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: MVP
-status: verifying
-stopped_at: Completed 14-02-PLAN.md
-last_updated: "2026-04-04T07:06:51.450Z"
-last_activity: 2026-04-04
+status: completed
+stopped_at: Completed 15-01-PLAN.md
+last_updated: "2026-04-04T07:21:42.390Z"
+last_activity: 2026-04-04 - Completed 15-01 focal loss, noise augmentation, audiomentations building blocks
 progress:
   total_phases: 14
   completed_phases: 8
   total_plans: 22
-  completed_plans: 19
+  completed_plans: 20
 ---
 
 # Project State
@@ -24,10 +24,10 @@ See: .planning/PROJECT.md (updated 2026-04-03)
 
 ## Current Position
 
-Phase: 15
-Plan: Not started
-Status: Phase complete — ready for verification
-Last activity: 2026-04-04
+Phase: 15 (advanced-training-enhancements-focal-loss-noise-augmentation-balanced-sampling) — EXECUTING
+Plan: 1 of 2
+Status: Plan 15-01 complete
+Last activity: 2026-04-04 - Completed 15-01 focal loss, noise augmentation, audiomentations building blocks
 
 ## Performance Metrics
 
@@ -112,6 +112,9 @@ Recent decisions affecting current work:
 - [Phase 14]: Added channel unsqueeze between AugmentMelSTFT 3D output and Conv2D 4D input for EfficientAT inference
 - [Phase 14]: Runner dispatch in TrainingManager._run() via config.model_type -- simpler than manager subclass
 - [Phase 14]: EarlyStopping shared globally across all 3 EfficientAT training stages for cross-stage convergence
+- [Phase 15]: FocalLoss wraps torchvision sigmoid_focal_loss rather than custom implementation
+- [Phase 15]: AudiomentationsAugmentation replaces WaveformAugmentation as primary waveform aug
+- [Phase 15]: noise_augmentation_enabled defaults to False (requires noise dataset download)
 
 ### Pending Todos
 
@@ -134,6 +137,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-03T23:14:07.927Z
-Stopped at: Completed 14-02-PLAN.md
+Last session: 2026-04-04T07:21:42.386Z
+Stopped at: Completed 15-01-PLAN.md
 Resume file: None
