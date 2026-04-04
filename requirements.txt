@@ -8,3 +8,4 @@ pydantic-settings>=2.7
 pyzmq>=27.1.0
 torch>=2.11,<2.12
 torchaudio>=2.11,<2.12
+audiomentations>=0.43,<1.0

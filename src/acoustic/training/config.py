@@ -55,3 +55,24 @@ class TrainingConfig(BaseSettings):
     stage1_lr: float = 1e-3
     stage2_lr: float = 1e-4
     stage3_lr: float = 1e-5
+
+    # Loss function (TRN-10)
+    loss_function: str = "focal"
+    focal_alpha: float = 0.25
+    focal_gamma: float = 2.0
+    bce_pos_weight: float = 1.0
+
+    # Background noise augmentation (TRN-11)
+    noise_augmentation_enabled: bool = False
+    noise_dirs: list[str] = []
+    noise_snr_range_low: float = -10.0
+    noise_snr_range_high: float = 20.0
+    noise_probability: float = 0.5
+
+    # Audiomentations waveform augmentation (TRN-12)
+    use_audiomentations: bool = True
+    pitch_shift_semitones: float = 3.0
+    time_stretch_min: float = 0.85
+    time_stretch_max: float = 1.15
+    waveform_gain_db: float = 6.0
+    augmentation_probability: float = 0.5
