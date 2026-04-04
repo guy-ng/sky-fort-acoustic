@@ -16,8 +16,9 @@ import torch.nn as nn
 class ResearchCNN(nn.Module):
     """Binary drone classifier CNN matching the research build_model() architecture."""
 
-    def __init__(self) -> None:
+    def __init__(self, logits_mode: bool = False) -> None:
         super().__init__()
+        self._logits_mode = logits_mode
         self.features = nn.Sequential(
             nn.Conv2d(1, 32, kernel_size=3, padding=1),
             nn.BatchNorm2d(32),
@@ -39,13 +40,15 @@ class ResearchCNN(nn.Module):
             nn.ReLU(),
             nn.Dropout(0.3),
             nn.Linear(128, 1),
-            nn.Sigmoid(),
         )
+        self._sigmoid = nn.Sigmoid()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward pass: features extraction then classification."""
         x = self.features(x)
         x = self.classifier(x)
+        if not self._logits_mode:
+            x = self._sigmoid(x)
         return x
 
 

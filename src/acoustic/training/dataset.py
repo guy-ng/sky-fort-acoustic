@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import random
+from collections.abc import Callable
 from pathlib import Path
 
 import numpy as np
@@ -18,7 +19,7 @@ from torch.utils.data import Dataset, WeightedRandomSampler
 
 from acoustic.classification.config import MelConfig
 from acoustic.classification.preprocessing import mel_spectrogram_from_segment
-from acoustic.training.augmentation import SpecAugment, WaveformAugmentation
+from acoustic.training.augmentation import SpecAugment
 
 logger = logging.getLogger(__name__)
 
@@ -83,7 +84,7 @@ class DroneAudioDataset(Dataset):
         file_paths: list[Path],
         labels: list[int],
         mel_config: MelConfig,
-        waveform_aug: WaveformAugmentation | None = None,
+        waveform_aug: Callable[[np.ndarray], np.ndarray] | None = None,
         spec_aug: SpecAugment | None = None,
     ) -> None:
         self._paths = file_paths

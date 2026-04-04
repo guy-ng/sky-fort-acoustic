@@ -12,6 +12,7 @@ from __future__ import annotations
 import bisect
 import logging
 import random
+from collections.abc import Callable
 from pathlib import Path
 
 import numpy as np
@@ -21,7 +22,7 @@ from torch.utils.data import Dataset
 
 from acoustic.classification.config import MelConfig
 from acoustic.classification.preprocessing import mel_spectrogram_from_segment
-from acoustic.training.augmentation import SpecAugment, WaveformAugmentation
+from acoustic.training.augmentation import SpecAugment
 
 logger = logging.getLogger(__name__)
 
@@ -92,7 +93,7 @@ class ParquetDataset(Dataset):
         all_labels: list[int],
         split_indices: list[int],
         mel_config: MelConfig | None = None,
-        waveform_aug: WaveformAugmentation | None = None,
+        waveform_aug: Callable[[np.ndarray], np.ndarray] | None = None,
         spec_aug: SpecAugment | None = None,
     ) -> None:
         self._shards = shards
@@ -260,7 +261,7 @@ class ParquetDatasetBuilder:
         self,
         split_indices: list[int],
         mel_config: MelConfig | None = None,
-        waveform_aug: WaveformAugmentation | None = None,
+        waveform_aug: Callable[[np.ndarray], np.ndarray] | None = None,
         spec_aug: SpecAugment | None = None,
     ) -> ParquetDataset:
         """Create a ParquetDataset for the given split indices without re-scanning shards."""
