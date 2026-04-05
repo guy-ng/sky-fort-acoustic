@@ -1,0 +1,25 @@
+# Vertex AI custom training container (GPU-enabled)
+# Build: docker build -f Dockerfile.vertex -t gcr.io/interception-dashboard/acoustic-trainer .
+# Push:  docker push gcr.io/interception-dashboard/acoustic-trainer
+
+FROM pytorch/pytorch:2.5.1-cuda12.4-cudnn9-runtime
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libsndfile1 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Install Python dependencies (training-only subset)
+COPY requirements-vertex.txt .
+RUN pip install --no-cache-dir -r requirements-vertex.txt
+
+# Copy source code and training entry point
+COPY src/ src/
+COPY scripts/vertex_train.py vertex_train.py
+
+ENV PYTHONPATH=/app/src
+ENV PYTHONUNBUFFERED=1
+
+# Vertex AI invokes this as the training entry point
+ENTRYPOINT ["python", "vertex_train.py"]

@@ -31,5 +31,12 @@ Acoustic-UAV-Identification-main-main/
 # Large data files
 *.tar.gz
 
+# Model weights (use Git LFS or download separately)
+*.pt
+*.onnx
+*.onnx.data
+models/pretrained/
+
 # Claude local config
 .claude/
+acoular-main/

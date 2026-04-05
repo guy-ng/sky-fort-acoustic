@@ -1,0 +1,13 @@
+.git
+.venv
+acoular-main
+Acoustic-UAV-Identification-main-main
+data/
+models/
+node_modules/
+web/node_modules/
+web/dist/
+.planning/
+__pycache__
+*.pyc
+.claude/
