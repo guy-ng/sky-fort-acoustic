@@ -17,11 +17,13 @@ class TestPipelineProcessChunk:
     """Tests for BeamformingPipeline.process_chunk."""
 
     def test_pipeline_processes_chunk(self, settings: AcousticSettings, synthetic_audio):
-        """Feed a simulated chunk through the pipeline and get back PeakDetection or None."""
+        """Feed a simulated chunk through the pipeline and get back a list of peaks."""
         pipeline = BeamformingPipeline(settings)
         chunk = synthetic_audio(az_deg=0.0, el_deg=0.0, freq=500.0)
         result = pipeline.process_chunk(chunk)
-        assert result is None or isinstance(result, PeakDetection)
+        assert isinstance(result, list)
+        for pk in result:
+            assert isinstance(pk, PeakDetection)
 
     def test_pipeline_stores_latest_map(self, settings: AcousticSettings, synthetic_audio):
         """After processing a chunk, pipeline.latest_map is a 2D ndarray with correct shape."""
