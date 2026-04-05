@@ -57,20 +57,6 @@ class AcousticSettings(BaseSettings):
     # Beamforming map normalization (POC logic)
     ignore_origin_deg: float = 3.5  # Suppress broadside artifact within this radius of (0,0)
 
-    # Multi-peak detection (BF-13)
-    bf_min_separation_deg: float = 15.0
-    bf_max_peaks: int = 5
-    bf_peak_threshold: float = 3.0
-
-    # MCRA noise estimation (BF-14)
-    bf_mcra_alpha_s: float = 0.8
-    bf_mcra_alpha_d: float = 0.95
-    bf_mcra_delta: float = 5.0
-    bf_mcra_min_window: int = 50
-
-    # Demand-driven activation (BF-16)
-    bf_holdoff_seconds: float = 5.0
-
     # CNN classification
     cnn_model_path: str = "models/uav_melspec_cnn.onnx"
     cnn_enter_threshold: float = 0.80

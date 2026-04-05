@@ -1,8 +1,12 @@
 """Background pipeline that consumes audio from a ring buffer.
 
-Beamforming (SRP-PHAT) is currently stubbed out — the pipeline produces a
-zero map and no peaks.  The beamforming module is kept in the codebase for
-future re-integration.
+Runs real SRP-PHAT beamforming with bandpass pre-filtering (BF-11),
+MCRA adaptive noise estimation (BF-14), multi-peak detection (BF-13),
+and parabolic interpolation for sub-degree accuracy (BF-12).
+
+Beamforming is demand-driven (BF-16): it activates when the CNN state
+machine reports DRONE_CONFIRMED and holds for bf_holdoff_seconds after
+the last detection, then idles to save compute.
 """
 
 from __future__ import annotations
@@ -17,6 +21,14 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from acoustic.audio.capture import AudioRingBuffer
+from acoustic.beamforming import (
+    BandpassFilter,
+    MCRANoiseEstimator,
+    build_mic_positions,
+    detect_multi_peak,
+    parabolic_interpolation_2d,
+    srp_phat_2d,
+)
 from acoustic.config import AcousticSettings
 from acoustic.types import PeakDetection, placeholder_target_from_peak
 
@@ -55,8 +67,9 @@ class DetectionSession:
 class BeamformingPipeline:
     """Consumes audio chunks from a ring buffer in a background thread.
 
-    Beamforming is currently stubbed — process_chunk returns a zero map and
-    no peak.  CNN classification still runs on the raw audio.
+    Runs real SRP-PHAT beamforming with bandpass pre-filter, MCRA noise
+    estimation, multi-peak detection, and parabolic interpolation.
+    Beamforming is demand-driven: gated by CNN detection state with holdoff.
     """
 
     def __init__(
@@ -75,6 +88,39 @@ class BeamformingPipeline:
         self._running = False
         self._thread: threading.Thread | None = None
         self._last_process_time: float | None = None
+
+        # Beamforming engine components (BF-10 through BF-16)
+        self._mic_positions = build_mic_positions()
+        self._bandpass = BandpassFilter(
+            settings.sample_rate,
+            settings.bf_freq_min,
+            settings.bf_freq_max,
+            settings.bf_filter_order,
+        )
+        self._mcra = MCRANoiseEstimator(
+            alpha_s=settings.bf_mcra_alpha_s,
+            alpha_d=settings.bf_mcra_alpha_d,
+            delta=settings.bf_mcra_delta,
+            min_window=settings.bf_mcra_min_window,
+        )
+        self._az_grid = np.arange(
+            -settings.az_range,
+            settings.az_range + settings.az_resolution,
+            settings.az_resolution,
+        )
+        self._el_grid = np.arange(
+            -settings.el_range,
+            settings.el_range + settings.el_resolution,
+            settings.el_resolution,
+        )
+        self._bf_holdoff = settings.bf_holdoff_seconds
+        self._last_bf_active_time: float = 0.0
+        self._bf_peak_threshold = settings.bf_peak_threshold
+        self._bf_min_separation_deg = settings.bf_min_separation_deg
+        self._bf_max_peaks = settings.bf_max_peaks
+
+        # Multi-peak storage (Phase 18 will consume the list)
+        self.latest_peaks: list[PeakDetection] = []
 
         # CNN classification integration (optional)
         self._cnn_worker = cnn_worker
@@ -96,19 +142,89 @@ class BeamformingPipeline:
         self._detection_session: DetectionSession | None = None
         self._detection_lock = threading.Lock()
 
-    def process_chunk(self, chunk: np.ndarray) -> PeakDetection | None:
-        """Stub: produce a zero beamforming map with no peak detection.
+    def process_chunk(self, chunk: np.ndarray) -> list[PeakDetection]:
+        """Run beamforming on audio chunk, gated by CNN detection state.
 
         Args:
             chunk: (chunk_samples, num_channels) float32 array from ring buffer.
 
         Returns:
-            Always None (no beamforming peak).
+            List of detected peaks (empty if beamforming is inactive).
         """
-        self.latest_map = np.zeros((self._az_size, self._el_size), dtype=np.float32)
-        self.latest_peak = None
-        self._last_process_time = time.monotonic()
-        return None
+        now = time.monotonic()
+
+        # Demand-driven gate (BF-16): check CNN state
+        # If no state machine, always run beamforming (backward compat)
+        if self._state_machine is not None:
+            from acoustic.classification.state_machine import DetectionState
+
+            cnn_active = self._state_machine.state == DetectionState.CONFIRMED
+            if cnn_active:
+                self._last_bf_active_time = now
+            bf_should_run = (now - self._last_bf_active_time) < self._bf_holdoff
+        else:
+            bf_should_run = True
+
+        if not bf_should_run:
+            self.latest_map = np.zeros(
+                (len(self._az_grid), len(self._el_grid)), dtype=np.float32
+            )
+            self.latest_peak = None
+            self.latest_peaks = []
+            self._last_process_time = now
+            return []
+
+        # Transpose to (n_mics, n_samples) for beamforming
+        signals = chunk.T
+
+        # BF-11: Bandpass pre-filter
+        filtered = self._bandpass.apply(signals)
+
+        # BF-15: Real SRP-PHAT
+        srp_map = srp_phat_2d(
+            filtered,
+            self._mic_positions,
+            self._settings.sample_rate,
+            self._settings.speed_of_sound,
+            self._az_grid,
+            self._el_grid,
+            fmin=self._settings.bf_freq_min,
+            fmax=self._settings.bf_freq_max,
+        )
+        self.latest_map = srp_map.astype(np.float32)
+
+        # BF-14: MCRA noise floor
+        noise_floor = self._mcra.update(srp_map)
+
+        # BF-13: Multi-peak detection
+        peaks = detect_multi_peak(
+            srp_map,
+            self._az_grid,
+            self._el_grid,
+            noise_floor,
+            threshold_factor=self._bf_peak_threshold,
+            min_separation_deg=self._bf_min_separation_deg,
+            max_peaks=self._bf_max_peaks,
+        )
+
+        # BF-12: Refine each peak with parabolic interpolation
+        for i, pk in enumerate(peaks):
+            az_idx = int(np.argmin(np.abs(self._az_grid - pk.az_deg)))
+            el_idx = int(np.argmin(np.abs(self._el_grid - pk.el_deg)))
+            refined_az, refined_el = parabolic_interpolation_2d(
+                srp_map, az_idx, el_idx, self._az_grid, self._el_grid,
+            )
+            peaks[i] = PeakDetection(
+                az_deg=refined_az,
+                el_deg=refined_el,
+                power=pk.power,
+                threshold=pk.threshold,
+            )
+
+        self.latest_peaks = peaks
+        self.latest_peak = peaks[0] if peaks else None
+        self._last_process_time = now
+        return peaks
 
     def _run_loop(self, ring_buffer: AudioRingBuffer) -> None:
         """Background thread target: continuously read chunks and process them."""
@@ -120,8 +236,8 @@ class BeamformingPipeline:
                     # Forward to recording manager (passive observer)
                     if self._recording_manager is not None:
                         self._recording_manager.feed_chunk(chunk)
-                    peak = self.process_chunk(chunk)
-                    self._process_cnn(chunk, peak)
+                    peaks = self.process_chunk(chunk)
+                    self._process_cnn(chunk, peaks)
                 except Exception:
                     logger.exception("Error processing chunk in pipeline")
             else:
@@ -193,7 +309,7 @@ class BeamformingPipeline:
         with self._detection_lock:
             return self._detection_session
 
-    def _process_cnn(self, chunk: np.ndarray, peak: PeakDetection | None) -> None:
+    def _process_cnn(self, chunk: np.ndarray, peaks: list[PeakDetection]) -> None:
         """Feed audio to CNN worker on peak detection and process results."""
         if self._cnn_worker is None:
             return
@@ -216,14 +332,15 @@ class BeamformingPipeline:
             self._mono_buffer_samples -= len(dropped)
 
         # Push to CNN when we have enough audio accumulated:
-        # - On peak: push immediately with peak bearing
+        # - On peak: push immediately with best peak bearing
         # - No peak: push periodically (every _cnn_interval) with (0,0) bearing
         #   so the UI always has a fresh drone probability
         now = time.monotonic()
         if self._mono_buffer_samples >= self._cnn_segment_samples:
             segment = np.concatenate(self._mono_buffer)[-self._cnn_segment_samples:]
-            if peak is not None:
-                self._cnn_worker.push(segment, peak.az_deg, peak.el_deg)
+            if peaks:
+                best = peaks[0]
+                self._cnn_worker.push(segment, best.az_deg, best.el_deg)
                 self._last_cnn_push = now
             elif now - self._last_cnn_push >= self._cnn_interval:
                 self._cnn_worker.push(segment, 0.0, 0.0)
@@ -280,7 +397,11 @@ class BeamformingPipeline:
         """Reset pipeline outputs to None (e.g. after device disconnect)."""
         self.latest_map = None
         self.latest_peak = None
+        self.latest_peaks = []
         self._last_process_time = None
+        self._bandpass.reset(self._settings.num_channels)
+        self._mcra.reset()
+        self._last_bf_active_time = 0.0
         logger.info("Pipeline state cleared (device disconnected)")
 
     def restart(self, ring_buffer: AudioRingBuffer) -> None:
