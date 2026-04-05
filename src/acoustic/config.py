@@ -21,9 +21,28 @@ class AcousticSettings(BaseSettings):
     num_channels: int = 16
     chunk_seconds: float = 0.15
 
-    # Frequency band for drone detection
+    # Frequency band for drone detection (legacy, kept for backward compat)
     freq_min: float = 100.0
     freq_max: float = 2000.0
+
+    # Beamforming frequency band (BF-10, BF-11) - upgraded from 100-2000 Hz
+    bf_freq_min: float = 500.0
+    bf_freq_max: float = 4000.0
+    bf_filter_order: int = 4
+
+    # Multi-peak detection (BF-13)
+    bf_min_separation_deg: float = 15.0
+    bf_max_peaks: int = 5
+    bf_peak_threshold: float = 3.0
+
+    # MCRA noise estimation (BF-14)
+    bf_mcra_alpha_s: float = 0.8
+    bf_mcra_alpha_d: float = 0.95
+    bf_mcra_delta: float = 5.0
+    bf_mcra_min_window: int = 50
+
+    # Demand-driven activation (BF-16)
+    bf_holdoff_seconds: float = 5.0
 
     # Beamforming grid
     az_range: float = 90.0
@@ -39,19 +58,11 @@ class AcousticSettings(BaseSettings):
     ignore_origin_deg: float = 3.5  # Suppress broadside artifact within this radius of (0,0)
 
     # CNN classification
-    cnn_model_type: str = "research_cnn"
-    cnn_model_path: str = "models/uav_melspec_cnn.pt"
+    cnn_model_path: str = "models/uav_melspec_cnn.onnx"
     cnn_enter_threshold: float = 0.80
     cnn_exit_threshold: float = 0.40
     cnn_confirm_hits: int = 2
     cnn_target_ttl: float = 5.0  # seconds before target marked lost
-
-    # Aggregation weights for multi-segment classification
-    cnn_agg_w_max: float = 0.5
-    cnn_agg_w_mean: float = 0.5
-
-    # Ensemble configuration
-    ensemble_config_path: str | None = None
 
     # Server
     host: str = "0.0.0.0"
