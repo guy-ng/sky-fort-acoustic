@@ -14,6 +14,19 @@ import torchaudio.transforms as T
 
 from acoustic.classification.config import MelConfig
 
+
+def pad_or_loop(audio: np.ndarray, target_len: int) -> np.ndarray:
+    """Pad short audio by looping (tiling) instead of zero-padding.
+
+    If audio is shorter than target_len, tiles it to fill the segment.
+    If audio is already long enough, returns it unchanged.
+    """
+    if len(audio) >= target_len:
+        return audio
+    repeats = (target_len // len(audio)) + 1
+    return np.tile(audio, repeats)[:target_len]
+
+
 # Module-level cache for MelSpectrogram transforms, keyed by MelConfig (frozen/hashable).
 _mel_spec_cache: dict[MelConfig, T.MelSpectrogram] = {}
 
@@ -86,6 +99,28 @@ def mel_spectrogram_from_segment(
 
     # Shape: (1, 1, max_frames, n_mels) = (1, 1, 128, 64)
     return spec.unsqueeze(0).unsqueeze(0)
+
+
+class RawAudioPreprocessor:
+    """Resampling preprocessor for models that handle their own mel/features.
+
+    Resamples from the pipeline sample rate (e.g. 48kHz) to the model's
+    expected rate (default 32kHz for EfficientAT) and returns a 1-D tensor.
+    """
+
+    def __init__(self, target_sr: int = 32000) -> None:
+        self._target_sr = target_sr
+        self._resampler: torchaudio.transforms.Resample | None = None
+        self._cached_sr: int | None = None
+
+    def process(self, audio: np.ndarray, sr: int) -> torch.Tensor:
+        waveform = torch.from_numpy(audio).float()
+        if sr != self._target_sr:
+            if self._cached_sr != sr:
+                self._resampler = torchaudio.transforms.Resample(sr, self._target_sr)
+                self._cached_sr = sr
+            waveform = self._resampler(waveform)
+        return waveform
 
 
 class ResearchPreprocessor:

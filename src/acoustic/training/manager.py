@@ -148,7 +148,7 @@ class TrainingManager:
             pass
 
         try:
-            if config.model_type == "efficientat_mn10":
+            if config.model_type in ("efficientat_mn10", "efficientat_mn05"):
                 from acoustic.training.efficientat_trainer import EfficientATTrainingRunner
 
                 runner = EfficientATTrainingRunner(config)

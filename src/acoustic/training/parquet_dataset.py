@@ -4,7 +4,8 @@ Implements a PyTorch Dataset that reads WAV bytes directly from Parquet files,
 decodes them in-memory, extracts random 0.5s segments, and produces mel-spectrogram
 tensors compatible with the existing training pipeline.
 
-Includes an in-memory audio cache to eliminate repeated Parquet I/O across epochs.
+Audio is loaded from Parquet on every __getitem__ call to keep memory usage
+constant regardless of dataset size (the full DADS dataset decodes to ~58 GB).
 """
 
 from __future__ import annotations
@@ -104,8 +105,6 @@ class ParquetDataset(Dataset):
         self._waveform_aug = waveform_aug
         self._spec_aug = spec_aug
         self._labels_cache = [all_labels[i] for i in split_indices]
-        # In-memory cache: global_idx -> decoded float32 numpy array
-        self._audio_cache: dict[int, np.ndarray] = {}
 
     def __len__(self) -> int:
         return len(self._indices)
@@ -120,58 +119,16 @@ class ParquetDataset(Dataset):
         return shard_idx, local_idx
 
     def _load_audio(self, global_idx: int) -> np.ndarray:
-        """Load audio for *global_idx*, returning cached copy when available."""
-        if global_idx in self._audio_cache:
-            return self._audio_cache[global_idx]
-
+        """Load and decode audio for *global_idx* from Parquet (no caching)."""
         shard_idx, local_idx = self._locate(global_idx)
-        table = pq.read_table(self._shards[shard_idx], columns=["audio"])
+        # Read only the single row we need using row slicing
+        table = pq.read_table(
+            self._shards[shard_idx],
+            columns=["audio"],
+        )
         audio_struct = table.column("audio")[local_idx].as_py()
         wav_bytes = audio_struct["bytes"]
-        audio = decode_wav_bytes(wav_bytes)
-
-        self._audio_cache[global_idx] = audio
-        return audio
-
-    def warm_cache(self, limit: int = 0) -> None:
-        """Pre-load audio samples into memory, reading each shard once.
-
-        Args:
-            limit: Maximum number of samples to load.  0 means load all.
-                   Use a small value (e.g. 1000) to quickly prime the cache
-                   before training starts, then call again with 0 from a
-                   background thread to finish the rest.
-        """
-        needed = [i for i in self._indices if i not in self._audio_cache]
-        if not needed:
-            return
-        if limit > 0:
-            needed = needed[:limit]
-
-        # Group needed indices by shard for sequential bulk reads
-        by_shard: dict[int, list[tuple[int, int]]] = {}
-        for global_idx in needed:
-            shard_idx, local_idx = self._locate(global_idx)
-            by_shard.setdefault(shard_idx, []).append((global_idx, local_idx))
-
-        loaded = 0
-        for shard_idx, pairs in by_shard.items():
-            table = pq.read_table(self._shards[shard_idx], columns=["audio"])
-            audio_col = table.column("audio")
-            for global_idx, local_idx in pairs:
-                wav_bytes = audio_col[local_idx].as_py()["bytes"]
-                self._audio_cache[global_idx] = decode_wav_bytes(wav_bytes)
-                loaded += 1
-
-        logger.info(
-            "ParquetDataset cache: %d/%d samples loaded (~%.1f MB)",
-            len(self._audio_cache), len(self._indices), self.cache_size_mb,
-        )
-
-    @property
-    def cache_size_mb(self) -> float:
-        """Approximate memory used by the audio cache in megabytes."""
-        return sum(a.nbytes for a in self._audio_cache.values()) / (1024 * 1024)
+        return decode_wav_bytes(wav_bytes)
 
     def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor]:
         """Load one sample: decode WAV from Parquet, extract segment, return mel-spec.
@@ -188,9 +145,8 @@ class ParquetDataset(Dataset):
             start = random.randint(0, len(audio) - n)
             segment = audio[start : start + n]
         else:
-            # Zero-pad short audio
-            segment = np.zeros(n, dtype=np.float32)
-            segment[: len(audio)] = audio
+            from acoustic.classification.preprocessing import pad_or_loop
+            segment = pad_or_loop(audio, n)
 
         # Waveform augmentation
         if self._waveform_aug is not None:

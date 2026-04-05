@@ -26,6 +26,9 @@ class TrainingConfig(BaseSettings):
     # DADS Parquet data (D-09)
     dads_path: str = "data/"
 
+    # DADS HuggingFace dataset (preferred over local parquet when set)
+    dads_hf_repo: str = ""
+
     # Validation split (D-03)
     val_split: float = 0.2
 
@@ -47,8 +50,9 @@ class TrainingConfig(BaseSettings):
     wave_gain_db: float = 6.0
 
     # EfficientAT transfer learning stages (MDL-11)
-    model_type: str = "research_cnn"  # "research_cnn" or "efficientat_mn10"
+    model_type: str = "research_cnn"  # "research_cnn", "efficientat_mn10", or "efficientat_mn05"
     pretrained_weights: str = "models/pretrained/mn10_as.pt"
+    width_mult: float = 1.0  # 1.0=MN10 (~4.6M params), 0.5=MN05 (~1.3M params)
     stage1_epochs: int = 10
     stage2_epochs: int = 15
     stage3_epochs: int = 20

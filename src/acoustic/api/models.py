@@ -291,3 +291,38 @@ class ActivateModelResponse(BaseModel):
     message: str
     model_path: str
     active: bool
+
+
+# --- Pipeline control ---
+
+
+class PipelineStartRequest(BaseModel):
+    """Request to start the detection pipeline with custom parameters."""
+
+    model_path: str
+    confidence: float = 0.90
+    time_frame: float = 2.0
+    positive_detections: int = 2
+    gain: float = 3.0
+
+
+class PipelineStatusResponse(BaseModel):
+    """Current pipeline detection status."""
+
+    running: bool
+    model_path: str | None = None
+    confidence: float | None = None
+    time_frame: float | None = None
+    positive_detections: int | None = None
+    gain: float | None = None
+    detection_state: str | None = None
+    drone_probability: float | None = None
+
+
+class DetectionLogEntry(BaseModel):
+    """A single detection log entry."""
+
+    timestamp: float
+    drone_probability: float
+    detection_state: str
+    message: str

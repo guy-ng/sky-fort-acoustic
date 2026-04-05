@@ -179,8 +179,8 @@ class BackgroundNoiseMixer:
             start = self._rng.integers(len(noise) - n + 1)
             noise_seg = noise[start : start + n]
         elif len(noise) < n:
-            noise_seg = np.zeros(n, dtype=np.float32)
-            noise_seg[: len(noise)] = noise
+            from acoustic.classification.preprocessing import pad_or_loop
+            noise_seg = pad_or_loop(noise, n)
         else:
             noise_seg = noise
 

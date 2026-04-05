@@ -61,12 +61,65 @@ class _EfficientATDataset(Dataset):
             start = random.randint(0, len(audio) - n)
             segment = audio[start : start + n]
         else:
-            segment = np.zeros(n, dtype=np.float32)
-            segment[: len(audio)] = audio
+            from acoustic.classification.preprocessing import pad_or_loop
+            segment = pad_or_loop(audio, n)
 
         waveform = torch.from_numpy(segment)
         label = torch.tensor(self._labels[idx], dtype=torch.float32)
         return waveform, label
+
+    @property
+    def labels(self) -> list[int]:
+        return self._labels
+
+
+class _LazyEfficientATDataset(Dataset):
+    """Lazy dataset that loads audio from HF on-the-fly for EfficientAT.
+
+    Instead of pre-loading all waveforms into RAM, reads and resamples
+    one sample at a time from the memory-mapped HF Arrow dataset.
+    Memory usage stays constant regardless of dataset size.
+    """
+
+    def __init__(
+        self,
+        hf_dataset,
+        split_indices: list[int],
+        labels: list[int],
+        segment_samples: int,
+    ) -> None:
+        self._hf_ds = hf_dataset
+        self._indices = split_indices
+        self._labels = labels
+        self._segment_samples = segment_samples
+
+    def __len__(self) -> int:
+        return len(self._indices)
+
+    def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor]:
+        from acoustic.training.parquet_dataset import decode_wav_bytes
+
+        global_idx = self._indices[idx]
+        row = self._hf_ds[global_idx]
+
+        # Decode WAV bytes and resample 16kHz -> 32kHz
+        wav_bytes = row["audio"]["bytes"]
+        audio = decode_wav_bytes(wav_bytes)
+        waveform = torch.from_numpy(audio).unsqueeze(0)
+        resampled = F_audio.resample(waveform, _SOURCE_SR, _TARGET_SR).squeeze(0).numpy()
+
+        # Random segment extraction
+        n = self._segment_samples
+        if len(resampled) >= n:
+            start = random.randint(0, len(resampled) - n)
+            segment = resampled[start : start + n]
+        else:
+            from acoustic.classification.preprocessing import pad_or_loop
+            segment = pad_or_loop(resampled, n)
+
+        waveform_out = torch.from_numpy(segment)
+        label = torch.tensor(self._labels[idx], dtype=torch.float32)
+        return waveform_out, label
 
     @property
     def labels(self) -> list[int]:
@@ -103,20 +156,30 @@ class EfficientATTrainingRunner:
 
     def _load_data(
         self, *, _synthetic: bool = False,
-    ) -> tuple[list[np.ndarray], list[int], list[np.ndarray], list[int]]:
+    ) -> tuple[list[np.ndarray], list[int], list[np.ndarray], list[int]] | None:
         """Load and resample audio data, returning train/val waveforms+labels."""
         cfg = self._config
 
         if _synthetic:
             return self._synthetic_data()
 
-        # Try Parquet first, then WAV
-        from acoustic.training.parquet_dataset import ParquetDatasetBuilder, split_indices as split_idx_fn
-
+        # Priority: 1) HF Dataset  2) Local Parquet  3) WAV files
+        use_hf = bool(cfg.dads_hf_repo)
         dads_dir = Path(cfg.dads_path) if cfg.dads_path else None
-        use_parquet = dads_dir is not None and dads_dir.is_dir() and list(dads_dir.glob("train-*.parquet"))
+        use_parquet = (
+            not use_hf
+            and dads_dir is not None
+            and dads_dir.is_dir()
+            and list(dads_dir.glob("train-*.parquet"))
+        )
+
+        if use_hf:
+            # Return None to signal lazy loading — handled in run()
+            return None
 
         if use_parquet:
+            from acoustic.training.parquet_dataset import ParquetDatasetBuilder, split_indices as split_idx_fn
+
             logger.info("Loading DADS Parquet data from %s", dads_dir)
             builder = ParquetDatasetBuilder(dads_dir)
             train_indices, val_indices, _ = split_idx_fn(builder.total_rows, seed=42)
@@ -129,15 +192,12 @@ class EfficientATTrainingRunner:
             all_audio: list[np.ndarray | None] = [None] * builder.total_rows
             for shard_path in sorted(Path(cfg.dads_path).glob("train-*.parquet")):
                 table = pq.read_table(shard_path, columns=["audio"])
-                # Reconstruct global offset
                 for local_idx in range(len(table)):
                     audio_bytes = table.column("audio")[local_idx].as_py()["bytes"]
                     audio = decode_wav_bytes(audio_bytes)
-                    # Resample 16kHz -> 32kHz
                     waveform = torch.from_numpy(audio).unsqueeze(0)
                     resampled = F_audio.resample(waveform, _SOURCE_SR, _TARGET_SR).squeeze(0).numpy()
-                    # Find global index
-                    global_idx = local_idx  # simplified; builder handles offset
+                    global_idx = local_idx
                     all_audio[global_idx] = resampled
 
             train_wav = [all_audio[i] for i in train_indices if all_audio[i] is not None]
@@ -203,13 +263,33 @@ class EfficientATTrainingRunner:
         total_epochs = cfg.stage1_epochs + cfg.stage2_epochs + cfg.stage3_epochs
 
         # --- Load data ---
-        train_wav, train_lbl, val_wav, val_lbl = self._load_data(_synthetic=_synthetic)
+        result = self._load_data(_synthetic=_synthetic)
 
-        train_ds = _EfficientATDataset(train_wav, train_lbl, mel_cfg.segment_samples)
-        val_ds = _EfficientATDataset(val_wav, val_lbl, mel_cfg.segment_samples)
+        if result is None:
+            # HF lazy loading path — constant memory usage
+            from acoustic.training.hf_dataset import HFDatasetBuilder
+            from acoustic.training.parquet_dataset import split_indices as split_idx_fn
+
+            logger.info("Using lazy HF dataset for EfficientAT")
+            hf_builder = HFDatasetBuilder(cfg.dads_hf_repo)
+            train_indices, val_indices, _ = split_idx_fn(hf_builder.total_rows, seed=42)
+
+            train_lbl = [hf_builder.all_labels[i] for i in train_indices]
+            val_lbl = [hf_builder.all_labels[i] for i in val_indices]
+
+            train_ds = _LazyEfficientATDataset(
+                hf_builder._hf_ds, train_indices, train_lbl, mel_cfg.segment_samples,
+            )
+            val_ds = _LazyEfficientATDataset(
+                hf_builder._hf_ds, val_indices, val_lbl, mel_cfg.segment_samples,
+            )
+        else:
+            train_wav, train_lbl, val_wav, val_lbl = result
+            train_ds = _EfficientATDataset(train_wav, train_lbl, mel_cfg.segment_samples)
+            val_ds = _EfficientATDataset(val_wav, val_lbl, mel_cfg.segment_samples)
 
         dataset_len = len(train_ds)
-        num_workers = 0 if dataset_len < 32 else min(8, os.cpu_count() or 1)
+        num_workers = 0 if dataset_len < 32 else min(4, os.cpu_count() or 1)
         loader_kwargs: dict = dict(num_workers=num_workers, pin_memory=True)
         if num_workers > 0:
             loader_kwargs["persistent_workers"] = True
@@ -232,17 +312,28 @@ class EfficientATTrainingRunner:
         logger.info("EfficientAT training on device: %s", device)
 
         # --- Model setup ---
+        width_mult = cfg.width_mult
+        if cfg.model_type == "efficientat_mn05":
+            width_mult = 0.5
+        logger.info("EfficientAT width_mult=%.1f (%s)", width_mult,
+                     "MN10 ~4.6M params" if width_mult == 1.0 else f"MN{int(width_mult*10):02d} ~{width_mult**2 * 4.6:.1f}M params")
+
         model = get_model(
-            num_classes=527, width_mult=1.0, head_type="mlp",
+            num_classes=527, width_mult=width_mult, head_type="mlp",
             input_dim_f=mel_cfg.n_mels, input_dim_t=mel_cfg.input_dim_t,
         )
 
-        # Load pretrained weights if available
+        # Load pretrained weights if available (must match width_mult)
         pretrained_path = Path(cfg.pretrained_weights) if cfg.pretrained_weights else None
         if pretrained_path and pretrained_path.exists():
             state_dict = torch.load(str(pretrained_path), map_location="cpu", weights_only=True)
-            model.load_state_dict(state_dict)
-            logger.info("Loaded pretrained weights from %s", pretrained_path)
+            try:
+                model.load_state_dict(state_dict)
+                logger.info("Loaded pretrained weights from %s", pretrained_path)
+            except RuntimeError:
+                logger.warning("Pretrained weights don't match model (width_mult=%.1f), training from scratch", width_mult)
+        elif width_mult != 1.0:
+            logger.info("No pretrained weights for width_mult=%.1f, training from scratch", width_mult)
 
         model.float()
 
@@ -264,7 +355,6 @@ class EfficientATTrainingRunner:
         ).to(device)
 
         criterion = nn.BCEWithLogitsLoss()
-        early_stopping = EarlyStopping(patience=cfg.patience)
 
         ckpt_path = Path(cfg.checkpoint_path)
         ckpt_path.parent.mkdir(parents=True, exist_ok=True)
@@ -287,6 +377,9 @@ class EfficientATTrainingRunner:
                 if use_cosine else None
             )
 
+            # Reset early stopping per stage so stages 2/3 always run
+            early_stopping = EarlyStopping(patience=cfg.patience)
+
             logger.info("Stage %d: %d epochs, lr=%.1e, %d trainable params",
                         stage_num, stage_epochs, lr, sum(p.numel() for p in trainable))
 
@@ -302,6 +395,7 @@ class EfficientATTrainingRunner:
                 mel_train.train()
                 train_loss_sum = 0.0
                 train_batches = 0
+                total_batches = len(train_loader)
 
                 for batch_wav, batch_y in train_loader:
                     batch_wav = batch_wav.to(device)
@@ -321,6 +415,17 @@ class EfficientATTrainingRunner:
                     train_loss_sum += loss.item()
                     train_batches += 1
 
+                    # Batch-level progress (every 10 batches)
+                    if progress_callback is not None and train_batches % 10 == 0:
+                        progress_callback({
+                            "epoch": global_epoch,
+                            "total_epochs": total_epochs,
+                            "stage": stage_num,
+                            "batch": train_batches,
+                            "total_batches": total_batches,
+                            "train_loss": train_loss_sum / train_batches,
+                        })
+
                 avg_train_loss = train_loss_sum / max(train_batches, 1)
 
                 # --- Validate ---
@@ -330,6 +435,7 @@ class EfficientATTrainingRunner:
                 val_batches = 0
                 val_correct = 0
                 val_total = 0
+                tp = fp = tn = fn = 0
 
                 with torch.no_grad():
                     for batch_wav, batch_y in val_loader:
@@ -349,6 +455,12 @@ class EfficientATTrainingRunner:
                         preds = (torch.sigmoid(logits) >= 0.5).float()
                         val_correct += (preds == batch_y).sum().item()
                         val_total += batch_y.numel()
+
+                        # Confusion matrix
+                        tp += int(((preds == 1) & (batch_y == 1)).sum().item())
+                        fp += int(((preds == 1) & (batch_y == 0)).sum().item())
+                        tn += int(((preds == 0) & (batch_y == 0)).sum().item())
+                        fn += int(((preds == 0) & (batch_y == 1)).sum().item())
 
                 avg_val_loss = val_loss_sum / max(val_batches, 1)
                 val_accuracy = val_correct / max(val_total, 1)
@@ -374,14 +486,12 @@ class EfficientATTrainingRunner:
                         "val_loss": avg_val_loss,
                         "val_acc": val_accuracy,
                         "best_val_loss": early_stopping.best_loss,
+                        "tp": tp, "fp": fp, "tn": tn, "fn": fn,
                     })
 
                 if early_stopping.should_stop:
                     logger.info("Early stopping at stage %d epoch %d", stage_num, stage_epoch + 1)
                     break
-
-            if early_stopping.should_stop:
-                break
 
         if ckpt_path.exists():
             return ckpt_path

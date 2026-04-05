@@ -1,8 +1,8 @@
 """Training dataset: lazy WAV loading, random segment extraction, augmentation pipeline.
 
-Includes an in-memory audio cache to eliminate repeated disk I/O across epochs.
-After the first read (or an explicit warm_cache() call), audio data is served
-from RAM, reducing per-sample latency from ~5ms (disk) to ~0.01ms (memory).
+Audio is loaded from disk on every __getitem__ call to keep memory usage
+constant regardless of dataset size.  For the DADS dataset (~180K samples,
+~58 GB decoded float32) in-memory caching is infeasible on most machines.
 """
 
 from __future__ import annotations
@@ -72,11 +72,10 @@ def collect_wav_files(
 class DroneAudioDataset(Dataset):
     """PyTorch Dataset for drone audio classification training.
 
-    Loads WAV files, extracts a random 0.5s segment per __getitem__ call,
-    applies waveform and spectrogram augmentation, and returns model-ready tensors.
-
-    Audio data is cached in memory after first read to eliminate disk I/O on
-    subsequent epochs.  Call warm_cache() to pre-load all files before training.
+    Loads WAV files from disk on every access, extracts a random 0.5s segment
+    per __getitem__ call, applies waveform and spectrogram augmentation, and
+    returns model-ready tensors.  No in-memory caching -- memory usage stays
+    constant regardless of dataset size.
     """
 
     def __init__(
@@ -92,44 +91,16 @@ class DroneAudioDataset(Dataset):
         self._mel_config = mel_config
         self._waveform_aug = waveform_aug
         self._spec_aug = spec_aug
-        # In-memory cache: index -> mono float32 numpy array
-        self._audio_cache: dict[int, np.ndarray] = {}
 
     def __len__(self) -> int:
         return len(self._paths)
 
     def _load_audio(self, idx: int) -> np.ndarray:
-        """Load audio for *idx*, returning cached copy when available."""
-        if idx in self._audio_cache:
-            return self._audio_cache[idx]
-
+        """Load audio for *idx* from disk."""
         audio, _sr = sf.read(self._paths[idx], dtype="float32")
         if audio.ndim > 1:
             audio = audio.mean(axis=1)
-
-        self._audio_cache[idx] = audio
         return audio
-
-    def warm_cache(self, limit: int = 0) -> None:
-        """Pre-load audio files into memory.
-
-        Args:
-            limit: Maximum number of files to load.  0 means load all.
-        """
-        remaining = [i for i in range(len(self._paths)) if i not in self._audio_cache]
-        if limit > 0:
-            remaining = remaining[:limit]
-        for idx in remaining:
-            self._load_audio(idx)
-        logger.info(
-            "DroneAudioDataset cache: %d/%d files loaded (~%.1f MB)",
-            len(self._audio_cache), len(self._paths), self.cache_size_mb,
-        )
-
-    @property
-    def cache_size_mb(self) -> float:
-        """Approximate memory used by the audio cache in megabytes."""
-        return sum(a.nbytes for a in self._audio_cache.values()) / (1024 * 1024)
 
     def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor]:
         """Load WAV, extract random segment, apply augmentation, return mel-spec + label.
@@ -146,9 +117,8 @@ class DroneAudioDataset(Dataset):
             start = random.randint(0, len(audio) - n)
             segment = audio[start : start + n]
         else:
-            # Zero-pad short audio
-            segment = np.zeros(n, dtype=np.float32)
-            segment[: len(audio)] = audio
+            from acoustic.classification.preprocessing import pad_or_loop
+            segment = pad_or_loop(audio, n)
 
         # Waveform augmentation
         if self._waveform_aug is not None:

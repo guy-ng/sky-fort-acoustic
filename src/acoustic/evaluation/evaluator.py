@@ -49,30 +49,43 @@ class Evaluator:
     def evaluate(self, model_path: str, data_dir: str) -> EvaluationResult:
         """Run evaluation on labeled WAV folders and return metrics.
 
-        Backward-compatible entry point that loads a ResearchCNN from a
-        checkpoint path and delegates to evaluate_classifier.
+        Auto-detects model type from filename. Delegates to
+        evaluate_classifier with the appropriate preprocessing mode.
 
         Args:
-            model_path: Path to a .pt checkpoint (ResearchCNN state_dict).
+            model_path: Path to a .pt checkpoint.
             data_dir: Root directory containing label subdirectories.
 
         Returns:
             EvaluationResult with confusion matrix, metrics, distribution stats,
             and per-file detail.
         """
+        import os
+
+        import acoustic.classification.efficientat  # noqa: F401
         from acoustic.classification.ensemble import load_model
 
-        classifier = load_model("research_cnn", model_path)
-        return self.evaluate_classifier(classifier, data_dir)
+        basename = os.path.basename(model_path).lower()
+        if "efficientat" in basename or "mn10" in basename:
+            model_type = "efficientat_mn10"
+        else:
+            model_type = "research_cnn"
+
+        classifier = load_model(model_type, model_path)
+        return self.evaluate_classifier(
+            classifier, data_dir, raw_audio=(model_type == "efficientat_mn10")
+        )
 
     def evaluate_classifier(
-        self, classifier: Classifier, data_dir: str
+        self, classifier: Classifier, data_dir: str, *, raw_audio: bool = False
     ) -> EvaluationResult:
         """Run evaluation using any Classifier protocol implementor.
 
         Args:
             classifier: Any object satisfying the Classifier protocol.
             data_dir: Root directory containing label subdirectories.
+            raw_audio: If True, pass raw waveform tensors to classifier
+                       instead of mel-spectrogram features (for EfficientAT).
 
         Returns:
             EvaluationResult with confusion matrix, metrics, distribution stats,
@@ -86,7 +99,9 @@ class Evaluator:
 
         with torch.no_grad():
             for path, label_int in zip(paths, labels):
-                segment_probs = self._process_file(path, segment_samples, classifier)
+                segment_probs = self._process_file(
+                    path, segment_samples, classifier, raw_audio=raw_audio
+                )
 
                 p_max_val = max(segment_probs) if segment_probs else 0.0
                 p_mean_val = (
@@ -241,30 +256,76 @@ class Evaluator:
             audio = resampler(waveform).numpy()
 
         features_list: list[torch.Tensor] = []
-        n_segments = max(1, len(audio) // segment_samples)
+        hop = int(segment_samples * 0.75)  # 0.25s overlap
 
-        for i in range(n_segments):
-            start = i * segment_samples
-            end = start + segment_samples
+        if len(audio) < segment_samples:
+            from acoustic.classification.preprocessing import pad_or_loop
+            audio = pad_or_loop(audio, segment_samples)
 
-            if end <= len(audio):
-                segment = audio[start:end]
-            else:
-                segment = np.zeros(segment_samples, dtype=np.float32)
-                remaining = audio[start:]
-                segment[: len(remaining)] = remaining
-
+        start = 0
+        while start + segment_samples <= len(audio):
+            segment = audio[start : start + segment_samples]
             features = mel_spectrogram_from_segment(segment, self._config)
+            features_list.append(features)
+            start += hop
+
+        if not features_list:
+            features = mel_spectrogram_from_segment(audio[:segment_samples], self._config)
             features_list.append(features)
 
         return features_list
 
     def _process_file(
-        self, path: Path, segment_samples: int, classifier: Classifier
+        self, path: Path, segment_samples: int, classifier: Classifier,
+        *, raw_audio: bool = False,
     ) -> list[float]:
         """Process a single WAV file through a classifier and return segment probs."""
-        features_list = self._extract_features(path, segment_samples)
-        return [classifier.predict(features) for features in features_list]
+        if raw_audio:
+            segments = self._extract_raw_segments(path, segment_samples)
+        else:
+            segments = self._extract_features(path, segment_samples)
+        return [classifier.predict(seg) for seg in segments]
+
+    def _extract_raw_segments(
+        self, path: Path, segment_samples: int
+    ) -> list[torch.Tensor]:
+        """Extract raw audio segments as 1-D tensors for models that do their own preprocessing.
+
+        Resamples to the EfficientAT target sample rate (32kHz) since these
+        models handle their own mel preprocessing at that rate.
+        """
+        from acoustic.classification.efficientat.config import EfficientATMelConfig
+
+        target_sr = EfficientATMelConfig().sample_rate  # 32000
+        audio, sr = sf.read(str(path), dtype="float32")
+
+        if audio.ndim > 1:
+            audio = audio.mean(axis=1)
+
+        if sr != target_sr:
+            waveform = torch.from_numpy(audio).float()
+            resampler = torchaudio.transforms.Resample(sr, target_sr)
+            audio = resampler(waveform).numpy()
+
+        # Use EfficientAT segment length (1s at 32kHz = 32000 samples)
+        eat_segment_samples = EfficientATMelConfig().segment_samples
+        hop = int(eat_segment_samples * 0.75)  # 0.25s overlap
+
+        if len(audio) < eat_segment_samples:
+            from acoustic.classification.preprocessing import pad_or_loop
+            audio = pad_or_loop(audio, eat_segment_samples)
+
+        segments: list[torch.Tensor] = []
+        start = 0
+        while start + eat_segment_samples <= len(audio):
+            segment = audio[start : start + eat_segment_samples]
+            segments.append(torch.from_numpy(segment).float())
+            start += hop
+
+        if not segments:
+            segments.append(torch.from_numpy(audio[:eat_segment_samples]).float())
+
+        return segments
 
     def _build_result(self, file_results: list[FileResult]) -> EvaluationResult:
         """Build an EvaluationResult from file results."""

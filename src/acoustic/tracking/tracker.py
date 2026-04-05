@@ -104,6 +104,10 @@ class TargetTracker:
 
         return lost_ids
 
+    def clear(self) -> None:
+        """Remove all targets (used when stopping a detection session)."""
+        self._targets.clear()
+
     def get_active_targets(self) -> list[TrackedTarget]:
         """Return list of non-lost targets."""
         return [t for t in self._targets.values() if not t.lost]

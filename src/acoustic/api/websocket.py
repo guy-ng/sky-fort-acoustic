@@ -230,6 +230,50 @@ async def ws_recording(websocket: WebSocket) -> None:
         logger.debug("Recording WebSocket client disconnected")
 
 
+@router.websocket("/ws/pipeline")
+async def ws_pipeline(websocket: WebSocket) -> None:
+    """Stream pipeline detection status and log entries at 2 Hz.
+
+    Sends JSON with detection state, drone probability, and new log entries.
+    Used by the Pipeline tab for real-time detection monitoring.
+    """
+    await websocket.accept()
+    last_log_len = 0
+    try:
+        while True:
+            pipeline = websocket.app.state.pipeline
+            session = pipeline.detection_session
+            if session is not None:
+                entries = list(session.log)
+                new_entries = entries[last_log_len:]
+                last_log_len = len(entries)
+                await websocket.send_json({
+                    "running": True,
+                    "detection_state": pipeline.latest_detection_state,
+                    "drone_probability": pipeline.latest_drone_probability,
+                    "new_log_entries": [
+                        {
+                            "timestamp": e.timestamp,
+                            "drone_probability": e.drone_probability,
+                            "detection_state": e.detection_state,
+                            "message": e.message,
+                        }
+                        for e in new_entries
+                    ],
+                })
+            else:
+                last_log_len = 0
+                await websocket.send_json({
+                    "running": False,
+                    "detection_state": None,
+                    "drone_probability": None,
+                    "new_log_entries": [],
+                })
+            await asyncio.sleep(0.5)  # 2 Hz
+    except (WebSocketDisconnect, RuntimeError):
+        logger.debug("Pipeline WebSocket client disconnected")
+
+
 def _progress_to_ws_dict(progress: TrainingProgress) -> dict:
     """Format training progress for WebSocket transmission (per D-12, D-13)."""
     d: dict = {

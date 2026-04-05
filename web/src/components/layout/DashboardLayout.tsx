@@ -6,6 +6,7 @@ import { HeatmapCanvas, type HeatmapCanvasHandle } from '../heatmap/HeatmapCanva
 import { TargetOverlay } from '../heatmap/TargetOverlay'
 import { ColorScale } from '../heatmap/ColorScale'
 import { TargetStrip } from '../targets/TargetStrip'
+import { PipelinePanel } from '../pipeline/PipelinePanel'
 import { useHeatmapSocket } from '../../hooks/useHeatmapSocket'
 import { useTargetSocket } from '../../hooks/useTargetSocket'
 import { useHealth } from '../../hooks/useHealth'
@@ -84,36 +85,18 @@ export function DashboardLayout() {
         <Sidebar health={effectiveHealth} deviceStatus={deviceStatus} />
       </div>
 
-      {/* Targets + CNN Probability — left column */}
+      {/* Pipeline + Targets — left column */}
       <div style={{ gridArea: 'targets' }}>
-        <Panel title="TARGETS" className="h-full">
-          <div className="flex flex-col h-full gap-2">
-            {/* CNN Probability indicator */}
-            <div className="shrink-0 flex flex-col items-center justify-center border-b border-hud-border pb-2">
-              <span className="text-[10px] text-hud-text-dim uppercase tracking-wider mb-1">CNN Prob</span>
-              <span className={`font-mono text-2xl font-bold ${
-                droneProbability === null
-                  ? 'text-hud-text-dim'
-                  : droneProbability >= 0.7 ? 'text-hud-danger'
-                  : droneProbability >= 0.4 ? 'text-hud-warning'
-                  : 'text-hud-success'
-              }`}>
-                {droneProbability !== null
-                  ? `${(droneProbability * 100).toFixed(1)}%`
-                  : detectionState !== null ? '...' : '--'}
-              </span>
-              <span className={`text-[10px] font-mono mt-0.5 ${
-                detectionState === 'DRONE_CONFIRMED' ? 'text-hud-danger' :
-                detectionState === 'DRONE_CANDIDATE' ? 'text-hud-warning' :
-                'text-hud-text-dim'
-              }`}>
-                {detectionState ?? 'NO CNN'}
-              </span>
-            </div>
-            {/* Target cards — vertical scroll */}
-            <div className="flex-1 overflow-y-auto">
-              <TargetStrip targets={targets} />
-            </div>
+        <Panel title="PIPELINE" className="h-full">
+          <div className="flex flex-col h-full gap-2 overflow-y-auto">
+            <PipelinePanel />
+            {/* Target cards */}
+            {targets.length > 0 && (
+              <div className="border-t border-hud-border pt-2">
+                <span className="text-[10px] text-hud-text-dim uppercase tracking-wider mb-1 block">Targets</span>
+                <TargetStrip targets={targets} />
+              </div>
+            )}
           </div>
         </Panel>
       </div>

@@ -108,6 +108,12 @@ class CNNWorker:
             self._segment_probs.clear()
         logger.info("CNN classifier hot-swapped: %s", type(classifier).__name__ if classifier else "dormant")
 
+    def set_preprocessor(self, preprocessor: Preprocessor | None) -> None:
+        """Hot-swap the preprocessor (thread-safe)."""
+        with self._lock:
+            self._preprocessor = preprocessor
+        logger.info("CNN preprocessor hot-swapped: %s", type(preprocessor).__name__ if preprocessor else "None")
+
     def get_latest(self) -> ClassificationResult | None:
         """Return the most recent classification result, or None."""
         with self._lock:

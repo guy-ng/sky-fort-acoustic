@@ -10,6 +10,8 @@ from __future__ import annotations
 import logging
 import threading
 import time
+from collections import deque
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -24,6 +26,30 @@ if TYPE_CHECKING:
     from acoustic.tracking.tracker import TargetTracker
 
 logger = logging.getLogger(__name__)
+
+MAX_DETECTION_LOG = 200
+
+
+@dataclass
+class DetectionLogEntry:
+    """A single detection event in the log."""
+
+    timestamp: float
+    drone_probability: float
+    detection_state: str
+    message: str
+
+
+@dataclass
+class DetectionSession:
+    """Active detection session configuration."""
+
+    model_path: str
+    confidence: float = 0.90
+    time_frame: float = 2.0
+    positive_detections: int = 2
+    gain: float = 3.0
+    log: deque = field(default_factory=lambda: deque(maxlen=MAX_DETECTION_LOG))
 
 
 class BeamformingPipeline:
@@ -57,11 +83,18 @@ class BeamformingPipeline:
         self._mono_buffer: list[np.ndarray] = []
         self._mono_buffer_samples: int = 0
         self._cnn_segment_samples: int = int(settings.sample_rate * 0.5)
+        self._default_segment_samples: int = self._cnn_segment_samples
         self._last_cnn_push: float = 0.0
         self._cnn_interval: float = 0.25  # Push every 0.25s for 50% overlap of 0.5s segments
+        self._default_cnn_interval: float = self._cnn_interval
+        self._last_cnn_result_ts: float = 0.0  # Dedup CNN results by timestamp
 
         # Recording integration (passive observer -- receives chunks from pipeline)
         self._recording_manager = recording_manager
+
+        # Detection session (user-initiated via Pipeline tab)
+        self._detection_session: DetectionSession | None = None
+        self._detection_lock = threading.Lock()
 
     def process_chunk(self, chunk: np.ndarray) -> PeakDetection | None:
         """Stub: produce a zero beamforming map with no peak detection.
@@ -95,13 +128,84 @@ class BeamformingPipeline:
                 time.sleep(0.01)
         logger.info("Beamforming pipeline thread stopped")
 
+    def start_detection_session(
+        self,
+        model_path: str,
+        confidence: float = 0.90,
+        time_frame: float = 2.0,
+        positive_detections: int = 2,
+        gain: float = 3.0,
+        model_type: str = "research_cnn",
+    ) -> None:
+        """Start a user-initiated detection session with custom parameters."""
+        with self._detection_lock:
+            self._detection_session = DetectionSession(
+                model_path=model_path,
+                confidence=confidence,
+                time_frame=time_frame,
+                positive_detections=positive_detections,
+                gain=gain,
+            )
+
+        # EfficientAT needs 1s segments at 48kHz (resampled to 32kHz by preprocessor)
+        # with 0.25s overlap (push every 0.75s)
+        if "efficientat" in model_type or "mn10" in model_type or "mn05" in model_type:
+            self._cnn_segment_samples = int(self._settings.sample_rate * 1.0)  # 1s
+            self._cnn_interval = 0.75  # 0.25s overlap
+        else:
+            self._cnn_segment_samples = self._default_segment_samples
+            self._cnn_interval = self._default_cnn_interval
+
+        # Reset mono buffer for new segment size
+        self._mono_buffer.clear()
+        self._mono_buffer_samples = 0
+
+        # Reconfigure state machine thresholds
+        if self._state_machine is not None:
+            self._state_machine._enter = confidence
+            self._state_machine._exit = max(0.1, confidence - 0.4)
+            self._state_machine._confirm = positive_detections
+            self._state_machine.reset()
+        logger.info(
+            "Detection session started: model=%s type=%s segment=%.1fs interval=%.2fs confidence=%.0f%% gain=%.1f",
+            model_path, model_type, self._cnn_segment_samples / self._settings.sample_rate,
+            self._cnn_interval, confidence * 100, gain,
+        )
+
+    def stop_detection_session(self) -> None:
+        """Stop the current detection session."""
+        with self._detection_lock:
+            self._detection_session = None
+        # Restore default segment config
+        self._cnn_segment_samples = self._default_segment_samples
+        self._cnn_interval = self._default_cnn_interval
+        self._mono_buffer.clear()
+        self._mono_buffer_samples = 0
+        if self._state_machine is not None:
+            self._state_machine.reset()
+        if self._tracker is not None:
+            self._tracker.clear()
+        logger.info("Detection session stopped")
+
+    @property
+    def detection_session(self) -> DetectionSession | None:
+        """Return the current detection session, or None."""
+        with self._detection_lock:
+            return self._detection_session
+
     def _process_cnn(self, chunk: np.ndarray, peak: PeakDetection | None) -> None:
         """Feed audio to CNN worker on peak detection and process results."""
         if self._cnn_worker is None:
             return
 
+        session = self._detection_session
+
         # Always accumulate mono audio so we have a rolling buffer ready
         mono = chunk.mean(axis=1).astype(np.float32)
+
+        # Apply gain if detection session is active
+        if session is not None and session.gain != 1.0:
+            mono = mono * session.gain
         self._mono_buffer.append(mono)
         self._mono_buffer_samples += len(mono)
 
@@ -125,14 +229,31 @@ class BeamformingPipeline:
                 self._cnn_worker.push(segment, 0.0, 0.0)
                 self._last_cnn_push = now
 
-        # Check for CNN results
+        # Check for CNN results (dedup by timestamp)
         result = self._cnn_worker.get_latest()
-        if result is not None and self._state_machine is not None:
+        if result is not None and result.timestamp != self._last_cnn_result_ts and self._state_machine is not None:
+            self._last_cnn_result_ts = result.timestamp
             from acoustic.classification.state_machine import DetectionState
 
+            prev_state = self._state_machine.state
             state = self._state_machine.update(result.drone_probability)
             if state == DetectionState.CONFIRMED and self._tracker is not None:
                 self._tracker.update(result.az_deg, result.el_deg, result.drone_probability)
+
+            # Log every CNN result for the pipeline tab
+            if session is not None:
+                now = time.time()
+                prob = result.drone_probability
+                if state != prev_state:
+                    msg = f"{prev_state.value} \u2192 {state.value} (prob={prob:.1%})"
+                else:
+                    msg = f"[{state.value}] prob={prob:.1%}"
+                session.log.append(DetectionLogEntry(
+                    timestamp=now,
+                    drone_probability=prob,
+                    detection_state=state.value,
+                    message=msg,
+                ))
 
         # Tick tracker for TTL expiry
         if self._tracker is not None:

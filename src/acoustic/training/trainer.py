@@ -82,17 +82,6 @@ class TrainingRunner:
         self._config = config
         self._mel_config = mel_config or MelConfig()
 
-    @staticmethod
-    def _warm_caches(*datasets: object, limit: int = 0) -> None:
-        """Call warm_cache() on each dataset that supports it.
-
-        Args:
-            limit: Max samples per dataset.  0 = load everything.
-        """
-        for ds in datasets:
-            if hasattr(ds, "warm_cache"):
-                ds.warm_cache(limit=limit)  # type: ignore[union-attr]
-
     def run(
         self,
         stop_event: threading.Event,
@@ -161,10 +150,32 @@ class TrainingRunner:
             composed_wave_aug = wave_aug
 
         # --- Data source selection ---
+        # Priority: 1) HF Dataset  2) Local Parquet  3) WAV files
+        use_hf = bool(cfg.dads_hf_repo)
         dads_dir = Path(cfg.dads_path) if cfg.dads_path else None
-        use_parquet = dads_dir is not None and dads_dir.is_dir() and list(dads_dir.glob("train-*.parquet"))
+        use_parquet = (
+            not use_hf
+            and dads_dir is not None
+            and dads_dir.is_dir()
+            and list(dads_dir.glob("train-*.parquet"))
+        )
 
-        if use_parquet:
+        if use_hf:
+            from acoustic.training.hf_dataset import HFDatasetBuilder
+            from acoustic.training.parquet_dataset import split_indices
+
+            logger.info("Using HF dataset: %s", cfg.dads_hf_repo)
+            builder = HFDatasetBuilder(cfg.dads_hf_repo)
+            train_idx, val_idx, _test_idx = split_indices(builder.total_rows, seed=42)
+
+            train_ds = builder.build(
+                train_idx, mel_config=self._mel_config,
+                waveform_aug=composed_wave_aug, spec_aug=spec_aug,
+            )
+            val_ds = builder.build(val_idx, mel_config=self._mel_config)
+            train_labels = train_ds.labels
+            val_labels = val_ds.labels
+        elif use_parquet:
             from acoustic.training.parquet_dataset import ParquetDatasetBuilder, split_indices
 
             logger.info("Using DADS Parquet data from %s", dads_dir)
@@ -204,27 +215,15 @@ class TrainingRunner:
                 val_paths, val_labels, self._mel_config,
             )
 
-        # Two-phase cache warm-up:
-        # Phase 1 (blocking): quick-load first 1000 samples so epoch 1 starts fast.
-        # Phase 2 (background): load the rest while training runs.
-        _QUICK_PRIME = 1000
-        self._warm_caches(train_ds, val_ds, limit=_QUICK_PRIME)
-        logger.info("Quick-primed %d samples, starting background cache load", _QUICK_PRIME)
-
-        cache_thread = threading.Thread(
-            target=self._warm_caches, args=(train_ds, val_ds), daemon=True,
-        )
-        cache_thread.start()
-
-        # Create data loaders (workers prefetch data while GPU trains)
-        # Scale workers with dataset size — spawning 8 workers for 8 files is wasteful.
-        # For tiny datasets (<32 samples) skip multiprocessing entirely to avoid
-        # process-spawn overhead that dominates on small workloads.
+        # Data loaders: use moderate worker count for I/O parallelism.
+        # No in-memory cache -- audio is loaded from disk/parquet per access,
+        # keeping memory usage constant regardless of dataset size.
         dataset_len = len(train_ds)
         if dataset_len < 32:
             num_workers = 0
         else:
-            num_workers = min(8, os.cpu_count() or 1)
+            # Cap at 4 workers to limit memory from forked processes
+            num_workers = min(4, os.cpu_count() or 1)
         from collections import Counter
         label_counts = Counter(train_labels)
         logger.info("Class distribution: %s (total=%d)", dict(label_counts), len(train_labels))
@@ -272,19 +271,6 @@ class TrainingRunner:
         ckpt_path = Path(cfg.checkpoint_path)
         ckpt_path.parent.mkdir(parents=True, exist_ok=True)
 
-        # Don't block — background thread continues loading while we train.
-        # Cache misses are handled gracefully via lazy per-sample I/O.
-
-        # Helper to gather cache stats for progress callbacks
-        def _cache_info() -> dict:
-            cached = 0
-            total = 0
-            for ds in (train_ds, val_ds):
-                if hasattr(ds, "_audio_cache"):
-                    cached += len(ds._audio_cache)
-                    total += len(ds)
-            return {"cache_loaded": cached, "cache_total": total}
-
         # Training loop
         for epoch in range(cfg.max_epochs):
             if stop_event.is_set():
@@ -314,8 +300,7 @@ class TrainingRunner:
                         "batch": train_batches,
                         "total_batches": total_batches,
                         "train_loss": train_loss_sum / train_batches,
-                        **_cache_info(),
-                    })
+                        })
 
             avg_train_loss = train_loss_sum / max(train_batches, 1)
 
@@ -370,7 +355,6 @@ class TrainingRunner:
                     "val_acc": val_accuracy,
                     "best_val_loss": early_stopping.best_loss,
                     "tp": tp, "fp": fp, "tn": tn, "fn": fn,
-                    **_cache_info(),
                 })
 
             if early_stopping.should_stop:

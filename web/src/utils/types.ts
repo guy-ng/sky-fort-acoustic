@@ -175,3 +175,38 @@ export interface LossDataPoint {
   train_loss: number
   val_loss: number
 }
+
+// --- Pipeline control types ---
+
+export interface PipelineStartParams {
+  model_path: string
+  confidence: number
+  time_frame: number
+  positive_detections: number
+  gain: number
+}
+
+export interface PipelineStatusResponse {
+  running: boolean
+  model_path: string | null
+  confidence: number | null
+  time_frame: number | null
+  positive_detections: number | null
+  gain: number | null
+  detection_state: string | null
+  drone_probability: number | null
+}
+
+export interface DetectionLogEntry {
+  timestamp: number
+  drone_probability: number
+  detection_state: string
+  message: string
+}
+
+export interface PipelineWsMessage {
+  running: boolean
+  detection_state: string | null
+  drone_probability: number | null
+  new_log_entries: DetectionLogEntry[]
+}
