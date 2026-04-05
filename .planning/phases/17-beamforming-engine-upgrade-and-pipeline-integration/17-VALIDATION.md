@@ -19,7 +19,7 @@ created: 2026-04-05
 |----------|-------|
 | **Framework** | pytest 8.x |
 | **Config file** | pyproject.toml |
-| **Quick run command** | `python -m pytest tests/test_beamforming.py -x -q` |
+| **Quick run command** | `python -m pytest tests/unit/test_bandpass.py tests/unit/test_interpolation.py tests/unit/test_mcra.py tests/unit/test_multi_peak.py tests/unit/test_bf_gate.py tests/integration/test_pipeline_beamforming.py -x -q` |
 | **Full suite command** | `python -m pytest tests/ -x -q` |
 | **Estimated runtime** | ~15 seconds |
 
@@ -27,7 +27,7 @@ created: 2026-04-05
 
 ## Sampling Rate
 
-- **After every task commit:** Run `python -m pytest tests/test_beamforming.py -x -q`
+- **After every task commit:** Run the relevant task test file (see Per-Task map below)
 - **After every plan wave:** Run `python -m pytest tests/ -x -q`
 - **Before `/gsd-verify-work`:** Full suite must be green
 - **Max feedback latency:** 15 seconds
@@ -38,20 +38,25 @@ created: 2026-04-05
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| 17-01-01 | 01 | 1 | BF-10 | — | N/A | unit | `python -m pytest tests/test_beamforming.py::test_bandpass_filter -x` | ❌ W0 | ⬜ pending |
-| 17-01-02 | 01 | 1 | BF-11 | — | N/A | unit | `python -m pytest tests/test_beamforming.py::test_parabolic_interpolation -x` | ❌ W0 | ⬜ pending |
-| 17-01-03 | 01 | 1 | BF-12 | — | N/A | unit | `python -m pytest tests/test_beamforming.py::test_multi_peak_detection -x` | ❌ W0 | ⬜ pending |
-| 17-02-01 | 02 | 1 | BF-13 | — | N/A | unit | `python -m pytest tests/test_beamforming.py::test_mcra_noise_estimation -x` | ❌ W0 | ⬜ pending |
-| 17-03-01 | 03 | 2 | BF-14, BF-15, BF-16 | — | N/A | integration | `python -m pytest tests/test_pipeline_beamforming.py -x` | ❌ W0 | ⬜ pending |
+| 17-01-01 | 01 | 1 | BF-10, BF-11 | — | N/A | unit | `python -m pytest tests/unit/test_bandpass.py -x` | :x: W0 | :white_large_square: pending |
+| 17-01-02 | 01 | 1 | BF-12 | — | N/A | unit | `python -m pytest tests/unit/test_interpolation.py -x` | :x: W0 | :white_large_square: pending |
+| 17-02-01 | 02 | 1 | BF-14 | — | N/A | unit | `python -m pytest tests/unit/test_mcra.py -x` | :x: W0 | :white_large_square: pending |
+| 17-02-02 | 02 | 1 | BF-13 | — | N/A | unit | `python -m pytest tests/unit/test_multi_peak.py -x` | :x: W0 | :white_large_square: pending |
+| 17-03-01 | 03 | 2 | BF-16 | — | N/A | unit | `python -m pytest tests/unit/test_bf_gate.py -x` | :x: W0 | :white_large_square: pending |
+| 17-03-02 | 03 | 2 | BF-15 | — | N/A | integration | `python -m pytest tests/integration/test_pipeline_beamforming.py -x` | :x: W0 | :white_large_square: pending |
 
-*Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
+*Status: :white_large_square: pending · :white_check_mark: green · :x: red · :warning: flaky*
 
 ---
 
 ## Wave 0 Requirements
 
-- [ ] `tests/test_beamforming.py` — stubs for BF-10, BF-11, BF-12, BF-13
-- [ ] `tests/test_pipeline_beamforming.py` — stubs for BF-14, BF-15, BF-16
+- [ ] `tests/unit/test_bandpass.py` — stubs for BF-10, BF-11
+- [ ] `tests/unit/test_interpolation.py` — stubs for BF-12
+- [ ] `tests/unit/test_mcra.py` — stubs for BF-14
+- [ ] `tests/unit/test_multi_peak.py` — stubs for BF-13
+- [ ] `tests/unit/test_bf_gate.py` — stubs for BF-16
+- [ ] `tests/integration/test_pipeline_beamforming.py` — stubs for BF-15
 - [ ] `tests/conftest.py` — shared fixtures (mock audio chunks, array geometry)
 
 ---
