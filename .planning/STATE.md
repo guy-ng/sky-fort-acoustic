@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: MVP
-status: blocked
-stopped_at: Phase 20 Plan 20-05 Task 1 (code-complete; blocked on noise-corpora data acquisition)
-last_updated: "2026-04-07T00:00:00.000Z"
-last_activity: 2026-04-07 -- Phase 20 Plan 20-05 Task 1 done; blocked on missing ESC50/UrbanSound8K/FSD50K data
+status: completed
+stopped_at: Phase 20.1 context gathered
+last_updated: "2026-04-06T22:56:18.430Z"
+last_activity: 2026-04-07 -- Plan 20-05 Task 1 committed (5 commits 428176c..70b02bb); blocker discovered before docker build/push; new data-acquisition phase needed before Wave 4 Task 2 + Wave 5 can run.
 progress:
-  total_phases: 15
+  total_phases: 16
   completed_phases: 10
   total_plans: 37
-  completed_plans: 24
-  percent: 65
+  completed_plans: 32
+  percent: 86
 ---
 
 # Project State
@@ -79,6 +79,7 @@ Last activity: 2026-04-07 -- Plan 20-05 Task 1 committed (5 commits 428176c..70b
 - Phase 19 added: Functional Beamforming Visualization (VIZ-01, VIZ-02)
 - Source: Research-validated beamforming parameters, spatial aliasing analysis for UMA-16v2
 - Phase 20 added: Retrain v7 with wide gain + room-IR augmentation, Vertex remote training, 60% overlap windows, expanded BG noise negatives
+- Phase 20.1 inserted after Phase 20 (2026-04-07): Acquire noise corpora ESC50 / UrbanSound8K / FSD50K subset and add host preflight test (URGENT — unblocks Phase 20 Plan 20-05 Task 2 Vertex submission)
 
 ### Decisions
 
@@ -141,6 +142,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-04T07:35:56.065Z
-Stopped at: Completed 15-02-PLAN.md
-Resume file: None
+Last session: 2026-04-06T22:56:18.425Z
+Stopped at: Phase 20.1 context gathered
+Resume file: .planning/phases/20.1-acquire-noise-corpora-esc50-urbansound8k-fsd50k-subset-and-a/20.1-CONTEXT.md
