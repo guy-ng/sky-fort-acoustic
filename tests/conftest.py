@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 from typing import Callable
 
 import numpy as np
@@ -92,3 +93,56 @@ def wav_audio_fixture():
     min_len = min(len(c) for c in channels)
     stacked = np.column_stack([c[:min_len] for c in channels])
     return stacked
+
+
+# ---------------------------------------------------------------------------
+# Phase 20 Wave 0 fixtures (D-01..D-29)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="session")
+def synthetic_waveform() -> np.ndarray:
+    """1.0 s mono float32 sine wave at 1 kHz, sampled at 16 kHz, amplitude 0.1.
+
+    Used by Phase 20 augmentation tests as a deterministic input that has
+    enough energy to compute SNR ratios but is far below the clipping bound.
+    """
+    sample_rate = 16000
+    duration_s = 1.0
+    n_samples = int(sample_rate * duration_s)
+    t = np.arange(n_samples, dtype=np.float32) / sample_rate
+    return (0.1 * np.sin(2.0 * np.pi * 1000.0 * t)).astype(np.float32)
+
+
+@pytest.fixture(scope="session")
+def tiny_rir() -> np.ndarray:
+    """Tiny synthetic room impulse response: float32 length 800 (50 ms @ 16 kHz).
+
+    Single Dirac at sample 0 followed by exponential decay. Long enough to
+    convolve meaningfully but short enough to keep tests fast.
+    """
+    n = 800
+    decay = np.exp(-np.arange(n, dtype=np.float32) / 80.0).astype(np.float32)
+    decay[0] = 1.0
+    return decay
+
+
+@pytest.fixture
+def temp_noise_dir(tmp_path: Path) -> Path:
+    """Create a temporary directory with 5 short WAV files for noise mixing tests.
+
+    Each WAV is 0.5s of float32 white noise at 16 kHz mono. Returns the parent
+    directory containing the noise files (suitable for BackgroundNoiseMixer
+    noise_dirs argument).
+    """
+    import soundfile as sf
+
+    noise_dir = tmp_path / "noise"
+    noise_dir.mkdir(parents=True, exist_ok=True)
+    rng = np.random.default_rng(seed=42)
+    sample_rate = 16000
+    n_samples = sample_rate // 2  # 0.5 s
+    for i in range(5):
+        noise = rng.normal(0.0, 0.05, size=n_samples).astype(np.float32)
+        sf.write(str(noise_dir / f"noise_{i:02d}.wav"), noise, sample_rate)
+    return noise_dir
