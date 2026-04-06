@@ -422,3 +422,15 @@ Plans:
 - [x] 20-08 RMS normalization D-34 (commits d48dbb9..b5244db)
 - [~] 20-05 Vertex Docker + submit — Task 1 code-complete (commits 428176c..70b02bb); **Task 2 BLOCKED on noise-corpora data acquisition**
 - [ ] 20-06 Eval harness + promotion gate — not yet started; depends on v7 checkpoint from 20-05 Task 2
+
+### Phase 20.1: Acquire noise corpora ESC50 UrbanSound8K FSD50K subset and add host preflight test (INSERTED)
+
+**Goal:** Acquire ESC-50, UrbanSound8K, and an FSD50K 6-class subset onto disk under `data/noise/{esc50,urbansound8k,fsd50k_subset}/` via a single idempotent script (`scripts/acquire_noise_corpora.py`), and add hard preflight tests that fail loudly if any noise corpus is missing or if the parquet ambient/eval shards have drifted from their WAV source trees — so Phase 20-05 Task 2 (Vertex submit) can be unblocked and the silent failure can never recur.
+**Requirements**: 19 D-XX decisions in 20.1-CONTEXT.md (no formal REQ-IDs — phase is an unblocker for Phase 20)
+**Depends on:** Phase 20
+**Plans:** 3 plans
+
+Plans:
+- [ ] 20.1-01-PLAN.md — soundata dep + scripts/acquire_noise_corpora.py (CLI, disk guard, idempotency marker, FSD50K class filter) + unit tests (D-01..D-10) + operator-gated download checkpoint
+- [ ] 20.1-02-PLAN.md — tests/integration/test_noise_corpora_present.py preflight gate with module-level ACOUSTIC_SKIP_NOISE_PREFLIGHT opt-out + D-15 actionable failure messages + meta-tests (D-11..D-15)
+- [ ] 20.1-03-PLAN.md — tests/integration/test_parquet_shards_in_sync.py (ambient rglob + eval labels.json row formulas + mtime gate) + drift meta-tests (D-16..D-19)
