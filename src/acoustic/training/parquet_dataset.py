@@ -230,3 +230,42 @@ class ParquetDatasetBuilder:
             waveform_aug=waveform_aug,
             spec_aug=spec_aug,
         )
+
+
+# ---------------------------------------------------------------------------
+# Phase 20 D-15: session-level (file-level) split helper
+# ---------------------------------------------------------------------------
+
+import random as _random  # noqa: E402  (kept local; avoids clash with module-level random)
+
+
+def split_file_indices(
+    num_files: int,
+    seed: int = 42,
+    train: float = 0.70,
+    val: float = 0.15,
+) -> tuple[list[int], list[int], list[int]]:
+    """Session-level (file-level) split (Phase 20 D-15).
+
+    Operates on FILE indices, not window indices. This is the ONLY correct way
+    to split a sliding-window dataset because adjacent overlapping windows from
+    the same source file would otherwise leak across splits and inflate val/test
+    metrics by 10-20% (compass doc §4 "Data splitting: session-level grouping is
+    non-negotiable"; Plotz 2021).
+
+    Returns three DISJOINT lists of file indices:
+        (train_files, val_files, test_files)
+    whose union is exactly range(num_files).
+    """
+    if not (0.0 < train < 1.0 and 0.0 < val < 1.0 and train + val < 1.0):
+        msg = f"invalid train/val ratios: train={train}, val={val}"
+        raise ValueError(msg)
+    files = list(range(num_files))
+    rng = _random.Random(seed)
+    rng.shuffle(files)
+    n_tr = int(num_files * train)
+    n_va = int(num_files * val)
+    train_files = files[:n_tr]
+    val_files = files[n_tr : n_tr + n_va]
+    test_files = files[n_tr + n_va :]
+    return train_files, val_files, test_files
