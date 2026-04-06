@@ -121,6 +121,11 @@ class TestTrainingLoopSmoke:
             checkpoint_path=str(tmp_path / "test_ckpt.pt"),
             dads_path=str(tmp_path / "nonexistent"),  # force synthetic fallback
             data_root=str(tmp_path / "nonexistent"),
+            # D-32: smoke test uses random noise as data, so any "model" is
+            # degenerate by construction. Disable the save gate here so the
+            # smoke test continues to exercise the full training loop end-
+            # to-end. Real runs keep the default save_gate_min_accuracy=0.55.
+            save_gate_min_accuracy=0.0,
         )
 
         runner = EfficientATTrainingRunner(config)

@@ -631,10 +631,31 @@ class EfficientATTrainingRunner:
 
                 # --- Checkpoint ---
                 improved = early_stopping.step(avg_val_loss)
-                if improved:
+                # D-32: behavioral save gate -- refuse degenerate checkpoints
+                # (constant-output collapse: one of tp/tn is zero) or models
+                # below the configured min val accuracy. Early-stopping still
+                # tracks val_loss as a side guard, not a control loop.
+                # When save_gate_min_accuracy <= 0, the operator has explicitly
+                # disabled the gate (useful for smoke tests on random data).
+                gate_total = tp + fp + tn + fn
+                gate_acc = (tp + tn) / gate_total if gate_total > 0 else 0.0
+                if cfg.save_gate_min_accuracy <= 0.0:
+                    save_gate_ok = True
+                else:
+                    save_gate_ok = (
+                        min(tp, tn) > 0
+                        and gate_acc >= cfg.save_gate_min_accuracy
+                    )
+                if improved and save_gate_ok:
                     torch.save(model.state_dict(), str(ckpt_path))
                     logger.info("Stage %d epoch %d: val_loss=%.4f (improved), saved",
                                 stage_num, stage_epoch + 1, avg_val_loss)
+                elif improved and not save_gate_ok:
+                    logger.warning(
+                        "save gate blocked: tp=%d tn=%d val_acc=%.3f "
+                        "(degenerate output, threshold=%.2f)",
+                        tp, tn, gate_acc, cfg.save_gate_min_accuracy,
+                    )
 
                 if scheduler is not None:
                     scheduler.step()
