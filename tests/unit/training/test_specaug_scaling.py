@@ -43,6 +43,7 @@ def test_augment_melstft_constructed_with_config_values():
         freqm=cfg.specaug_freq_mask,
         timem=cfg.specaug_time_mask,
     )
-    # AugmentMelSTFT stores freqm/timem as attributes (per preprocess.py)
-    assert mel.freqm == 8
-    assert mel.timem == 10
+    # AugmentMelSTFT wraps freqm/timem as torchaudio masking modules whose
+    # mask_param exposes the configured width.
+    assert mel.freqm.mask_param == 8
+    assert mel.timem.mask_param == 10

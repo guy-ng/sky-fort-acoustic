@@ -500,7 +500,9 @@ class EfficientATTrainingRunner:
         mel_train = AugmentMelSTFT(
             n_mels=mel_cfg.n_mels, sr=mel_cfg.sample_rate,
             win_length=mel_cfg.win_length, hopsize=mel_cfg.hop_size,
-            n_fft=mel_cfg.n_fft, freqm=48, timem=192,
+            n_fft=mel_cfg.n_fft,
+            freqm=cfg.specaug_freq_mask,
+            timem=cfg.specaug_time_mask,
         ).to(device)
         mel_eval = AugmentMelSTFT(
             n_mels=mel_cfg.n_mels, sr=mel_cfg.sample_rate,

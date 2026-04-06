@@ -45,6 +45,35 @@ class TrainingConfig(BaseSettings):
     spec_num_time_masks: int = 2
     spec_num_freq_masks: int = 2
 
+    # EfficientAT SpecAugment mask widths (D-30)
+    # Legacy AudioSet values 48/192 caused full-axis masking on 100-frame
+    # inputs and drove the v3/v5/v6 constant-output collapse -- see
+    # .planning/debug/training-collapse-constant-output.md (PRIMARY-A).
+    specaug_freq_mask: int = Field(
+        default=8,
+        description="SpecAugment frequency mask width (mels). Must be <= n_mels // 8.",
+    )
+    specaug_time_mask: int = Field(
+        default=10,
+        description=(
+            "SpecAugment time mask width (frames). Must be <= input_dim_t // 10. "
+            "Legacy value 192 caused full-axis masking on 100-frame inputs and "
+            "drove the v3/v5/v6 constant-output collapse -- see "
+            ".planning/debug/training-collapse-constant-output.md"
+        ),
+    )
+
+    # Degenerate-checkpoint save gate (D-32)
+    save_gate_min_accuracy: float = Field(
+        default=0.55,
+        description=(
+            "Refuse to save checkpoints below this val accuracy. Guards "
+            "against degenerate constant-output models that achieve stable "
+            "val_loss but zero TP or zero TN. See "
+            ".planning/debug/training-collapse-constant-output.md"
+        ),
+    )
+
     # Waveform augmentation params (D-10)
     wave_snr_range_low: float = 10.0
     wave_snr_range_high: float = 40.0
