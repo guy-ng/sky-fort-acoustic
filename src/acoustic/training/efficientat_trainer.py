@@ -23,7 +23,16 @@ from torch.utils.data import DataLoader, Dataset, WeightedRandomSampler
 from acoustic.classification.efficientat.config import EfficientATMelConfig
 from acoustic.classification.efficientat.model import get_model
 from acoustic.classification.efficientat.preprocess import AugmentMelSTFT
+from acoustic.training.augmentation import (
+    AudiomentationsAugmentation,
+    BackgroundNoiseMixer,
+    ComposedAugmentation,
+    RoomIRAugmentation,
+    WideGainAugmentation,
+)
 from acoustic.training.config import TrainingConfig
+from acoustic.training.hf_dataset import WindowedHFDroneDataset
+from acoustic.training.parquet_dataset import split_file_indices
 from acoustic.training.trainer import EarlyStopping
 
 logger = logging.getLogger(__name__)
@@ -132,6 +141,105 @@ class EfficientATTrainingRunner:
     def __init__(self, config: TrainingConfig) -> None:
         self._config = config
         self._mel_config = EfficientATMelConfig()
+
+    def _build_train_augmentation(self) -> ComposedAugmentation:
+        """Build Phase 20 train augmentation chain in LOCKED order (D-02, D-07).
+
+        Order: WideGain -> RoomIR -> Audiomentations -> BackgroundNoiseMixer.
+        Each stage is gated on its enable flag so legacy/v6 configs that disable
+        wide_gain (db<=0), RIR, audiomentations or noise still produce a valid
+        ComposedAugmentation (possibly empty).
+        """
+        cfg = self._config
+        augs: list = []
+
+        # Stage 1: wide gain (D-01..D-04)
+        if cfg.wide_gain_db > 0:
+            augs.append(
+                WideGainAugmentation(
+                    wide_gain_db=cfg.wide_gain_db,
+                    p=cfg.wide_gain_probability,
+                )
+            )
+
+        # Stage 2: room impulse response (D-05..D-08)
+        if cfg.rir_enabled:
+            augs.append(
+                RoomIRAugmentation(
+                    sample_rate=_SOURCE_SR,
+                    pool_size=cfg.rir_pool_size,
+                    room_dim_min=tuple(cfg.rir_room_dim_min),
+                    room_dim_max=tuple(cfg.rir_room_dim_max),
+                    absorption_range=(
+                        cfg.rir_absorption_min,
+                        cfg.rir_absorption_max,
+                    ),
+                    source_distance_range=(
+                        cfg.rir_source_distance_min,
+                        cfg.rir_source_distance_max,
+                    ),
+                    max_order=cfg.rir_max_order,
+                    p=cfg.rir_probability,
+                )
+            )
+
+        # Stage 3: audiomentations (pitch / stretch / small-gain per D-04)
+        if cfg.use_audiomentations:
+            augs.append(
+                AudiomentationsAugmentation(
+                    pitch_semitones=cfg.pitch_shift_semitones,
+                    time_stretch_range=(cfg.time_stretch_min, cfg.time_stretch_max),
+                    gain_db=cfg.waveform_gain_db,
+                    p=cfg.augmentation_probability,
+                    sample_rate=_SOURCE_SR,
+                )
+            )
+
+        # Stage 4: background noise mixer (ESC-50 + UrbanSound8K + UMA-16 ambient
+        # per D-10/D-12). UMA-16 ambient is handled via dir_snr_overrides + the
+        # uma16_ambient_dir kwarg so the tighter (-5, +15) dB SNR is applied.
+        if cfg.noise_augmentation_enabled and cfg.noise_dirs:
+            dir_snr_overrides = {
+                "uma16_ambient": (
+                    cfg.uma16_ambient_snr_low,
+                    cfg.uma16_ambient_snr_high,
+                ),
+            }
+            mixer = BackgroundNoiseMixer(
+                noise_dirs=[Path(d) for d in cfg.noise_dirs],
+                snr_range=(cfg.noise_snr_range_low, cfg.noise_snr_range_high),
+                sample_rate=_SOURCE_SR,
+                p=cfg.noise_probability,
+                dir_snr_overrides=dir_snr_overrides,
+                uma16_ambient_dir=cfg.uma16_ambient_dir or None,
+                uma16_ambient_pure_negative_ratio=cfg.uma16_pure_negative_ratio,
+            )
+            mixer.warm_cache()
+            augs.append(mixer)
+
+        return ComposedAugmentation(augs)
+
+    def _build_eval_augmentation(self) -> ComposedAugmentation | None:
+        """Build eval augmentation chain.
+
+        Per D-08 the eval pipeline EXCLUDES RoomIRAugmentation -- adding RIR at
+        eval time would corrupt the metric since the eval data already reflects
+        the deployment distribution (or, for the synthetic eval set, is meant
+        to represent clean inputs). Wide gain and audiomentations are also
+        omitted; only background noise is mixed in so val/test SNR matches
+        the train chain's noise floor.
+        """
+        cfg = self._config
+        if not (cfg.noise_augmentation_enabled and cfg.noise_dirs):
+            return ComposedAugmentation([])
+        mixer = BackgroundNoiseMixer(
+            noise_dirs=[Path(d) for d in cfg.noise_dirs],
+            snr_range=(cfg.noise_snr_range_low, cfg.noise_snr_range_high),
+            sample_rate=_SOURCE_SR,
+            p=cfg.noise_probability,
+        )
+        mixer.warm_cache()
+        return ComposedAugmentation([mixer])
 
     @staticmethod
     def _setup_stage1(model: nn.Module) -> None:
@@ -272,17 +380,63 @@ class EfficientATTrainingRunner:
 
             logger.info("Using lazy HF dataset for EfficientAT")
             hf_builder = HFDatasetBuilder(cfg.dads_hf_repo)
-            train_indices, val_indices, _ = split_idx_fn(hf_builder.total_rows, seed=42)
 
-            train_lbl = [hf_builder.all_labels[i] for i in train_indices]
-            val_lbl = [hf_builder.all_labels[i] for i in val_indices]
+            # Phase 20 path: sliding-window dataset + new augmentation chain.
+            # Activated when overlap is configured OR RIR is enabled (D-13/D-16).
+            use_phase20_path = (
+                cfg.window_overlap_ratio > 0 or cfg.rir_enabled
+            )
 
-            train_ds = _LazyEfficientATDataset(
-                hf_builder._hf_ds, train_indices, train_lbl, mel_cfg.segment_samples,
-            )
-            val_ds = _LazyEfficientATDataset(
-                hf_builder._hf_ds, val_indices, val_lbl, mel_cfg.segment_samples,
-            )
+            if use_phase20_path:
+                logger.info(
+                    "Phase 20 path active: window_overlap_ratio=%.2f rir_enabled=%s",
+                    cfg.window_overlap_ratio,
+                    cfg.rir_enabled,
+                )
+                num_files = hf_builder.total_rows
+                train_files, val_files, _test_files = split_file_indices(
+                    num_files=num_files,
+                    seed=42,
+                    train=1.0 - cfg.val_split,
+                    val=cfg.val_split / 2.0,
+                )
+                window_samples = int(0.5 * _SOURCE_SR)  # 8000 samples = 0.5 s @ 16 kHz
+                train_hop = max(
+                    1,
+                    int(window_samples * (1.0 - cfg.window_overlap_ratio)),
+                )
+                test_hop = window_samples  # D-16: non-overlapping test split
+
+                train_ds = WindowedHFDroneDataset(
+                    hf_builder._hf_ds,
+                    file_indices=train_files,
+                    window_samples=window_samples,
+                    hop_samples=train_hop,
+                    waveform_aug=self._build_train_augmentation(),
+                )
+                val_ds = WindowedHFDroneDataset(
+                    hf_builder._hf_ds,
+                    file_indices=val_files,
+                    window_samples=window_samples,
+                    hop_samples=test_hop,
+                    waveform_aug=self._build_eval_augmentation(),
+                )
+                train_lbl = [hf_builder.all_labels[i] for i in train_files]
+                val_lbl = [hf_builder.all_labels[i] for i in val_files]
+            else:
+                train_indices, val_indices, _ = split_idx_fn(
+                    hf_builder.total_rows, seed=42,
+                )
+
+                train_lbl = [hf_builder.all_labels[i] for i in train_indices]
+                val_lbl = [hf_builder.all_labels[i] for i in val_indices]
+
+                train_ds = _LazyEfficientATDataset(
+                    hf_builder._hf_ds, train_indices, train_lbl, mel_cfg.segment_samples,
+                )
+                val_ds = _LazyEfficientATDataset(
+                    hf_builder._hf_ds, val_indices, val_lbl, mel_cfg.segment_samples,
+                )
         else:
             train_wav, train_lbl, val_wav, val_lbl = result
             train_ds = _EfficientATDataset(train_wav, train_lbl, mel_cfg.segment_samples)
