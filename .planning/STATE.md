@@ -4,14 +4,14 @@ milestone: v1.0
 milestone_name: MVP
 status: executing
 stopped_at: Completed 15-02-PLAN.md
-last_updated: "2026-04-06T06:27:12.468Z"
-last_activity: 2026-04-06
+last_updated: "2026-04-06T14:50:10.959Z"
+last_activity: 2026-04-06 -- Phase 20 planning complete
 progress:
-  total_phases: 14
+  total_phases: 15
   completed_phases: 10
-  total_plans: 28
+  total_plans: 35
   completed_plans: 24
-  percent: 86
+  percent: 69
 ---
 
 # Project State
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-04-03)
 Phase: 18
 Plan: Not started
 Status: Ready to execute
-Last activity: 2026-04-06
+Last activity: 2026-04-06 -- Phase 20 planning complete
 
 ## Performance Metrics
 
@@ -78,6 +78,7 @@ Last activity: 2026-04-06
 - Phase 18 added: Direction of Arrival and WebSocket Broadcasting (DOA-01 through DOA-03, DIR-01, DIR-02)
 - Phase 19 added: Functional Beamforming Visualization (VIZ-01, VIZ-02)
 - Source: Research-validated beamforming parameters, spatial aliasing analysis for UMA-16v2
+- Phase 20 added: Retrain v7 with wide gain + room-IR augmentation, Vertex remote training, 60% overlap windows, expanded BG noise negatives
 
 ### Decisions
 

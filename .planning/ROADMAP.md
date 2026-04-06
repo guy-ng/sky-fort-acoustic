@@ -391,3 +391,14 @@ Phases execute in numeric order. Phase 11 is conditional. v3.0 phases: 13 -> 14 
 | 17. Beamforming Engine Upgrade and Pipeline Integration | v4.0 | 3/3 | Complete    | 2026-04-06 |
 | 18. Direction of Arrival and WebSocket Broadcasting | v4.0 | 0/0 | Not started | - |
 | 19. Functional Beamforming Visualization | v4.0 | 0/0 | Not started | - |
+
+### Phase 20: Retrain v7 with wide gain + room-IR augmentation, Vertex remote training, 60% overlap windows, expanded BG noise negatives
+
+**Goal:** Retrain v7 with deployment-matched augmentation so the model generalizes to real UMA-16 captures. Target augmentations: ±40 dB random gain, room impulse-response (RIR) convolution, additive UMA-16 ambient noise. Data pipeline: 60% window overlap for more samples; expand negative set with background noise sources from `docs/compass_artifact_wf-6c2ec688-1122-4ac5-898e-12ac7039d309_text_markdown.md`. Training executes remotely on Vertex AI (remote Docker), not locally. Deliverable: retrained v7 checkpoint with measurable improvement on real captures.
+
+**Requirements**: TBD
+**Depends on:** Phase 19
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 20 to break down)

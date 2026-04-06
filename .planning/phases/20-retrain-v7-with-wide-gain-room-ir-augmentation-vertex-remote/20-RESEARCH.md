@@ -643,25 +643,29 @@ Then extend `Evaluator.evaluate_classifier` (or add `evaluate_uma16`) to consume
 
 **Mitigation:** All assumptions are tagged. Planner SHOULD include a Wave 0 smoke-test plan that verifies A1, A6, A7 in the first 30 minutes of work, and surfaces A2/A3 to the user for confirmation before the first Vertex submission.
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Is DroneAudioSet's non-drone subset actually downloadable and license-compatible?**
    - What we know: Compass doc §1 references `augmented-human-lab/DroneAudioSet-code` on GitHub; HF dataset is at `ahlab-drone-project/DroneAudioSet`. Direct verification of non-drone clip availability was not possible in this session.
    - What's unclear: Whether the HF dataset exposes non-drone clips as a separate split or whether they're only embedded in mixed recordings.
    - Recommendation: Make D-19 OPTIONAL in the plan. If a 30-minute exploration spike doesn't surface a clean non-drone subset, drop it and rely on FSD50K + UMA-16 ambient. Don't block the phase on this.
+   - **RESOLVED:** D-19 treated as opportunistic. Plan 20-00 Task 3 gets a 30-min exploration with `skip-dronaudioset` resume-signal. If unavailable, drop silently.
 
 2. **What window length should Phase 20 use — 0.5s @ 16 kHz source, or 1s @ 32 kHz post-resample (matching `EfficientATMelConfig`)?**
    - What we know: v6 used random 0.5s segments at 16 kHz source, then resampled to 32 kHz. EfficientAT itself takes ~1s @ 32 kHz.
    - What's unclear: Whether to enumerate windows in the source-rate (16 kHz) or target-rate (32 kHz) space. If at source rate and overlap is 60%, the post-resample windows still align.
    - Recommendation: Enumerate at SOURCE rate (16 kHz), apply augmentation in source rate, then resample inside the dataset class. This keeps `BackgroundNoiseMixer` (16 kHz cached noise) on the fast path.
+   - **RESOLVED:** 0.5s @ 16 kHz source rate (pre-resample). `window_samples = int(0.5 * 16000) = 8000`. Plans 20-03 and 20-04 must hardcode this value.
 
 3. **Should the new TrainingConfig fields (RIR, wide gain, window overlap) default to enabled or disabled?**
    - Recommendation: Default DISABLED (`rir_enabled: bool = False`, `window_overlap_ratio: float = 0.0`). This makes Phase 20 a config-driven opt-in and preserves v6 reproducibility. The Phase 20 Vertex submission explicitly sets the flags via env vars.
+   - **RESOLVED:** `wide_gain_db=40.0` (enabled), `rir_enabled=True`, `rir_probability=0.7`, `window_hop_ratio=0.4`. All default-ON for Phase 20 training runs.
 
 4. **Does the existing `BackgroundNoiseMixer.warm_cache()` scale to ~10k+ FSD50K clips (potentially >2 GB in RAM)?**
    - What we know: ESC-50 + UrbanSound8K is ~10k clips ~1.5 GB. Adding the FSD50K subset of 6 classes is ~3-5k more clips → another ~600 MB-1 GB.
    - What's unclear: Vertex L4 instance RAM is 32 GB (g2-standard-8). 2-3 GB cached noise + 4-5 GB DADS HF Arrow + model + activations should fit, but the margin shrinks.
    - Recommendation: Plan a Wave 0 step that profiles `warm_cache()` RAM consumption and short-circuits to lazy loading if it exceeds 4 GB. Lazy loading is a 30-line change to `BackgroundNoiseMixer`.
+   - **RESOLVED:** Skip warm_cache for FSD50K — lazy-load per sample. Only ESC-50 + UrbanSound8K use warm_cache.
 
 ## Environment Availability
 
