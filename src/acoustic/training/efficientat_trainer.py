@@ -27,6 +27,7 @@ from acoustic.training.augmentation import (
     AudiomentationsAugmentation,
     BackgroundNoiseMixer,
     ComposedAugmentation,
+    RmsNormalize,
     RoomIRAugmentation,
     WideGainAugmentation,
 )
@@ -218,6 +219,12 @@ class EfficientATTrainingRunner:
             mixer.warm_cache()
             augs.append(mixer)
 
+        # Stage 5: RMS normalization — LAST in the chain (D-34).
+        # Kills the train/inference domain shift AND the DADS amplitude
+        # shortcut by landing every sample at a fixed target RMS regardless
+        # of gain, RIR, or SNR-mixed noise level.
+        augs.append(RmsNormalize(target=cfg.rms_normalize_target))
+
         return ComposedAugmentation(augs)
 
     def _build_eval_augmentation(self) -> ComposedAugmentation | None:
@@ -231,8 +238,11 @@ class EfficientATTrainingRunner:
         the train chain's noise floor.
         """
         cfg = self._config
+        # D-34: eval chain MUST end with RmsNormalize unconditionally so
+        # val/test inputs land in the same regime as train + live inference.
+        rms_stage = RmsNormalize(target=cfg.rms_normalize_target)
         if not (cfg.noise_augmentation_enabled and cfg.noise_dirs):
-            return ComposedAugmentation([])
+            return ComposedAugmentation([rms_stage])
         mixer = BackgroundNoiseMixer(
             noise_dirs=[Path(d) for d in cfg.noise_dirs],
             snr_range=(cfg.noise_snr_range_low, cfg.noise_snr_range_high),
@@ -240,7 +250,7 @@ class EfficientATTrainingRunner:
             p=cfg.noise_probability,
         )
         mixer.warm_cache()
-        return ComposedAugmentation([mixer])
+        return ComposedAugmentation([mixer, rms_stage])
 
     @staticmethod
     def _setup_stage1(model: nn.Module) -> None:

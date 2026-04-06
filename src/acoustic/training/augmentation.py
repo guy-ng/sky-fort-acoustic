@@ -17,6 +17,8 @@ try:
 except ImportError:
     Compose = Gain = PitchShift = TimeStretch = None  # type: ignore[assignment,misc]
 
+from acoustic.classification.preprocessing import _rms_normalize
+
 
 class WaveformAugmentation:
     """Waveform-level augmentation: Gaussian noise injection + random gain.
@@ -504,6 +506,28 @@ class RoomIRAugmentation:
 
     def __setstate__(self, state):
         self.__init__(**state)
+
+
+class RmsNormalize:
+    """RMS-normalize a waveform to a fixed target. Pickle-safe (D-34).
+
+    Delegates to ``acoustic.classification.preprocessing._rms_normalize`` so
+    the trainer dataset path and ``RawAudioPreprocessor.process()`` run the
+    EXACT same normalization math. Must run as the LAST step of the
+    augmentation chain — AFTER ``BackgroundNoiseMixer`` — so SNR-mixed signals
+    are normalized as a unit. See D-34 in 20-CONTEXT.md.
+    """
+
+    def __init__(self, target: float = 0.1, eps: float = 1e-6) -> None:
+        self.target = float(target)
+        self.eps = float(eps)
+
+    def __call__(self, audio: np.ndarray, sample_rate: int | None = None) -> np.ndarray:
+        # ComposedAugmentation calls augmentations positionally with just
+        # ``audio`` (see ComposedAugmentation.__call__ below), so
+        # ``sample_rate`` is optional. Accepting it keeps the interface
+        # symmetric with AudiomentationsAugmentation for future callers.
+        return _rms_normalize(audio, target=self.target, eps=self.eps)
 
 
 class ComposedAugmentation:

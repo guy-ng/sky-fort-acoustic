@@ -140,3 +140,18 @@ class TrainingConfig(BaseSettings):
     uma16_pure_negative_ratio: float = 0.10
     # Alias retained for plan-body compatibility (D-12 must-haves grep)
     uma16_ambient_pure_negative_ratio: float = 0.10
+
+    # D-34: per-sample RMS normalization target. Applied as the LAST step
+    # in the augmentation chain on BOTH training and eval splits, and
+    # mirrored on the inference side via AcousticSettings.cnn_rms_normalize_target
+    # so train/serve amplitude distributions match. Closes the ~50x train/live
+    # domain shift from scripts/verify_rms_domain_mismatch.py.
+    rms_normalize_target: float = Field(
+        default=0.1,
+        description=(
+            "Target RMS for per-sample normalization applied as the last "
+            "step of the augmentation chain (train + eval). Must match "
+            "AcousticSettings.cnn_rms_normalize_target on the inference side. "
+            "See D-34 and scripts/verify_rms_domain_mismatch.py."
+        ),
+    )

@@ -36,7 +36,11 @@ def _build_runner(noise_dir: Path):
 
 def test_train_chain_order(temp_noise_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Train chain must be exactly:
-    [WideGainAugmentation, RoomIRAugmentation, AudiomentationsAugmentation, BackgroundNoiseMixer]
+    [WideGainAugmentation, RoomIRAugmentation, AudiomentationsAugmentation,
+     BackgroundNoiseMixer, RmsNormalize]
+
+    Plan 20-08 (D-34) appends RmsNormalize as the LAST stage so train-time
+    signals land at the same RMS target as the inference path.
     """
     # Patch warm_cache so we don't need real noise loading.
     from acoustic.training import augmentation as aug_mod
@@ -55,11 +59,13 @@ def test_train_chain_order(temp_noise_dir: Path, monkeypatch: pytest.MonkeyPatch
         "RoomIRAugmentation",
         "AudiomentationsAugmentation",
         "BackgroundNoiseMixer",
+        "RmsNormalize",
     ]
 
 
 def test_eval_chain_excludes_rir(temp_noise_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Eval chain must NOT contain RoomIRAugmentation (D-08)."""
+    """Eval chain must NOT contain RoomIRAugmentation (D-08) but MUST end
+    with RmsNormalize (D-34)."""
     from acoustic.training import augmentation as aug_mod
 
     monkeypatch.setattr(
@@ -72,3 +78,6 @@ def test_eval_chain_excludes_rir(temp_noise_dir: Path, monkeypatch: pytest.Monke
     eval_aug = runner._build_eval_augmentation()
     names = [type(a).__name__ for a in eval_aug._augmentations]
     assert "RoomIRAugmentation" not in names
+    assert names[-1] == "RmsNormalize", (
+        f"eval chain must end with RmsNormalize (D-34); got {names}"
+    )
