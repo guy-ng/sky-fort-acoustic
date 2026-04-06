@@ -1,0 +1,16 @@
+[
+  {
+    "file": "clip_001.wav",
+    "label": "drone",
+    "start_s": 0.0,
+    "end_s": 5.0,
+    "notes": "DJI Mini 3, 15m altitude, hovering"
+  },
+  {
+    "file": "clip_002.wav",
+    "label": "no_drone",
+    "start_s": 0.0,
+    "end_s": 30.0,
+    "notes": "Outdoor ambient, light wind"
+  }
+]
