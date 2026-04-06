@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -80,3 +81,33 @@ class TrainingConfig(BaseSettings):
     time_stretch_max: float = 1.15
     waveform_gain_db: float = 6.0
     augmentation_probability: float = 0.5
+
+    # --- Phase 20 additions (D-01..D-20, D-23) -------------------------------
+    # WideGain replacement for small-gain stage (D-01..D-04)
+    wide_gain_db: float = 40.0
+    wide_gain_probability: float = 1.0
+
+    # Procedural ShoeBox RIR augmentation (D-05..D-08)
+    rir_enabled: bool = False
+    rir_probability: float = 0.7
+    rir_pool_size: int = 500
+    rir_room_dim_min: list[float] = Field(default_factory=lambda: [3.0, 3.0, 2.5])
+    rir_room_dim_max: list[float] = Field(default_factory=lambda: [12.0, 12.0, 4.0])
+    rir_absorption_min: float = 0.2
+    rir_absorption_max: float = 0.7
+    rir_source_distance_min: float = 1.0
+    rir_source_distance_max: float = 8.0
+    rir_max_order: int = 10
+
+    # Sliding-window dataset overlap (D-13..D-16)
+    window_overlap_ratio: float = 0.0
+    window_overlap_test: float = 0.0
+
+    # UMA-16 ambient noise mixing (D-10..D-12)
+    uma16_ambient_dir: str = "data/field/uma16_ambient"
+    uma16_ambient_snr_low: float = -5.0
+    uma16_ambient_snr_high: float = 15.0
+    # Primary field name (matches Wave 0 test stub test_uma16_pure_negative_ratio)
+    uma16_pure_negative_ratio: float = 0.10
+    # Alias retained for plan-body compatibility (D-12 must-haves grep)
+    uma16_ambient_pure_negative_ratio: float = 0.10
