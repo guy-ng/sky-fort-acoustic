@@ -170,12 +170,13 @@ class TestSegmentBuffer:
 
 
 class TestPipelineSegmentDuration:
-    def test_segment_uses_half_second(self):
-        """Pipeline must use 0.5s segments, not 2.0s."""
-        import acoustic.pipeline as pmod
+    def test_segment_uses_training_window(self):
+        """Pipeline CNN window matches the model's training window; interval comes from settings."""
+        from acoustic.config import AcousticSettings
+        from acoustic.pipeline import BeamformingPipeline
 
-        source = open(pmod.__file__).read()
-        assert "* 2.0" not in source, "Pipeline still uses 2.0s segments"
-        assert "* 0.5" in source or "segment_seconds" in source, (
-            "Pipeline must reference 0.5s segment duration"
-        )
+        settings = AcousticSettings()
+        pipe = BeamformingPipeline(settings)
+        # Pre-session placeholder is research_cnn training window (0.5s)
+        assert pipe._cnn_segment_samples == int(settings.sample_rate * 0.5)
+        assert pipe._cnn_interval == settings.cnn_interval_seconds

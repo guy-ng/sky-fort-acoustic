@@ -32,7 +32,7 @@ def mount_static(app: FastAPI) -> None:
 
     index_html = _DIST_DIR / "index.html"
 
-    @app.get("/{full_path:path}", include_in_schema=False)
+    @app.get("/{full_path:path}", include_in_schema=False, response_model=None)
     async def spa_fallback(request: Request, full_path: str) -> HTMLResponse | FileResponse:
         """Serve index.html for all non-API, non-WebSocket paths (SPA routing)."""
         # Serve specific files from dist if they exist (favicon, etc.)

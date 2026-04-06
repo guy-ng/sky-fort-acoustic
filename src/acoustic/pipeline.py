@@ -60,8 +60,30 @@ class DetectionSession:
     confidence: float = 0.90
     time_frame: float = 2.0
     positive_detections: int = 2
-    gain: float = 3.0
+    # Absolute mic-calibration multiplier — applied inside the preprocessor,
+    # never stacked with anything else. Default tuned for UMA-16v2.
+    gain: float = 500.0
+    # window_seconds is derived from model type to match training (NOT user-tunable).
+    window_seconds: float = 0.5
+    interval_seconds: float = 0.2
     log: deque = field(default_factory=lambda: deque(maxlen=MAX_DETECTION_LOG))
+
+
+def _training_window_seconds(model_type: str) -> float:
+    """Return the audio window length the given model was TRAINED on.
+
+    The window pushed to the classifier at runtime must always match training
+    or the mel-spectrogram time axis will not align with the model input. These
+    values are sourced from the actual training configs:
+        - research_cnn: MelConfig.segment_seconds = 0.5 (16 kHz mel)
+        - efficientat: EfficientATMelConfig — input_dim_t * hop_size / sample_rate
+                       = 100 * 320 / 32000 = 1.0 s
+    """
+    mt = (model_type or "").lower()
+    if "efficientat" in mt or "mn10" in mt or "mn05" in mt:
+        return 1.0
+    # default to research_cnn training window
+    return 0.5
 
 
 class BeamformingPipeline:
@@ -128,10 +150,16 @@ class BeamformingPipeline:
         self._tracker = tracker
         self._mono_buffer: list[np.ndarray] = []
         self._mono_buffer_samples: int = 0
-        self._cnn_segment_samples: int = int(settings.sample_rate * 0.5)
+        self._latest_raw_rms: float | None = None  # pre-gain RMS for level meter
+        # CNN cadence: every `_cnn_interval` seconds, push the last
+        # `_cnn_segment_samples` samples to the classifier. The WINDOW length
+        # is set per session by start_detection_session() to match the active
+        # model's training window. The default below (research_cnn / 0.5 s) is
+        # only a placeholder until a session starts.
+        self._cnn_segment_samples: int = int(settings.sample_rate * _training_window_seconds("research_cnn"))
         self._default_segment_samples: int = self._cnn_segment_samples
         self._last_cnn_push: float = 0.0
-        self._cnn_interval: float = 0.25  # Push every 0.25s for 50% overlap of 0.5s segments
+        self._cnn_interval: float = settings.cnn_interval_seconds
         self._default_cnn_interval: float = self._cnn_interval
         self._last_cnn_result_ts: float = 0.0  # Dedup CNN results by timestamp
 
@@ -233,6 +261,10 @@ class BeamformingPipeline:
             chunk = ring_buffer.read()
             if chunk is not None:
                 try:
+                    # Track raw (pre-gain) mono RMS for the sound-level meter
+                    if chunk.size > 0:
+                        mono_raw = chunk.mean(axis=1)
+                        self._latest_raw_rms = float(np.sqrt(np.mean(mono_raw.astype(np.float32) ** 2)))
                     # Forward to recording manager (passive observer)
                     if self._recording_manager is not None:
                         self._recording_manager.feed_chunk(chunk)
@@ -252,8 +284,22 @@ class BeamformingPipeline:
         positive_detections: int = 2,
         gain: float = 3.0,
         model_type: str = "research_cnn",
+        interval_seconds: float | None = None,
     ) -> None:
-        """Start a user-initiated detection session with custom parameters."""
+        """Start a user-initiated detection session.
+
+        The CNN audio window length is derived from `model_type` so it always
+        matches what the model was trained on (research_cnn → 0.5 s,
+        efficientat → 1.0 s). Only the inference INTERVAL is user-tunable —
+        every `interval_seconds` the pipeline classifies the most recent
+        training-window of audio.
+        """
+        # Window length is dictated by the model — never user-overridable.
+        win = _training_window_seconds(model_type)
+        ivl = float(interval_seconds) if interval_seconds is not None else self._settings.cnn_interval_seconds
+        if ivl <= 0:
+            raise ValueError("interval_seconds must be > 0")
+
         with self._detection_lock:
             self._detection_session = DetectionSession(
                 model_path=model_path,
@@ -261,20 +307,17 @@ class BeamformingPipeline:
                 time_frame=time_frame,
                 positive_detections=positive_detections,
                 gain=gain,
+                window_seconds=win,
+                interval_seconds=ivl,
             )
 
-        # EfficientAT needs 1s segments at 48kHz (resampled to 32kHz by preprocessor)
-        # with 0.25s overlap (push every 0.75s)
-        if "efficientat" in model_type or "mn10" in model_type or "mn05" in model_type:
-            self._cnn_segment_samples = int(self._settings.sample_rate * 1.0)  # 1s
-            self._cnn_interval = 0.75  # 0.25s overlap
-        else:
-            self._cnn_segment_samples = self._default_segment_samples
-            self._cnn_interval = self._default_cnn_interval
+        self._cnn_segment_samples = int(self._settings.sample_rate * win)
+        self._cnn_interval = ivl
 
         # Reset mono buffer for new segment size
         self._mono_buffer.clear()
         self._mono_buffer_samples = 0
+        self._last_cnn_push = 0.0
 
         # Reconfigure state machine thresholds
         if self._state_machine is not None:
@@ -283,9 +326,8 @@ class BeamformingPipeline:
             self._state_machine._confirm = positive_detections
             self._state_machine.reset()
         logger.info(
-            "Detection session started: model=%s type=%s segment=%.1fs interval=%.2fs confidence=%.0f%% gain=%.1f",
-            model_path, model_type, self._cnn_segment_samples / self._settings.sample_rate,
-            self._cnn_interval, confidence * 100, gain,
+            "Detection session started: model=%s type=%s window=%.2fs (training-locked) interval=%.2fs confidence=%.0f%% gain=%.1f",
+            model_path, model_type, win, ivl, confidence * 100, gain,
         )
 
     def stop_detection_session(self) -> None:
@@ -316,12 +358,12 @@ class BeamformingPipeline:
 
         session = self._detection_session
 
-        # Always accumulate mono audio so we have a rolling buffer ready
+        # Always accumulate mono audio so we have a rolling buffer ready.
+        # NOTE: gain is NOT applied here. The session `gain` is the single
+        # absolute mic-calibration multiplier and lives inside the preprocessor
+        # (RawAudioPreprocessor.input_gain) so it survives a hot model swap and
+        # never stacks with anything. See pipeline_routes.start_detection().
         mono = chunk.mean(axis=1).astype(np.float32)
-
-        # Apply gain if detection session is active
-        if session is not None and session.gain != 1.0:
-            mono = mono * session.gain
         self._mono_buffer.append(mono)
         self._mono_buffer_samples += len(mono)
 
@@ -331,20 +373,22 @@ class BeamformingPipeline:
             dropped = self._mono_buffer.pop(0)
             self._mono_buffer_samples -= len(dropped)
 
-        # Push to CNN when we have enough audio accumulated:
-        # - On peak: push immediately with best peak bearing
-        # - No peak: push periodically (every _cnn_interval) with (0,0) bearing
-        #   so the UI always has a fresh drone probability
+        # Push to CNN at a fixed cadence: every `_cnn_interval` seconds, send
+        # the most recent `_cnn_segment_samples` of audio. If a peak was just
+        # detected we attach its bearing, otherwise (0,0) — bearing is only a
+        # hint to the tracker, not a gate on inference.
         now = time.monotonic()
-        if self._mono_buffer_samples >= self._cnn_segment_samples:
+        if (
+            self._mono_buffer_samples >= self._cnn_segment_samples
+            and now - self._last_cnn_push >= self._cnn_interval
+        ):
             segment = np.concatenate(self._mono_buffer)[-self._cnn_segment_samples:]
             if peaks:
                 best = peaks[0]
                 self._cnn_worker.push(segment, best.az_deg, best.el_deg)
-                self._last_cnn_push = now
-            elif now - self._last_cnn_push >= self._cnn_interval:
+            else:
                 self._cnn_worker.push(segment, 0.0, 0.0)
-                self._last_cnn_push = now
+            self._last_cnn_push = now
 
         # Check for CNN results (dedup by timestamp)
         result = self._cnn_worker.get_latest()
@@ -418,6 +462,17 @@ class BeamformingPipeline:
             return None
         result = self._cnn_worker.get_latest()
         return result.drone_probability if result is not None else None
+
+    @property
+    def latest_audio_level_db(self) -> float | None:
+        """Return raw (pre-gain) RMS level in dBFS of the most recent audio chunk.
+
+        Updated by `_process_cnn` on every chunk. Returns None before the first
+        chunk has been processed.
+        """
+        if self._latest_raw_rms is None:
+            return None
+        return float(20.0 * np.log10(max(self._latest_raw_rms, 1e-10)))
 
     @property
     def latest_detection_state(self) -> str | None:

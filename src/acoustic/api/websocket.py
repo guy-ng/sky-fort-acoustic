@@ -230,6 +230,24 @@ async def ws_recording(websocket: WebSocket) -> None:
         logger.debug("Recording WebSocket client disconnected")
 
 
+@router.websocket("/ws/sound-level")
+async def ws_sound_level(websocket: WebSocket) -> None:
+    """Stream raw (pre-gain) mic RMS level in dBFS at 10 Hz.
+
+    Protocol: sends `{"level_db": float | null}` every 100 ms. `null` is sent
+    when no chunk has been processed yet (e.g., device not connected).
+    """
+    await websocket.accept()
+    try:
+        while True:
+            pipeline = websocket.app.state.pipeline
+            level = pipeline.latest_audio_level_db
+            await websocket.send_json({"level_db": level})
+            await asyncio.sleep(0.1)
+    except (WebSocketDisconnect, RuntimeError):
+        logger.debug("Sound-level WebSocket client disconnected")
+
+
 @router.websocket("/ws/pipeline")
 async def ws_pipeline(websocket: WebSocket) -> None:
     """Stream pipeline detection status and log entries at 2 Hz.

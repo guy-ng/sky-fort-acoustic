@@ -131,13 +131,25 @@ async def start_detection(body: PipelineStartRequest, request: Request):
         classifier = load_model(model_type, model_path)
         cnn_worker.set_classifier(classifier)
 
-        # EfficientAT models do their own mel preprocessing — use passthrough
+        # Preprocessor selection — DO NOT recreate the preprocessor on every
+        # session start. The lifespan-startup picks the right type based on
+        # cnn_model_type and we only need to (a) hot-update the calibration
+        # gain on the raw-audio path, or (b) swap the type if the user picked
+        # a different model family than the one configured at startup.
+        from acoustic.classification.preprocessing import (
+            RawAudioPreprocessor,
+            ResearchPreprocessor,
+        )
+        existing_pp = getattr(cnn_worker, "_preprocessor", None)
         if model_type == "efficientat_mn10":
-            from acoustic.classification.preprocessing import RawAudioPreprocessor
-            cnn_worker.set_preprocessor(RawAudioPreprocessor())
+            if isinstance(existing_pp, RawAudioPreprocessor):
+                # Reuse — preserves debug-dump sequence and any cached resampler.
+                existing_pp.set_input_gain(body.gain)
+            else:
+                cnn_worker.set_preprocessor(RawAudioPreprocessor(input_gain=body.gain))
         else:
-            from acoustic.classification.preprocessing import ResearchPreprocessor
-            cnn_worker.set_preprocessor(ResearchPreprocessor())
+            if not isinstance(existing_pp, ResearchPreprocessor):
+                cnn_worker.set_preprocessor(ResearchPreprocessor())
     except Exception as e:
         logger.exception("Failed to load model for detection session")
         return JSONResponse(
@@ -146,15 +158,20 @@ async def start_detection(body: PipelineStartRequest, request: Request):
         )
 
     # Start detection session
-    pipeline.start_detection_session(
-        model_path=body.model_path,
-        confidence=body.confidence,
-        time_frame=body.time_frame,
-        positive_detections=body.positive_detections,
-        gain=body.gain,
-        model_type=model_type,
-    )
+    try:
+        pipeline.start_detection_session(
+            model_path=body.model_path,
+            confidence=body.confidence,
+            time_frame=body.time_frame,
+            positive_detections=body.positive_detections,
+            gain=body.gain,
+            model_type=model_type,
+            interval_seconds=body.interval_seconds,
+        )
+    except ValueError as e:
+        return JSONResponse(status_code=400, content={"message": str(e)})
 
+    session = pipeline.detection_session
     return {
         "message": f"Detection started with {Path(body.model_path).name}",
         "model_path": body.model_path,
@@ -162,6 +179,8 @@ async def start_detection(body: PipelineStartRequest, request: Request):
         "time_frame": body.time_frame,
         "positive_detections": body.positive_detections,
         "gain": body.gain,
+        "window_seconds": session.window_seconds if session else None,
+        "interval_seconds": session.interval_seconds if session else None,
     }
 
 
@@ -190,6 +209,8 @@ async def get_status(request: Request) -> PipelineStatusResponse:
         time_frame=session.time_frame if session else None,
         positive_detections=session.positive_detections if session else None,
         gain=session.gain if session else None,
+        window_seconds=session.window_seconds if session else None,
+        interval_seconds=session.interval_seconds if session else None,
         detection_state=pipeline.latest_detection_state,
         drone_probability=pipeline.latest_drone_probability,
     )

@@ -295,7 +295,10 @@ async def lifespan(app: FastAPI):
         import torch
 
         from acoustic.classification.aggregation import WeightedAggregator
-        from acoustic.classification.preprocessing import ResearchPreprocessor
+        from acoustic.classification.preprocessing import (
+            RawAudioPreprocessor,
+            ResearchPreprocessor,
+        )
         from acoustic.classification.research_cnn import ResearchClassifier, ResearchCNN
         from acoustic.classification.state_machine import DetectionStateMachine
         from acoustic.classification.worker import CNNWorker
@@ -303,7 +306,14 @@ async def lifespan(app: FastAPI):
         from acoustic.tracking.tracker import TargetTracker
 
         broadcaster = EventBroadcaster()
-        preprocessor = ResearchPreprocessor()
+        # Pick preprocessor by model type. EfficientAT does its own mel/STFT
+        # internally so it needs raw waveforms (with mic-calibration gain
+        # applied); ResearchCNN expects pre-computed mel-spectrograms.
+        mt = (settings.cnn_model_type or "").lower()
+        if "efficientat" in mt or "mn10" in mt or "mn05" in mt:
+            preprocessor = RawAudioPreprocessor(input_gain=settings.cnn_input_gain)
+        else:
+            preprocessor = ResearchPreprocessor()
 
         # Classifier factory: ensemble detection first, then single-model fallback
         classifier = None
@@ -376,6 +386,7 @@ async def lifespan(app: FastAPI):
             classifier=classifier,
             aggregator=aggregator,
             fs_in=settings.sample_rate,
+            silence_threshold=settings.cnn_silence_threshold,
         )
         state_machine = DetectionStateMachine(
             enter_threshold=settings.cnn_enter_threshold,
@@ -495,6 +506,11 @@ app.include_router(pipeline_router)
 from acoustic.api.recording_routes import router as recording_router
 
 app.include_router(recording_router)
+
+# Test pipeline routes (DADS sample preview in Tools page)
+from acoustic.api.test_pipeline_routes import router as test_pipeline_router
+
+app.include_router(test_pipeline_router)
 
 
 @app.get("/health")

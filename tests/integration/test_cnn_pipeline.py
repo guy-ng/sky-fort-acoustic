@@ -219,7 +219,22 @@ class TestFactoryWiring:
 class TestPipelineOverlap:
     """Tests for pipeline segment push interval."""
 
-    def test_cnn_interval_is_025(self, settings):
-        """Pipeline pushes segments every 0.25s for 50% overlap (D-02)."""
+    def test_cnn_interval_default_from_settings(self, settings):
+        """Pipeline cadence interval default comes from AcousticSettings (0.2s)."""
         pipeline = BeamformingPipeline(settings)
-        assert pipeline._cnn_interval == 0.25
+        assert pipeline._cnn_interval == settings.cnn_interval_seconds == 0.2
+        # Window placeholder pre-session is the research_cnn training window (0.5s)
+        assert pipeline._cnn_segment_samples == int(settings.sample_rate * 0.5)
+
+    def test_session_window_matches_model_training(self, settings):
+        """start_detection_session locks the window to the model's training length."""
+        pipeline = BeamformingPipeline(settings)
+        # research_cnn → 0.5s
+        pipeline.start_detection_session(model_path="x", model_type="research_cnn")
+        assert pipeline._cnn_segment_samples == int(settings.sample_rate * 0.5)
+        assert pipeline.detection_session.window_seconds == 0.5
+        pipeline.stop_detection_session()
+        # efficientat → 1.0s
+        pipeline.start_detection_session(model_path="x", model_type="efficientat_mn10")
+        assert pipeline._cnn_segment_samples == int(settings.sample_rate * 1.0)
+        assert pipeline.detection_session.window_seconds == 1.0

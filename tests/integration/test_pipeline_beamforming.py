@@ -147,12 +147,12 @@ class TestFullLoopWithCNN:
 
         chunk = make_synthetic_chunk()
 
-        # Process enough chunks to fill the CNN mono buffer
-        # Each chunk is 7200 samples; CNN segment is 24000 samples (0.5s at 48kHz)
-        # Need at least 4 chunks to accumulate enough audio
+        # Process enough chunks to fill the CNN mono buffer.
+        # Each chunk is 7200 samples (0.15s @ 48 kHz). The pre-session CNN
+        # window placeholder is 0.5s = 24000 samples, so 4 chunks are enough.
         for _ in range(5):
             peaks = pipe.process_chunk(chunk)
             pipe._process_cnn(chunk, peaks)
 
-        # CNN worker should have received pushes
+        # CNN worker should have received at least one push
         assert cnn_worker.push.called

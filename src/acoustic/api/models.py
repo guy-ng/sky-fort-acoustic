@@ -303,7 +303,14 @@ class PipelineStartRequest(BaseModel):
     confidence: float = 0.90
     time_frame: float = 2.0
     positive_detections: int = 2
-    gain: float = 3.0
+    # `gain` is the SINGLE absolute mic-calibration multiplier applied to raw
+    # waveforms before they reach the EfficientAT classifier. It is no longer
+    # stacked with any other gain. Default 500 is calibrated for the UMA-16v2.
+    gain: float = 500.0
+    # CNN inference interval (seconds). The window length is derived from the
+    # model type to match training and is NOT user-tunable. Omit to use the
+    # AcousticSettings default.
+    interval_seconds: float | None = None
 
 
 class PipelineStatusResponse(BaseModel):
@@ -315,6 +322,8 @@ class PipelineStatusResponse(BaseModel):
     time_frame: float | None = None
     positive_detections: int | None = None
     gain: float | None = None
+    window_seconds: float | None = None
+    interval_seconds: float | None = None
     detection_state: str | None = None
     drone_probability: float | None = None
 
