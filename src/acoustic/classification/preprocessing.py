@@ -15,6 +15,42 @@ import torchaudio.transforms as T
 from acoustic.classification.config import MelConfig
 
 
+def _rms_normalize(
+    audio,  # np.ndarray | torch.Tensor
+    target: float = 0.1,
+    eps: float = 1e-6,
+):
+    """Scale a waveform so its RMS equals ``target``.
+
+    Shared helper used on BOTH the training dataset path AND
+    ``RawAudioPreprocessor.process()`` so the model sees the same amplitude
+    distribution at train and inference time (D-34). Closes the train/inference
+    domain shift surfaced by ``scripts/verify_rms_domain_mismatch.py``.
+
+    Contract:
+      - Accepts a 1-D float32 ``np.ndarray`` OR ``torch.Tensor``. Returns the
+        same type it received.
+      - If ``current_rms < eps`` (silence or near-silence), returns the input
+        unchanged so we never amplify a noise floor.
+      - Otherwise multiplies the waveform by ``target / current_rms`` so the
+        output RMS equals ``target``.
+      - Does not clip. Downstream code handles saturation if any; the default
+        ``target=0.1`` is well below 1.0 so clipping is unlikely.
+      - Idempotent within float32 precision.
+    """
+    if isinstance(audio, torch.Tensor):
+        current_rms = torch.sqrt(torch.mean(audio * audio))
+        if float(current_rms.item()) < eps:
+            return audio
+        return audio * (target / current_rms)
+    # numpy path
+    current_rms = float(np.sqrt(np.mean(audio.astype(np.float64) ** 2)))
+    if current_rms < eps:
+        return audio
+    scaled = audio * (target / current_rms)
+    return scaled.astype(audio.dtype)
+
+
 def pad_or_loop(audio: np.ndarray, target_len: int) -> np.ndarray:
     """Pad short audio by looping (tiling) instead of zero-padding.
 
