@@ -32,6 +32,7 @@ from acoustic.training.augmentation import (
 )
 from acoustic.training.config import TrainingConfig
 from acoustic.training.hf_dataset import WindowedHFDroneDataset
+from acoustic.training.losses import build_loss_function
 from acoustic.training.parquet_dataset import split_file_indices
 from acoustic.training.trainer import EarlyStopping
 
@@ -510,7 +511,14 @@ class EfficientATTrainingRunner:
             n_fft=mel_cfg.n_fft, freqm=0, timem=0,
         ).to(device)
 
-        criterion = nn.BCEWithLogitsLoss()
+        # D-31: honor cfg.loss_function ("focal" by default) instead of
+        # hard-coding BCE. See .planning/debug/training-collapse-constant-output.md
+        criterion = build_loss_function(
+            loss_type=cfg.loss_function,
+            focal_alpha=cfg.focal_alpha,
+            focal_gamma=cfg.focal_gamma,
+            bce_pos_weight=cfg.bce_pos_weight,
+        ).to(device)
 
         ckpt_path = Path(cfg.checkpoint_path)
         ckpt_path.parent.mkdir(parents=True, exist_ok=True)
