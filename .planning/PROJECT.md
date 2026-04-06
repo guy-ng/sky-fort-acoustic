@@ -18,6 +18,7 @@ Reliably detect and classify drones acoustically in real time, publishing target
 - [x] Shared preprocessing config with research-validated parameters (MelConfig) — Validated in Phase 6
 - [x] Classifier/Preprocessor protocol contracts for pipeline decoupling — Validated in Phase 6
 - [x] ResearchCNN model architecture with segment aggregation, protocol-injected into live pipeline — Validated in Phase 7
+- [x] Upgraded beamforming engine (bandpass pre-filter 500–4000 Hz, parabolic interpolation, MCRA noise estimation, multi-peak detection) wired into live pipeline with demand-driven CNN-gated activation — Validated in Phase 17
 
 ### Active
 
@@ -105,4 +106,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-03 — Milestone v4.0 started: Research-Based Beamforming & Direction Calculation*
+*Last updated: 2026-04-06 — Phase 17 complete: beamforming engine upgrade wired into live pipeline with demand-driven CNN-gated activation*
