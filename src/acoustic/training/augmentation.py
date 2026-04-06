@@ -6,10 +6,12 @@ from collections.abc import Callable
 from pathlib import Path
 
 import numpy as np
+import pyroomacoustics as pra
 import soundfile as sf
 import torch
 import torchaudio
 import torchaudio.transforms as T
+from scipy.signal import fftconvolve
 try:
     from audiomentations import Compose, Gain, PitchShift, TimeStretch
 except ImportError:
@@ -246,6 +248,139 @@ class AudiomentationsAugmentation:
             Augmented 1-D float32 array of the same length.
         """
         return self._augment(samples=audio, sample_rate=self._sample_rate)
+
+
+class WideGainAugmentation:
+    """Wide ±wide_gain_db uniform gain (Phase 20 D-01..D-04).
+
+    Replaces the WaveformAugmentation small-gain stage. Runs as a separate
+    pre-stage in ComposedAugmentation. Clips to [-1, 1] before returning so
+    downstream RIR convolution sees a bounded signal (Pitfall 2 in Phase 20
+    research).
+    """
+
+    def __init__(self, wide_gain_db: float = 40.0, p: float = 1.0) -> None:
+        self._wide_gain_db = float(wide_gain_db)
+        self._p = float(p)
+        self._rng = np.random.default_rng()
+
+    def __call__(self, audio: np.ndarray) -> np.ndarray:
+        if self._rng.random() >= self._p:
+            return audio
+        gain_db = self._rng.uniform(-self._wide_gain_db, self._wide_gain_db)
+        gain_linear = 10.0 ** (gain_db / 20.0)
+        out = (audio * gain_linear).astype(np.float32)
+        return np.clip(out, -1.0, 1.0)
+
+    def __getstate__(self):
+        # Pickle-safe: exclude live RNG (rebuilt on unpickle by worker)
+        return {"wide_gain_db": self._wide_gain_db, "p": self._p}
+
+    def __setstate__(self, state):
+        self._wide_gain_db = state["wide_gain_db"]
+        self._p = state["p"]
+        self._rng = np.random.default_rng()
+
+
+class RoomIRAugmentation:
+    """Procedural ShoeBox RIR convolution (Phase 20 D-05..D-08).
+
+    Pre-generates a pool of pool_size RIRs at construction (via
+    pyroomacoustics.ShoeBox image source method). Each __call__ samples one
+    RIR from the pool and convolves with the input via
+    scipy.signal.fftconvolve. Faster than per-call generation (~5-15 ms per
+    ShoeBox simulation -- see Pitfall 3 in 20-RESEARCH.md) and removes
+    pyroomacoustics from the per-batch hot path.
+    """
+
+    def __init__(
+        self,
+        sample_rate: int = 16000,
+        pool_size: int = 500,
+        room_dim_min: tuple[float, float, float] = (3.0, 3.0, 2.5),
+        room_dim_max: tuple[float, float, float] = (12.0, 12.0, 4.0),
+        absorption_range: tuple[float, float] = (0.2, 0.7),
+        source_distance_range: tuple[float, float] = (1.0, 8.0),
+        max_order: int = 10,
+        p: float = 0.7,
+        seed: int = 42,
+    ) -> None:
+        self._sr = int(sample_rate)
+        self._pool_size = int(pool_size)
+        self._room_dim_min = tuple(room_dim_min)
+        self._room_dim_max = tuple(room_dim_max)
+        self._absorption_range = tuple(absorption_range)
+        self._source_distance_range = tuple(source_distance_range)
+        self._max_order = int(max_order)
+        self._p = float(p)
+        self._seed = int(seed)
+        init_rng = np.random.default_rng(self._seed)
+        self._pool: list[np.ndarray] = [
+            self._generate_one(init_rng) for _ in range(self._pool_size)
+        ]
+        self._call_rng = np.random.default_rng()
+
+    def _generate_one(self, rng: np.random.Generator) -> np.ndarray:
+        room_dim = rng.uniform(self._room_dim_min, self._room_dim_max)  # shape (3,)
+        absorption = float(rng.uniform(*self._absorption_range))
+        room = pra.ShoeBox(
+            room_dim.tolist(),
+            fs=self._sr,
+            materials=pra.Material(absorption),
+            max_order=self._max_order,
+        )
+        mic_pos = room_dim / 2.0
+        src_pos = mic_pos + np.array([1.0, 0.0, 0.0])  # default fallback
+        for _ in range(8):
+            dist = float(rng.uniform(*self._source_distance_range))
+            theta = float(rng.uniform(0, 2 * np.pi))
+            phi = float(rng.uniform(np.pi / 4, 3 * np.pi / 4))
+            offset = np.array([
+                dist * np.sin(phi) * np.cos(theta),
+                dist * np.sin(phi) * np.sin(theta),
+                dist * np.cos(phi),
+            ])
+            candidate = mic_pos + offset
+            margin = 0.3
+            if np.all(candidate > margin) and np.all(candidate < room_dim - margin):
+                src_pos = candidate
+                break
+        room.add_source(src_pos.tolist())
+        room.add_microphone(mic_pos.tolist())
+        room.compute_rir()
+        rir = np.asarray(room.rir[0][0], dtype=np.float32)
+        max_len = self._sr  # 1 second cap (Pitfall 3)
+        if len(rir) > max_len:
+            rir = rir[:max_len]
+        return rir
+
+    def __call__(self, audio: np.ndarray) -> np.ndarray:
+        if not self._pool or self._call_rng.random() >= self._p:
+            return audio
+        rir = self._pool[self._call_rng.integers(len(self._pool))]
+        out = fftconvolve(audio, rir, mode="full")[: len(audio)]
+        peak_in = float(np.abs(audio).max())
+        peak_out = float(np.abs(out).max())
+        if peak_out > 1e-8 and peak_in > 0:
+            out = out * (peak_in / peak_out)
+        return out.astype(np.float32)
+
+    def __getstate__(self):
+        # Pool is reproducible from seed -- exclude RNG and pool, rebuild on unpickle.
+        return {
+            "sample_rate": self._sr,
+            "pool_size": self._pool_size,
+            "room_dim_min": self._room_dim_min,
+            "room_dim_max": self._room_dim_max,
+            "absorption_range": self._absorption_range,
+            "source_distance_range": self._source_distance_range,
+            "max_order": self._max_order,
+            "p": self._p,
+            "seed": self._seed,
+        }
+
+    def __setstate__(self, state):
+        self.__init__(**state)
 
 
 class ComposedAugmentation:
