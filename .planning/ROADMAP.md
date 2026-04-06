@@ -391,6 +391,7 @@ Phases execute in numeric order. Phase 11 is conditional. v3.0 phases: 13 -> 14 
 | 17. Beamforming Engine Upgrade and Pipeline Integration | v4.0 | 3/3 | Complete    | 2026-04-06 |
 | 18. Direction of Arrival and WebSocket Broadcasting | v4.0 | 0/0 | Not started | - |
 | 19. Functional Beamforming Visualization | v4.0 | 0/0 | Not started | - |
+| 20. Retrain v7 with wide gain + RIR + Vertex remote | v1.0 | 7/9 + 1 partial | ⚠ Blocked (data acq.) | - |
 
 ### Phase 20: Retrain v7 with wide gain + room-IR augmentation, Vertex remote training, 60% overlap windows, expanded BG noise negatives
 
@@ -398,7 +399,26 @@ Phases execute in numeric order. Phase 11 is conditional. v3.0 phases: 13 -> 14 
 
 **Requirements**: TBD
 **Depends on:** Phase 19
-**Plans:** 3/9 plans executed
+**Plans:** 7/9 complete + 1 code-complete-but-blocked (20-05 Task 1)
+**Status:** ⚠ BLOCKED on noise-corpora data acquisition (2026-04-07)
+
+**Blocker:** `Dockerfile.vertex-base` and `build_env_vars_v7()` reference `data/noise/{esc50,urbansound8k,fsd50k_subset}/` — only `.gitkeep` placeholders exist on disk. Plan 20-00 created the placeholder dirs but the actual ESC50 / UrbanSound8K / FSD50K downloads were always meant to be a manual capture step that has not happened. Submitting v7 as-is would silently train against ONE noise source (UMA-16 outdoor_quiet ambient pool, 31 min) instead of FOUR — almost certainly failing the locked promotion gate (DADS≥0.95 / real_TPR≥0.80 / real_FPR≤0.05). See `.planning/phases/20-.../20-05-SUMMARY.md` "BLOCKED ON DATA ACQUISITION" section.
+
+**Resolution path:** Create a new phase (e.g. Phase 20.1 via `/gsd-insert-phase` or Phase 21 via `/gsd-add-phase`) that:
+1. Acquires ESC50 (~600 MB, CC BY-NC 4.0), UrbanSound8K (~6 GB, registration required), and an FSD50K subset (~2–4 GB curated)
+2. Places them under `data/noise/{esc50,urbansound8k,fsd50k_subset}/`
+3. Adds a host-side preflight test (e.g., `tests/integration/test_noise_corpora_present.py`) that fails if any noise dir contains <N audio files — so this can never silently happen again
+4. Verifies the parquet ambient/eval shards are still in sync with the WAV trees
+
+After that phase completes, run `/gsd-execute-phase 20 --wave 4` to trigger the human checkpoint (build/push/submit) on the ALREADY-COMMITTED Plan 20-05 code, then `/gsd-execute-phase 20 --wave 5` for the eval harness + promotion gate.
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 20 to break down)
+- [x] 20-00 Wave 0 test stubs and data acquisition placeholders (commits f6af9ed..03e7d39)
+- [x] 20-01 New augmentations: WideGainAugmentation + RoomIRAugmentation (commit 3319920)
+- [x] 20-02 BackgroundNoiseMixer UMA-16 + TrainingConfig fields (commits 660da2c..5c3c993)
+- [x] 20-03 Sliding-window dataset + session-level split (commits 6a3e434..ea2d6fe)
+- [x] 20-04 Trainer wiring (commits 1948e14..59391ae)
+- [x] 20-07 Trainer correctness fixes D-30..D-33 (commits 567afe7..b63404b)
+- [x] 20-08 RMS normalization D-34 (commits d48dbb9..b5244db)
+- [~] 20-05 Vertex Docker + submit — Task 1 code-complete (commits 428176c..70b02bb); **Task 2 BLOCKED on noise-corpora data acquisition**
+- [ ] 20-06 Eval harness + promotion gate — not yet started; depends on v7 checkpoint from 20-05 Task 2

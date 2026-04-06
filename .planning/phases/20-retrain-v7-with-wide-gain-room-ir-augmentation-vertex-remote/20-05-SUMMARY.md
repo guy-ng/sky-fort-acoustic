@@ -47,11 +47,78 @@ requirements-completed: [D-21, D-22, D-23, D-24, D-25]
 
 duration: 22 min
 completed: 2026-04-07
+status: blocked-on-data-acquisition
+blocker: missing-noise-corpora
 ---
 
 # Phase 20 Plan 05: Vertex Docker + Submit Summary
 
-**Two-image Vertex container (acoustic-trainer-base bakes 3-4 GB of noise + ambient data; acoustic-trainer layers only code) plus `build_env_vars_v7` / `check_l4_quota` / `submit_v7_job` in vertex_submit.py with automatic L4->T4 fallback resolved at submission time — Task 1 complete, Task 2 (actual build/push/submit) is a blocking human checkpoint.**
+> ## ⚠ BLOCKED ON DATA ACQUISITION (discovered 2026-04-07)
+>
+> **Task 1 code is correct and tests are GREEN, but the Dockerfile references background-noise corpora that do not exist on disk. The Vertex training job CANNOT be submitted as planned without first acquiring those corpora.**
+>
+> ### What's missing
+>
+> The committed `Dockerfile.vertex-base` does:
+> ```dockerfile
+> COPY data/noise /app/data/noise
+> COPY data/field/uma16_ambient /app/data/field/uma16_ambient
+> ```
+>
+> And `build_env_vars_v7()` sets:
+> ```python
+> ACOUSTIC_TRAINING_NOISE_DIRS = [
+>     "/app/data/noise/esc50",         # ❌ host dir does not exist
+>     "/app/data/noise/urbansound8k",  # ❌ host dir does not exist
+>     "/app/data/noise/fsd50k_subset", # ❌ only `.gitkeep` placeholder from Plan 20-00
+>     "/app/data/field/uma16_ambient", # ✓ 243 outdoor_quiet WAVs (~58 MB)
+> ]
+> ```
+>
+> **On-disk reality (verified 2026-04-07):**
+>
+> | Path | Status | Size |
+> |------|--------|------|
+> | `data/noise/esc50/` | does not exist | — |
+> | `data/noise/urbansound8k/` | does not exist | — |
+> | `data/noise/fsd50k_subset/` | placeholder only (`.gitkeep`) | 0 |
+> | `data/field/uma16_ambient/outdoor_quiet/` | 243 WAVs | 58 MB |
+> | `data/parquet/ambient/train-0.parquet` | parquet form of UMA-16 ambient | 24 MB |
+> | `data/parquet/eval/train-0.parquet` | parquet form of `uma16_real` | 21 MB |
+>
+> Plan 20-00 only created `.gitkeep` placeholders ("Data placeholder directories for **manual capture**" — see 20-00 SUMMARY decisions). The actual ESC50 / UrbanSound8K / FSD50K download was always meant to be a manual step that has not happened.
+>
+> ### Why this matters
+>
+> If we built and pushed the image as-is and submitted the v7 job:
+> - Image size would be ~58 MB above base (not the planned 3–4 GB), so the two-image strategy buys nothing.
+> - `BackgroundNoiseMixer` would only see `/app/data/field/uma16_ambient/` — a single 31-minute outdoor_quiet pool.
+> - Three of the four "diverse environment noise" sources (D-10, D-18, D-20) would be silently empty.
+> - The trained v7 would be Phase 20 in name only — none of the urban / environmental / household noise diversity Phase 20 was designed around.
+> - Phase 20 promotion gate (DADS≥0.95, real_TPR≥0.80, real_FPR≤0.05 — D-26/D-27/D-29) would likely **fail**, burning 4–12 h of paid GPU time on a structurally weaker model than v6.
+>
+> ### Why the test gate didn't catch this
+>
+> `tests/integration/test_vertex_dockerfile_copy.py` only string-matches `COPY data/noise` and `COPY data/field/uma16_ambient` against the Dockerfile text. It does NOT verify the source directories actually contain audio files. The test went GREEN despite the data being absent. **This is a Plan 20-00 / Plan 20-05 design gap, not an executor bug** — the executor implemented exactly what the plan said.
+>
+> ### Decision: defer Plan 20-05 submission, create a new data-acquisition phase
+>
+> - Plan 20-05 **Task 1 commits stay** (`428176c`, `840c099`, `a0c0027`, `5c4ea4b`) — the code is valid and the tests are real. They just can't produce a meaningful training run until the noise corpora exist.
+> - Plan 20-05 **Task 2 is NOT executed** in this session. The "Pending: Task 2 Human Checkpoint" section below remains the spec but is gated on data acquisition completing first.
+> - Plan 20-06 (eval harness + promotion gate) is **not executed** in this session — its human checkpoint depends on the v7 checkpoint that we can't produce.
+> - **A new phase is required before retrying:** acquire ESC50 (~600 MB, CC BY-NC), UrbanSound8K (~6 GB, registration required), and an FSD50K subset (~2–4 GB curated). Place under `data/noise/{esc50,urbansound8k,fsd50k_subset}/`. Add a host-side preflight test that fails if any noise dir contains <N audio files (so this can never silently happen again).
+>
+> ### Resume path (after data acquisition phase completes)
+>
+> 1. Verify `data/noise/{esc50,urbansound8k,fsd50k_subset}/` are populated with audio files.
+> 2. Re-run the host preflight test added by the data-acquisition phase.
+> 3. Run `/gsd-execute-phase 20 --wave 4` — Plan 20-05 commits already exist, but you'll re-trigger the human checkpoint (build/push/submit). The image will now actually be ~3–4 GB and bake real noise corpora.
+> 4. After v7 checkpoint downloads, fill the sha256 placeholder in this SUMMARY.
+> 5. Run `/gsd-execute-phase 20 --wave 5` for Plan 20-06 (eval + promotion).
+
+---
+
+**Two-image Vertex container (acoustic-trainer-base bakes 3-4 GB of noise + ambient data; acoustic-trainer layers only code) plus `build_env_vars_v7` / `check_l4_quota` / `submit_v7_job` in vertex_submit.py with automatic L4->T4 fallback resolved at submission time — Task 1 complete, Task 2 (actual build/push/submit) is a blocking human checkpoint AND is blocked on data acquisition (see warning above).**
 
 ## Performance
 

@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: MVP
-status: executing
-stopped_at: Completed 15-02-PLAN.md
-last_updated: "2026-04-06T15:33:17.831Z"
-last_activity: 2026-04-06 -- Phase 20 execution started
+status: blocked
+stopped_at: Phase 20 Plan 20-05 Task 1 (code-complete; blocked on noise-corpora data acquisition)
+last_updated: "2026-04-07T00:00:00.000Z"
+last_activity: 2026-04-07 -- Phase 20 Plan 20-05 Task 1 done; blocked on missing ESC50/UrbanSound8K/FSD50K data
 progress:
   total_phases: 15
   completed_phases: 10
@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-04-03)
 
 ## Current Position
 
-Phase: 20 (retrain-v7-with-wide-gain-room-ir-augmentation-vertex-remote) — EXECUTING
-Plan: 1 of 9
-Status: Executing Phase 20
-Last activity: 2026-04-06 -- Phase 20 execution started
+Phase: 20 (retrain-v7-with-wide-gain-room-ir-augmentation-vertex-remote) — **BLOCKED**
+Plan: 8 of 9 (Plan 20-05 Task 1 code-complete; Task 2 blocked on data acquisition)
+Status: Phase 20 code-complete for Waves 1–4 Task 1; remote training cannot proceed until ESC50 / UrbanSound8K / FSD50K noise corpora are acquired and placed under `data/noise/{esc50,urbansound8k,fsd50k_subset}/`.
+Last activity: 2026-04-07 -- Plan 20-05 Task 1 committed (5 commits 428176c..70b02bb); blocker discovered before docker build/push; new data-acquisition phase needed before Wave 4 Task 2 + Wave 5 can run.
 
 ## Performance Metrics
 
@@ -125,6 +125,7 @@ None yet.
 
 ### Blockers/Concerns
 
+- **[ACTIVE 2026-04-07] Phase 20 blocked on noise-corpora data acquisition.** The committed `Dockerfile.vertex-base` and `build_env_vars_v7()` env vars assume ESC50, UrbanSound8K, and an FSD50K subset live under `data/noise/`. On disk, only `data/noise/fsd50k_subset/.gitkeep` exists — Plan 20-00 created placeholder dirs only. Building and submitting v7 as-is would silently train against ONE noise source (UMA-16 outdoor_quiet ambient pool, 31 min) instead of FOUR — gutting the whole point of Phase 20 and almost certainly failing the locked promotion gate (DADS≥0.95 / real_TPR≥0.80 / real_FPR≤0.05). See `.planning/phases/20-.../20-05-SUMMARY.md` "BLOCKED ON DATA ACQUISITION" section. **Resolution path:** create a new phase to acquire the three noise corpora, add a host-side preflight test that fails if any noise dir is empty, then resume `/gsd-execute-phase 20 --wave 4`.
 - Doppler speed estimation feasibility uncertain (UMA-16v2 aperture may be too small -- validate during Phase 3)
 - UMA-16v2 channel mapping needs empirical verification (tap test) before beamforming work
 - Callback-based capture not yet proven with UMA-16v2 (prototype early in Phase 1)
