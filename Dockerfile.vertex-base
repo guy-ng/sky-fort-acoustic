@@ -1,0 +1,29 @@
+# Phase 20 base image: bakes pyroomacoustics + noise + ambient data once.
+#
+# This image is pushed once per data refresh; it is rebuilt only when
+# requirements-vertex.txt or the contents of data/noise/* / data/field/uma16_ambient/*
+# change. Phase 20 v7 code rebuilds on top of this image, keeping per-code-change
+# pushes under ~50 MB.
+#
+# Build:
+#   docker build -f Dockerfile.vertex-base \
+#     -t us-central1-docker.pkg.dev/interception-dashboard/acoustic-training/acoustic-trainer-base:v1 .
+# Push:
+#   docker push us-central1-docker.pkg.dev/interception-dashboard/acoustic-training/acoustic-trainer-base:v1
+
+FROM pytorch/pytorch:2.5.1-cuda12.4-cudnn9-runtime
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libsndfile1 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Python deps (pyroomacoustics + audiomentations + datasets + GCP SDKs)
+COPY requirements-vertex.txt requirements-vertex.txt
+RUN pip install --no-cache-dir -r requirements-vertex.txt
+
+# Bake Phase 20 augmentation corpora into the base layer (~3-4 GB, pushed once).
+# See 20-CONTEXT.md D-10, D-18, D-20, D-24.
+COPY data/noise /app/data/noise
+COPY data/field/uma16_ambient /app/data/field/uma16_ambient
