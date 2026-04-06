@@ -332,9 +332,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 17-01-PLAN.md — Bandpass pre-filter (500-4000 Hz Butterworth), parabolic sub-grid interpolation, config extensions
-- [ ] 17-02-PLAN.md — MCRA adaptive noise estimator, multi-peak detection with angular separation
-- [ ] 17-03-PLAN.md — Pipeline integration: wire real beamforming into process_chunk, demand-driven CNN-gated activation
+- [x] 17-01-PLAN.md — Bandpass pre-filter (500-4000 Hz Butterworth), parabolic sub-grid interpolation, config extensions
+- [x] 17-02-PLAN.md — MCRA adaptive noise estimator, multi-peak detection with angular separation
+- [x] 17-03-PLAN.md — Pipeline integration: wire real beamforming into process_chunk, demand-driven CNN-gated activation
 
 ### Phase 18: Direction of Arrival and WebSocket Broadcasting
 **Goal**: Each detected source has accurate pan/tilt degrees that update as the source moves, and direction data is broadcast to WebSocket subscribers in real time
@@ -388,6 +388,6 @@ Phases execute in numeric order. Phase 11 is conditional. v3.0 phases: 13 -> 14 
 | 14. EfficientAT Model Architecture with AudioSet Transfer Learning | v3.0 | 2/2 | Complete    | 2026-04-04 |
 | 15. Advanced Training Enhancements | v3.0 | 2/2 | Complete   | 2026-04-04 |
 | 16. Edge Export Pipeline - ONNX TensorRT TFLite Quantization | v3.0 | 0/3 | Not started | - |
-| 17. Beamforming Engine Upgrade and Pipeline Integration | v4.0 | 0/3 | Not started | - |
+| 17. Beamforming Engine Upgrade and Pipeline Integration | v4.0 | 3/3 | Complete    | 2026-04-06 |
 | 18. Direction of Arrival and WebSocket Broadcasting | v4.0 | 0/0 | Not started | - |
 | 19. Functional Beamforming Visualization | v4.0 | 0/0 | Not started | - |
