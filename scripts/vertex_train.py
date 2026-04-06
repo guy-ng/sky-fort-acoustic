@@ -154,6 +154,13 @@ def main() -> None:
     logger.info("[CONFIG] loss_function = %s", config.loss_function)
     logger.info("[CONFIG] augmentation  = %s", config.augmentation_enabled)
     logger.info("[CONFIG] model_type    = %s", config.model_type)
+    # Phase 20 v7 augmentation chain — log so job logs confirm env vars propagated.
+    logger.info(
+        "[v7] wide_gain_db=%s rir_enabled=%s window_overlap=%s",
+        getattr(config, "wide_gain_db", None),
+        getattr(config, "rir_enabled", None),
+        getattr(config, "window_overlap_ratio", None),
+    )
     if config.model_type == "efficientat_mn10":
         logger.info("[CONFIG] stage1: %d epochs @ lr=%.1e", config.stage1_epochs, config.stage1_lr)
         logger.info("[CONFIG] stage2: %d epochs @ lr=%.1e", config.stage2_epochs, config.stage2_lr)
