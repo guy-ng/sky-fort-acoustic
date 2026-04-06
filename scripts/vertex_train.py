@@ -36,20 +36,39 @@ logger = logging.getLogger("vertex_train")
 DEFAULT_HF_REPO = "geronimobasso/drone-audio-detection-samples"
 
 
+def _parse_gcs_path(gcs_path: str) -> tuple[str, str]:
+    """Parse gs://bucket/blob into (bucket, blob)."""
+    assert gcs_path.startswith("gs://"), f"Not a GCS path: {gcs_path}"
+    parts = gcs_path[5:].split("/", 1)
+    return parts[0], parts[1]
+
+
 def upload_to_gcs(local_path: str, gcs_path: str) -> None:
-    """Upload a local file to GCS using gsutil."""
+    """Upload a local file to GCS using google-cloud-storage."""
+    from google.cloud import storage
+
     logger.info("[GCS] Uploading %s -> %s", local_path, gcs_path)
     file_size = Path(local_path).stat().st_size / (1024 * 1024)
     logger.info("[GCS] File size: %.1f MB", file_size)
-    subprocess.run(["gsutil", "cp", local_path, gcs_path], check=True)
+    bucket_name, blob_name = _parse_gcs_path(gcs_path)
+    client = storage.Client()
+    bucket = client.bucket(bucket_name)
+    blob = bucket.blob(blob_name)
+    blob.upload_from_filename(local_path)
     logger.info("[GCS] Upload complete: %s", gcs_path)
 
 
 def download_from_gcs(gcs_path: str, local_path: str) -> None:
-    """Download a single file from GCS."""
+    """Download a single file from GCS using google-cloud-storage."""
+    from google.cloud import storage
+
     logger.info("[GCS] Downloading %s -> %s", gcs_path, local_path)
     Path(local_path).parent.mkdir(parents=True, exist_ok=True)
-    subprocess.run(["gsutil", "cp", gcs_path, local_path], check=True)
+    bucket_name, blob_name = _parse_gcs_path(gcs_path)
+    client = storage.Client()
+    bucket = client.bucket(bucket_name)
+    blob = bucket.blob(blob_name)
+    blob.download_to_filename(local_path)
     file_size = Path(local_path).stat().st_size / (1024 * 1024)
     logger.info("[GCS] Download complete: %.1f MB", file_size)
 
@@ -60,7 +79,7 @@ def log_gpu_info() -> None:
     if torch.cuda.is_available():
         for i in range(torch.cuda.device_count()):
             name = torch.cuda.get_device_name(i)
-            mem = torch.cuda.get_device_properties(i).total_mem / (1024**3)
+            mem = torch.cuda.get_device_properties(i).total_memory / (1024**3)
             logger.info("[GPU] Device %d: %s (%.1f GB)", i, name, mem)
     else:
         logger.info("[GPU] No CUDA devices available — training on CPU")

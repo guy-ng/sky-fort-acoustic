@@ -106,12 +106,44 @@ class RawAudioPreprocessor:
 
     Resamples from the pipeline sample rate (e.g. 48kHz) to the model's
     expected rate (default 32kHz for EfficientAT) and returns a 1-D tensor.
+
+    Also applies a fixed input gain so the audio level matches what the model
+    was trained on. This is mic-calibration, NOT AGC: every chunk gets the same
+    multiplier so intra-chunk dynamics and inter-chunk loudness differences are
+    preserved. The default (500x) is calibrated for the UMA-16v2 — its ambient
+    floor sits at ~1e-4 RMS while the EfficientAT training data sits around
+    ~0.05 RMS, a ~500x gap. Configure via AcousticSettings.cnn_input_gain.
+
+    Debug capture: set env var ACOUSTIC_DEBUG_DUMP_DIR=/some/path to dump every
+    processed chunk to a WAV file in that directory. Each call writes a numbered
+    WAV (sequence_NNNNNN_rms_X.XXXX.wav) at the model's target sample rate. Use
+    this to listen to / re-classify exactly what the model is seeing, without
+    racing the live pipeline.
     """
 
-    def __init__(self, target_sr: int = 32000) -> None:
+    def __init__(self, target_sr: int = 32000, input_gain: float = 1.0) -> None:
         self._target_sr = target_sr
         self._resampler: torchaudio.transforms.Resample | None = None
         self._cached_sr: int | None = None
+        self._input_gain = float(input_gain)
+        # Debug dump (opt-in via env var so zero cost when off)
+        import os
+        dump_dir = os.environ.get("ACOUSTIC_DEBUG_DUMP_DIR")
+        self._dump_dir: str | None = dump_dir
+        self._dump_seq: int = 0
+        if dump_dir:
+            os.makedirs(dump_dir, exist_ok=True)
+            import logging
+            logging.getLogger(__name__).warning(
+                "RawAudioPreprocessor debug dump ENABLED → %s (every CNN input written to disk)",
+                dump_dir,
+            )
+
+    def set_input_gain(self, gain: float) -> None:
+        """Hot-update the calibration gain. Lets the Pipeline-tab gain field
+        change effect without recreating the preprocessor — so the debug-dump
+        sequence counter (and any other live state) survives."""
+        self._input_gain = float(gain)
 
     def process(self, audio: np.ndarray, sr: int) -> torch.Tensor:
         waveform = torch.from_numpy(audio).float()
@@ -120,7 +152,28 @@ class RawAudioPreprocessor:
                 self._resampler = torchaudio.transforms.Resample(sr, self._target_sr)
                 self._cached_sr = sr
             waveform = self._resampler(waveform)
+        if self._input_gain != 1.0:
+            waveform = waveform * self._input_gain
+
+        if self._dump_dir is not None:
+            self._dump(waveform)
+
         return waveform
+
+    def _dump(self, waveform: torch.Tensor) -> None:
+        """Write the post-gain post-resample waveform to a WAV for offline analysis."""
+        try:
+            import os
+            import soundfile as sf
+            arr = waveform.detach().cpu().numpy().astype(np.float32)
+            rms = float(np.sqrt(np.mean(arr ** 2))) if arr.size else 0.0
+            self._dump_seq += 1
+            fname = f"cnn_input_{self._dump_seq:06d}_rms_{rms:.4f}.wav"
+            path = os.path.join(self._dump_dir, fname)  # type: ignore[arg-type]
+            sf.write(path, arr, self._target_sr, subtype="FLOAT")
+        except Exception:  # pragma: no cover - debug only
+            import logging
+            logging.getLogger(__name__).exception("Failed to dump CNN input")
 
 
 class ResearchPreprocessor:

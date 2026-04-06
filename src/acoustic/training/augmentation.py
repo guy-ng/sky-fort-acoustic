@@ -10,7 +10,10 @@ import soundfile as sf
 import torch
 import torchaudio
 import torchaudio.transforms as T
-from audiomentations import Compose, Gain, PitchShift, TimeStretch
+try:
+    from audiomentations import Compose, Gain, PitchShift, TimeStretch
+except ImportError:
+    Compose = Gain = PitchShift = TimeStretch = None  # type: ignore[assignment,misc]
 
 
 class WaveformAugmentation:

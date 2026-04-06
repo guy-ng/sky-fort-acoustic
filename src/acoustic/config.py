@@ -59,10 +59,41 @@ class AcousticSettings(BaseSettings):
 
     # CNN classification
     cnn_model_path: str = "models/uav_melspec_cnn.onnx"
+    cnn_model_type: str = "research_cnn"
     cnn_enter_threshold: float = 0.80
     cnn_exit_threshold: float = 0.40
     cnn_confirm_hits: int = 2
     cnn_target_ttl: float = 5.0  # seconds before target marked lost
+
+    # Weighted aggregator for segment probabilities
+    cnn_agg_w_max: float = 0.5
+    cnn_agg_w_mean: float = 0.5
+
+    # CNN inference cadence.
+    # `cnn_interval_seconds` — how often the pipeline pushes a new audio window
+    # to the classifier. The window LENGTH is NOT configurable — it must always
+    # match what the model was trained on, so it is derived from the model type
+    # at session start (research_cnn → 0.5 s, efficientat/mn10/mn05 → 1.0 s).
+    # Default 0.2 s gives a 5 Hz inference rate.
+    cnn_interval_seconds: float = 0.2
+
+    # CNN input gain — fixed multiplier applied to raw audio before it reaches
+    # the classifier. This is mic-level calibration: it lifts the UMA-16v2's
+    # quiet ambient floor (~1e-4 RMS) up to the level the EfficientAT model
+    # was trained on (~0.05 RMS, ~500x). Per-chunk dynamics are preserved
+    # because every window gets the same multiplier — this is NOT AGC. Override
+    # via ACOUSTIC_CNN_INPUT_GAIN if you switch to a different mic / gain stage.
+    cnn_input_gain: float = 500.0
+
+    # CNN silence gate — reject chunks whose mono RMS is below this.
+    # Tuned for UMA-16v2 MEMS mic ambient (~8e-5 RMS / −82 dBFS). The old
+    # 1e-3 default (−60 dBFS) was 20 dB too aggressive and rejected every
+    # chunk from the live array, preventing any CNN inference. 1e-5 catches
+    # only truly dead signal (all-zero / disconnected stream).
+    cnn_silence_threshold: float = 1.0e-5
+
+    # Ensemble classifier config file (optional; if set, overrides single model)
+    ensemble_config_path: str | None = None
 
     # Server
     host: str = "0.0.0.0"

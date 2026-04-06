@@ -2,13 +2,21 @@
 
 Source: https://github.com/fschmid56/EfficientAT
 License: Apache-2.0
+
+Uses a precomputed mel filterbank (mel_banks_128_1024_32k.pt) for both
+training and inference to eliminate torchaudio version sensitivity.
+SpecAugment (freqm/timem) is still applied during training.
 """
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import torch
 import torch.nn as nn
 import torchaudio
+
+_MEL_BANKS_PATH = Path(__file__).parent / "mel_banks_128_1024_32k.pt"
 
 
 class AugmentMelSTFT(nn.Module):
@@ -45,14 +53,23 @@ class AugmentMelSTFT(nn.Module):
         self.register_buffer(
             "window", torch.hann_window(win_length, periodic=False), persistent=False
         )
-        assert fmin_aug_range >= 1, f"fmin_aug_range={fmin_aug_range} should be >=1"
-        assert fmax_aug_range >= 1, f"fmax_aug_range={fmax_aug_range} should be >=1"
-        self.fmin_aug_range = fmin_aug_range
-        self.fmax_aug_range = fmax_aug_range
-
         self.register_buffer(
             "preemphasis_coefficient", torch.as_tensor([[[-.97, 1]]]), persistent=False
         )
+
+        # Load precomputed mel filterbank (version-independent, used for BOTH train and eval)
+        if _MEL_BANKS_PATH.exists() and n_mels == 128 and n_fft == 1024 and sr == 32000:
+            mel_basis = torch.load(str(_MEL_BANKS_PATH), map_location="cpu", weights_only=True)
+            self.register_buffer("mel_basis", mel_basis, persistent=False)
+        else:
+            # Fallback: compute at init time (non-standard params)
+            mel_basis, _ = torchaudio.compliance.kaldi.get_mel_banks(
+                n_mels, n_fft, sr,
+                fmin, fmax, vtln_low=100.0, vtln_high=-500.0, vtln_warp_factor=1.0,
+            )
+            mel_basis = torch.nn.functional.pad(mel_basis, (0, 1), mode="constant", value=0)
+            self.register_buffer("mel_basis", mel_basis, persistent=False)
+
         if freqm == 0:
             self.freqm = torch.nn.Identity()
         else:
@@ -77,23 +94,8 @@ class AugmentMelSTFT(nn.Module):
         )
         x = (x ** 2).sum(dim=-1)  # power mag
 
-        fmin = self.fmin + torch.randint(self.fmin_aug_range, (1,)).item()
-        fmax = self.fmax + self.fmax_aug_range // 2 - torch.randint(self.fmax_aug_range, (1,)).item()
-        # don't augment eval data
-        if not self.training:
-            fmin = self.fmin
-            fmax = self.fmax
-
-        mel_basis, _ = torchaudio.compliance.kaldi.get_mel_banks(
-            self.n_mels, self.n_fft, self.sr,
-            fmin, fmax, vtln_low=100.0, vtln_high=-500.0, vtln_warp_factor=1.0,
-        )
-        mel_basis = torch.as_tensor(
-            torch.nn.functional.pad(mel_basis, (0, 1), mode="constant", value=0),
-            device=x.device,
-        )
-        with torch.cuda.amp.autocast(enabled=False):
-            melspec = torch.matmul(mel_basis, x)
+        with torch.amp.autocast("cuda", enabled=False):
+            melspec = torch.matmul(self.mel_basis, x)
 
         melspec = (melspec + 0.00001).log()
 
