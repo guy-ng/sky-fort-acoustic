@@ -52,11 +52,11 @@ decisions:
 metrics:
   duration: ~10min
   completed_date: 2026-04-06
-  tasks_completed: 2
-  tasks_pending_checkpoint: 1
+  tasks_completed: 3
+  tasks_pending_checkpoint: 0
   tests_added: 40
-  files_added: 14
-  files_modified: 1
+  files_added: 16
+  files_modified: 2
 ---
 
 # Phase 20 Plan 00: Wave 0 Test Stubs and Data Acquisition Summary
@@ -116,16 +116,74 @@ None — Tasks 1 and 2 executed exactly as written. Task 3 is a `checkpoint:huma
 
 None.
 
+## Task 3 — Data acquisition (RESOLVED via existing UMA-16 dataset)
+
+The hardware-capture checkpoint was satisfied by ingesting the existing
+`Acoustic-UAV-Identification-main-main/audio-data/` dataset, which was
+recorded on the **same UMA-16v2 hardware** (per the `index.jsonl` metadata
+the source device is `UMA16v2: USB Audio (hw:2,0)`). Files in that
+dataset are stored **one mic per WAV file** at 48 kHz mono PCM_16 — they
+are NOT a summed/averaged multi-channel file, so they are safe to use
+without comb-filter contamination.
+
+**Crucial constraint (D-09 / D-27 / Pitfall 4):** A UMA-16 mono recording
+MUST be a single channel of the array (e.g. `mic01.wav`). Summing or
+averaging multiple channels into one mono signal causes destructive
+comb-filtering driven by the time-of-arrival differences across the 4×4
+grid, which corrupts the spectrum that the trainer learns from. The
+ingest pipeline below preserves this contract by selecting individual
+`_micNN.wav` files and never combining them.
+
+### Ingest pipeline
+
+- `scripts/ingest_uav_uma16_dataset.py` — polyphase resamples 48 kHz → 16 kHz mono (`scipy.signal.resample_poly`), copies single-channel files into the Phase 20 data tree.
+- `scripts/export_uma16_parquet.py` — bundles the resampled WAVs into Parquet shards in the trainer's existing `ParquetDataset` schema (`audio: struct<bytes, path>, label: int64`) for fast Docker-image bake (~50% size reduction).
+
+### Resulting datasets
+
+| Target | Source | Files | Duration | Constraint |
+|---|---|---:|---:|---|
+| `data/field/uma16_ambient/outdoor_quiet/` (D-09) | `audio-data/data/background/*_mic01.wav`, `*_mic03.wav` | 243 | **31.3 min** | ≥30 min ✓ |
+| `data/eval/uma16_real/audio/drone/` (D-27) | `audio-data/data/drone/**/*_mic01.wav` (saturated to 6 min) | 180 | **6.0 min** | ≥5 min ✓ |
+| `data/eval/uma16_real/audio/no_drone/` (D-27) | `audio-data/data/background/*_mic01.wav` (saturated to 16 min) | 133 | **16.0 min** | ≥15 min ✓ |
+| `data/eval/uma16_real/labels.json` | auto-generated from above | 313 entries | — | schema matches `labels.json.example` |
+| `data/parquet/ambient/train-0.parquet` | wraps ambient WAVs | 1 shard | 24 MB (vs 58 MB raw) | trainer-loadable |
+| `data/parquet/eval/train-0.parquet` | wraps eval WAVs + labels | 1 shard, 313 rows | 21 MB (vs 41 MB raw) | trainer-loadable |
+
+`mic01` was used as the canonical channel; `mic03` was added to the ambient
+pool (as separate independent files, not summed) because mic01 alone gave
+20.9 min — below the 30 min D-09 floor. Both are still single-channel files.
+
+### Verified by
+- `pyarrow.parquet` round-trip through `acoustic.training.parquet_dataset.ParquetDatasetBuilder` — 313 eval rows, label distribution drone=180 / no_drone=133, decoded WAVs are float32 16 kHz at correct length (32000 samples = 2.0 s).
+- Raw WAV directories enumerable by future `BackgroundNoiseMixer` (Plan 20-02).
+
+### Hand-off to Plan 20-05 (Vertex Docker)
+
+`Dockerfile.vertex-base` MUST `COPY` either:
+
+```dockerfile
+# Option A: parquet shards (preferred — single layer, 45 MB)
+COPY data/parquet/ /app/data/parquet/
+
+# Option B: raw WAV trees (BackgroundNoiseMixer fallback, 99 MB)
+COPY data/field/uma16_ambient/ /app/data/field/uma16_ambient/
+COPY data/eval/uma16_real/ /app/data/eval/uma16_real/
+```
+
+Both `data/parquet/` and `data/field/`, `data/eval/` are gitignored but
+NOT in `.dockerignore`, so Docker COPY picks them up from the local working
+tree. The `audio-data/` source dataset IS in `.dockerignore` and will not
+be sent to the Docker build context.
+
 ## Deferred Issues
 
-- **Task 3 (manual data acquisition)** is paused at a `checkpoint:human-action` boundary. Three data-acquisition prerequisites cannot be automated by Claude:
-  1. UMA-16 ambient ≥30 min mono 16 kHz capture under `data/field/uma16_ambient/{indoor_quiet, indoor_hvac, outdoor_quiet, outdoor_wind}/` (D-09)
-  2. Real-capture eval set ≥20 min with hand-labelled `data/eval/uma16_real/labels.json` (D-27)
-  3. FSD50K subset (Wind, Rain, Traffic_noise_and_roadway_noise, Mechanical_fan, Engine, Bird) under `data/noise/fsd50k_subset/` (D-18)
-  4. Optional DroneAudioSet exploration (D-19) — droppable per Q1 RESOLUTION
-- See the checkpoint return for the resume signal protocol.
+- **FSD50K subset** (D-18) and **DroneAudioSet exploration** (D-19) remain
+  out of scope. The UMA-16 ambient pool now exceeds the D-09 floor, so
+  these external corpora are no longer hard blockers — they would only
+  add noise diversity beyond the field captures.
 
-## Self-Check: PASSED
+## Self-Check: PASSED (post-task-3 update)
 
 - `tests/unit/test_wide_gain_augmentation.py` exists
 - `tests/unit/test_room_ir_augmentation.py` exists

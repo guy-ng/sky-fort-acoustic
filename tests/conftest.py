@@ -102,16 +102,22 @@ def wav_audio_fixture():
 
 @pytest.fixture(scope="session")
 def synthetic_waveform() -> np.ndarray:
-    """1.0 s mono float32 sine wave at 1 kHz, sampled at 16 kHz, amplitude 0.1.
+    """1.0 s mono float32 sine wave at 1 kHz, sampled at 16 kHz, amplitude 0.01.
 
     Used by Phase 20 augmentation tests as a deterministic input that has
     enough energy to compute SNR ratios but is far below the clipping bound.
+
+    Amplitude 0.01 (RMS ~0.00707) leaves ~43 dB of headroom before the
+    [-1, 1] clip in WideGainAugmentation saturates, so a +30 dB gain is
+    measurable post-clip (0.01 * 31.6 ~= 0.316, well under 1.0). The earlier
+    0.1 amplitude saturated at ~+23 dB and broke
+    test_gain_range_uniform's max(observed_db) >= 30 assertion.
     """
     sample_rate = 16000
     duration_s = 1.0
     n_samples = int(sample_rate * duration_s)
     t = np.arange(n_samples, dtype=np.float32) / sample_rate
-    return (0.1 * np.sin(2.0 * np.pi * 1000.0 * t)).astype(np.float32)
+    return (0.01 * np.sin(2.0 * np.pi * 1000.0 * t)).astype(np.float32)
 
 
 @pytest.fixture(scope="session")
