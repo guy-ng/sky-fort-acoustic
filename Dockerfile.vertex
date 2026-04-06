@@ -1,25 +1,30 @@
-# Vertex AI custom training container (GPU-enabled)
-# Build: docker build -f Dockerfile.vertex -t gcr.io/interception-dashboard/acoustic-trainer .
-# Push:  docker push gcr.io/interception-dashboard/acoustic-trainer
+# Phase 20 image: code on top of acoustic-trainer-base.
+#
+# Rebuilt on every code change; push is <50 MB because the base layer (pyroomacoustics +
+# baked noise + ambient data) is cached in the registry. The base image MUST be built
+# and pushed first via Dockerfile.vertex-base.
+#
+# Phase 20 D-24: the Phase 20 augmentation corpora live inside the base image at
+# /app/data/noise and /app/data/field/uma16_ambient — these paths are consumed by
+# ACOUSTIC_TRAINING_NOISE_DIRS and ACOUSTIC_TRAINING_UMA16_AMBIENT_DIR at runtime.
+#
+# Build:
+#   docker build -f Dockerfile.vertex \
+#     -t us-central1-docker.pkg.dev/interception-dashboard/acoustic-training/acoustic-trainer:phase20 .
+# Push:
+#   docker push us-central1-docker.pkg.dev/interception-dashboard/acoustic-training/acoustic-trainer:phase20
 
-FROM pytorch/pytorch:2.5.1-cuda12.4-cudnn9-runtime
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libsndfile1 \
-    && rm -rf /var/lib/apt/lists/*
+ARG BASE_IMAGE=us-central1-docker.pkg.dev/interception-dashboard/acoustic-training/acoustic-trainer-base:v1
+FROM ${BASE_IMAGE}
 
 WORKDIR /app
 
-# Install Python dependencies (training-only subset)
-COPY requirements-vertex.txt .
-RUN pip install --no-cache-dir -r requirements-vertex.txt
-
-# Copy source code and training entry point
+# Code-only layer (base image already has deps + data/noise + data/field/uma16_ambient).
 COPY src/ src/
 COPY scripts/vertex_train.py vertex_train.py
 
 ENV PYTHONPATH=/app/src
 ENV PYTHONUNBUFFERED=1
 
-# Vertex AI invokes this as the training entry point
+# Vertex AI invokes this as the training entry point.
 ENTRYPOINT ["python", "vertex_train.py"]
