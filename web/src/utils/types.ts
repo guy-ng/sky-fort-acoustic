@@ -184,6 +184,7 @@ export interface PipelineStartParams {
   time_frame: number
   positive_detections: number
   gain: number
+  interval_seconds?: number
 }
 
 export interface PipelineStatusResponse {
@@ -193,6 +194,8 @@ export interface PipelineStatusResponse {
   time_frame: number | null
   positive_detections: number | null
   gain: number | null
+  window_seconds: number | null
+  interval_seconds: number | null
   detection_state: string | null
   drone_probability: number | null
 }

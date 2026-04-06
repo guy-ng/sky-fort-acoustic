@@ -18,7 +18,7 @@ function probBarColor(p: number): string {
   return 'bg-hud-success'
 }
 
-function DroneIndicator({ state, probability }: { state: string | null; probability: number | null }) {
+function DroneIndicator({ state }: { state: string | null; probability: number | null }) {
   const isConfirmed = state === 'DRONE_CONFIRMED'
   const isCandidate = state === 'DRONE_CANDIDATE'
 
@@ -56,20 +56,24 @@ function DroneIndicator({ state, probability }: { state: string | null; probabil
 
 function CnnProbDisplay({ probability }: { probability: number | null }) {
   const prob = probability ?? 0
-  const pct = Math.round(prob * 100)
+  // Display with 1 decimal so small probabilities (e.g. 0.005 → "0.5%") are
+  // visible instead of rounding to 0%. v6 spends most of its time in the
+  // 0–10% range so integer-percent rounding hides almost all of the signal.
+  const pctText = (prob * 100).toFixed(1)
+  const pctWidth = Math.max(0, Math.min(100, prob * 100))
 
   return (
     <div className="flex flex-col gap-1.5 rounded-lg border border-hud-border bg-hud-bg px-3 py-2.5">
       <div className="flex items-baseline justify-between">
         <span className="text-xs text-hud-text-dim uppercase tracking-wider">CNN Prob</span>
         <span className={`text-2xl font-bold font-mono tabular-nums ${probability != null ? probColor(prob) : 'text-hud-text-dim/40'}`}>
-          {probability != null ? `${pct}%` : '--'}
+          {probability != null ? `${pctText}%` : '--'}
         </span>
       </div>
       <div className="w-full h-2.5 bg-hud-border/50 rounded-full overflow-hidden">
         <div
           className={`h-full transition-all duration-300 rounded-full ${probBarColor(prob)}`}
-          style={{ width: `${pct}%` }}
+          style={{ width: `${pctWidth}%` }}
         />
       </div>
     </div>
@@ -85,19 +89,42 @@ export function PipelinePanel() {
 
   // Form state
   const [modelPath, setModelPath] = useState('')
-  const [confidence, setConfidence] = useState(90)
+  // v6 on real captured audio is noisy: medians ~0.01 during a clearly
+  // audible drone, max bursts 0.16–0.46. Use a low threshold AND single-hit
+  // confirmation since waiting for 2 consecutive hits never fires on this
+  // signal — the model only spikes ~10–20% of chunks even when the drone
+  // is plainly audible.
+  const [confidence, setConfidence] = useState(8)
   const [timeFrame, setTimeFrame] = useState(2)
-  const [positiveDetections, setPositiveDetections] = useState(2)
-  const [gain, setGain] = useState(3)
+  const [positiveDetections, setPositiveDetections] = useState(1)
+  // Absolute mic-calibration gain. NOT stacked with anything else — this
+  // single number is the multiplier applied to raw waveforms before they
+  // reach the EfficientAT classifier. 200 is the empirical v6 sweet spot
+  // for UMA-16v2 capturing room-loopback / open-air audio (offline sweep
+  // peaks at gain=200, drops off above 500).
+  const [gain, setGain] = useState(200)
+  // CNN inference interval (s). 0.2 = 5 Hz update rate.
+  const [intervalSeconds, setIntervalSeconds] = useState(0.2)
 
-  // Auto-select first model
+  // Auto-select the highest-versioned trained EfficientAT model.
+  // Skips anything with "no-pt" in the name (untrained / no pretrained
+  // weights — returns ~0 forever and silently breaks detection). Prefers
+  // the highest _vN suffix among the remaining matches.
   const models = modelsData?.models ?? []
   useEffect(() => {
     if (models.length > 0 && !modelPath) {
-      const efficientat = models.find(
-        (m) => m.filename.toLowerCase().includes('efficientat') || m.filename.toLowerCase().includes('mn10')
-      )
-      setModelPath(efficientat?.path ?? models[0].path)
+      const candidates = models
+        .filter((m) => {
+          const n = m.filename.toLowerCase()
+          if (n.includes('no-pt')) return false
+          return n.includes('efficientat') || n.includes('mn10')
+        })
+        .map((m) => {
+          const match = m.filename.match(/_v(\d+)/i)
+          return { model: m, version: match ? parseInt(match[1], 10) : -1 }
+        })
+        .sort((a, b) => b.version - a.version)
+      setModelPath(candidates[0]?.model.path ?? models[0].path)
     }
   }, [models, modelPath])
 
@@ -114,6 +141,7 @@ export function PipelinePanel() {
       time_frame: timeFrame,
       positive_detections: positiveDetections,
       gain,
+      interval_seconds: intervalSeconds,
     })
   }
 
@@ -156,7 +184,7 @@ export function PipelinePanel() {
           </label>
           <input
             type="range"
-            min={50}
+            min={5}
             max={99}
             value={confidence}
             onChange={(e) => setConfidence(Number(e.target.value))}
@@ -190,18 +218,30 @@ export function PipelinePanel() {
             className="w-full accent-hud-accent"
           />
 
-          {/* Gain */}
+          {/* Gain — single absolute mic-calibration multiplier */}
           <label className="text-xs text-hud-text-dim uppercase tracking-wider">
-            Amplify gain: {gain}x
+            Mic gain (x)
           </label>
           <input
-            type="range"
+            type="number"
             min={1}
-            max={10}
-            step={0.5}
+            step={50}
             value={gain}
             onChange={(e) => setGain(Number(e.target.value))}
-            className="w-full accent-hud-accent"
+            className="bg-hud-bg border border-hud-border rounded px-2 py-1.5 text-sm text-hud-text font-mono tabular-nums"
+          />
+
+          {/* CNN inference interval */}
+          <label className="text-xs text-hud-text-dim uppercase tracking-wider">
+            CNN interval (s)
+          </label>
+          <input
+            type="number"
+            min={0.05}
+            step={0.05}
+            value={intervalSeconds}
+            onChange={(e) => setIntervalSeconds(Number(e.target.value))}
+            className="bg-hud-bg border border-hud-border rounded px-2 py-1.5 text-sm text-hud-text font-mono tabular-nums"
           />
 
           {/* Start button */}
@@ -254,7 +294,7 @@ export function PipelinePanel() {
                 const isConfirmed = entry.detection_state === 'DRONE_CONFIRMED'
                 const isCandidate = entry.detection_state === 'DRONE_CANDIDATE'
                 const isTransition = entry.message.includes('\u2192')
-                const pct = Math.round(entry.drone_probability * 100)
+                const pctText = (entry.drone_probability * 100).toFixed(1)
                 return (
                   <div
                     key={i}
@@ -267,8 +307,8 @@ export function PipelinePanel() {
                     } ${isTransition ? 'font-semibold' : ''}`}
                   >
                     <span className="text-hud-text-dim/40 shrink-0">{time}</span>
-                    <span className={`shrink-0 w-8 text-right tabular-nums ${probColor(entry.drone_probability)}`}>
-                      {pct}%
+                    <span className={`shrink-0 w-12 text-right tabular-nums ${probColor(entry.drone_probability)}`}>
+                      {pctText}%
                     </span>
                     <span className="truncate">{entry.message}</span>
                   </div>
