@@ -146,7 +146,17 @@ async def start_detection(body: PipelineStartRequest, request: Request):
                 # Reuse — preserves debug-dump sequence and any cached resampler.
                 existing_pp.set_input_gain(body.gain)
             else:
-                cnn_worker.set_preprocessor(RawAudioPreprocessor(input_gain=body.gain))
+                # D-34: keep the RMS normalization target in sync with the
+                # service default so swapping the model mid-session still
+                # lands CNN inputs in the trainer-matched regime.
+                from acoustic.config import AcousticSettings
+                _rms_target = AcousticSettings().cnn_rms_normalize_target
+                cnn_worker.set_preprocessor(
+                    RawAudioPreprocessor(
+                        input_gain=body.gain,
+                        rms_normalize_target=_rms_target,
+                    )
+                )
         else:
             if not isinstance(existing_pp, ResearchPreprocessor):
                 cnn_worker.set_preprocessor(ResearchPreprocessor())

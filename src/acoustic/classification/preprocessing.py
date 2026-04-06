@@ -143,25 +143,36 @@ class RawAudioPreprocessor:
     Resamples from the pipeline sample rate (e.g. 48kHz) to the model's
     expected rate (default 32kHz for EfficientAT) and returns a 1-D tensor.
 
-    Also applies a fixed input gain so the audio level matches what the model
-    was trained on. This is mic-calibration, NOT AGC: every chunk gets the same
-    multiplier so intra-chunk dynamics and inter-chunk loudness differences are
-    preserved. The default (500x) is calibrated for the UMA-16v2 — its ambient
-    floor sits at ~1e-4 RMS while the EfficientAT training data sits around
-    ~0.05 RMS, a ~500x gap. Configure via AcousticSettings.cnn_input_gain.
+    Phase 20 D-34: every processed chunk is RMS-normalized to a fixed target
+    (default 0.1) as the final step in ``process()``. This replaces the
+    legacy ``input_gain`` calibration with a properly symmetric train/inference
+    normalization — the same ``_rms_normalize`` helper runs on the training
+    dataset path, so the model sees identical amplitude distributions at train
+    and inference time. ``input_gain`` is preserved for backwards compatibility
+    but is now effectively a no-op when ``rms_normalize_target`` is set.
 
     Debug capture: set env var ACOUSTIC_DEBUG_DUMP_DIR=/some/path to dump every
     processed chunk to a WAV file in that directory. Each call writes a numbered
-    WAV (sequence_NNNNNN_rms_X.XXXX.wav) at the model's target sample rate. Use
-    this to listen to / re-classify exactly what the model is seeing, without
-    racing the live pipeline.
+    WAV (sequence_NNNNNN_rms_X.XXXX.wav) at the model's target sample rate. The
+    dump runs AFTER RMS normalization so the on-disk WAVs reflect exactly what
+    the model sees.
     """
 
-    def __init__(self, target_sr: int = 32000, input_gain: float = 1.0) -> None:
+    def __init__(
+        self,
+        target_sr: int = 32000,
+        input_gain: float = 1.0,
+        rms_normalize_target: float | None = 0.1,
+    ) -> None:
         self._target_sr = target_sr
         self._resampler: torchaudio.transforms.Resample | None = None
         self._cached_sr: int | None = None
         self._input_gain = float(input_gain)
+        # D-34: ``None`` disables normalization (escape hatch); default 0.1
+        # matches the trainer-side ``RmsNormalize`` augmentation target.
+        self._rms_target = (
+            float(rms_normalize_target) if rms_normalize_target is not None else None
+        )
         # Debug dump (opt-in via env var so zero cost when off)
         import os
         dump_dir = os.environ.get("ACOUSTIC_DEBUG_DUMP_DIR")
@@ -190,6 +201,12 @@ class RawAudioPreprocessor:
             waveform = self._resampler(waveform)
         if self._input_gain != 1.0:
             waveform = waveform * self._input_gain
+
+        # D-34: RMS normalization is the actual amplitude calibration. It runs
+        # AFTER resample + legacy input_gain but BEFORE the debug dump so the
+        # on-disk WAVs reflect exactly what the model sees.
+        if self._rms_target is not None:
+            waveform = _rms_normalize(waveform, target=self._rms_target)
 
         if self._dump_dir is not None:
             self._dump(waveform)

@@ -311,7 +311,10 @@ async def lifespan(app: FastAPI):
         # applied); ResearchCNN expects pre-computed mel-spectrograms.
         mt = (settings.cnn_model_type or "").lower()
         if "efficientat" in mt or "mn10" in mt or "mn05" in mt:
-            preprocessor = RawAudioPreprocessor(input_gain=settings.cnn_input_gain)
+            preprocessor = RawAudioPreprocessor(
+                input_gain=settings.cnn_input_gain,
+                rms_normalize_target=settings.cnn_rms_normalize_target,
+            )
         else:
             preprocessor = ResearchPreprocessor()
 

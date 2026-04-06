@@ -77,13 +77,22 @@ class AcousticSettings(BaseSettings):
     # Default 0.2 s gives a 5 Hz inference rate.
     cnn_interval_seconds: float = 0.2
 
-    # CNN input gain — fixed multiplier applied to raw audio before it reaches
-    # the classifier. This is mic-level calibration: it lifts the UMA-16v2's
-    # quiet ambient floor (~1e-4 RMS) up to the level the EfficientAT model
-    # was trained on (~0.05 RMS, ~500x). Per-chunk dynamics are preserved
-    # because every window gets the same multiplier — this is NOT AGC. Override
-    # via ACOUSTIC_CNN_INPUT_GAIN if you switch to a different mic / gain stage.
-    cnn_input_gain: float = 500.0
+    # CNN input gain — DEPRECATED legacy mic calibration knob. Phase 20 D-34
+    # replaces per-chunk gain scaling with per-chunk RMS normalization
+    # (``cnn_rms_normalize_target``), which makes the gain knob a no-op for
+    # correctness. The field is preserved for backwards compatibility and
+    # still applied before normalization, so setting it affects the debug dump
+    # only. Default is now 1.0 (was 500.0 pre-D-34). See D-34 +
+    # .planning/debug/training-collapse-constant-output.md.
+    cnn_input_gain: float = 1.0
+
+    # D-34: per-sample RMS normalization target. Applied as the LAST step of
+    # ``RawAudioPreprocessor.process()`` AND as the LAST step of the trainer's
+    # augmentation chain (both train and eval splits), so the model sees
+    # identical amplitude distributions at train and inference time. Closes
+    # the ~50x domain shift documented in
+    # ``scripts/verify_rms_domain_mismatch.py``.
+    cnn_rms_normalize_target: float = 0.1
 
     # CNN silence gate — reject chunks whose mono RMS is below this.
     # Tuned for UMA-16v2 MEMS mic ambient (~8e-5 RMS / −82 dBFS). The old
