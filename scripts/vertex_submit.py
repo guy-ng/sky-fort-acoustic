@@ -39,6 +39,9 @@ GCP_PROJECT = "interception-dashboard"
 GCP_REGION = "us-central1"
 GCS_BUCKET = "sky-fort-acoustic"
 GCR_IMAGE = f"us-central1-docker.pkg.dev/{GCP_PROJECT}/acoustic-training/acoustic-trainer"
+GCR_BASE_IMAGE = (
+    f"us-central1-docker.pkg.dev/{GCP_PROJECT}/acoustic-training/acoustic-trainer-base:v1"
+)
 
 # HuggingFace dataset (no GCS upload needed)
 DEFAULT_HF_REPO = "geronimobasso/drone-audio-detection-samples"
@@ -46,6 +49,179 @@ DEFAULT_HF_REPO = "geronimobasso/drone-audio-detection-samples"
 # GCS paths for model output and optional pretrained weights
 GCS_MODEL_OUTPUT = f"gs://{GCS_BUCKET}/models/vertex/"
 GCS_PRETRAINED = f"gs://{GCS_BUCKET}/models/pretrained/mn10_as.pt"
+
+# Phase 20 v7 output directory (D-25, locked by CONTEXT.md)
+GCS_V7_MODEL_DIR = f"gs://{GCS_BUCKET}/models/vertex/efficientat_mn10_v7/"
+
+
+def check_l4_quota(project: str, region: str = "us-central1") -> bool:
+    """Pre-flight L4 GPU quota check (Phase 20 D-22, Research Pitfall 5).
+
+    Returns True if NVIDIA_L4 quota in the region appears > 0, else False.
+    Returns False if gcloud is unavailable so the caller falls back to T4
+    (safer default than optimistically assuming L4 when we can't verify).
+    """
+    try:
+        result = subprocess.run(
+            [
+                "gcloud", "compute", "regions", "describe", region,
+                "--project", project,
+                "--format=value(quotas)",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return False
+    if result.returncode != 0:
+        return False
+    stdout = result.stdout or ""
+    if "NVIDIA_L4" not in stdout:
+        return False
+    # gcloud renders quotas as "limit: 0.0" when denied.
+    return "limit: 0" not in stdout and "limit: 0.0" not in stdout
+
+
+def build_env_vars_v7(
+    hf_repo: str = DEFAULT_HF_REPO,
+    gcs_pretrained: str = GCS_PRETRAINED,
+) -> dict[str, str]:
+    """Phase 20 v7 job payload (D-01..D-25).
+
+    Returns a FLAT dict containing both job metadata (job_name / display_name /
+    machine_type / accelerator_type / fallback_accelerator_type / base_output_dir)
+    and all ACOUSTIC_TRAINING_* env vars with values LOCKED by CONTEXT.md.
+
+    Per D-22, ``accelerator_type`` is always the PLANNED choice (NVIDIA_L4 on
+    g2-standard-8). The T4 fallback is declared here as ``fallback_accelerator_type``
+    and is selected at submission time by ``submit_v7_job`` if ``check_l4_quota``
+    returns False.
+    """
+    payload: dict[str, str] = {
+        # --- Job metadata (Phase 20 D-25) ---
+        "job_name": "efficientat-mn10-v7-phase20",
+        "display_name": "efficientat-mn10-v7-phase20",
+        "machine_type": "g2-standard-8",
+        "accelerator_type": "NVIDIA_L4",
+        "fallback_accelerator_type": "NVIDIA_TESLA_T4",
+        "base_output_dir": GCS_V7_MODEL_DIR,
+        # --- Source + model ---
+        "ACOUSTIC_TRAINING_DADS_HF_REPO": hf_repo,
+        "ACOUSTIC_TRAINING_MODEL_TYPE": "efficientat_mn10",
+        # --- Three-stage recipe (D-23) ---
+        "ACOUSTIC_TRAINING_BATCH_SIZE": "64",
+        "ACOUSTIC_TRAINING_LOSS_FUNCTION": "focal",
+        "ACOUSTIC_TRAINING_FOCAL_ALPHA": "0.25",
+        "ACOUSTIC_TRAINING_FOCAL_GAMMA": "2.0",
+        "ACOUSTIC_TRAINING_PATIENCE": "7",
+        "ACOUSTIC_TRAINING_STAGE1_EPOCHS": "10",
+        "ACOUSTIC_TRAINING_STAGE2_EPOCHS": "15",
+        "ACOUSTIC_TRAINING_STAGE3_EPOCHS": "20",
+        "ACOUSTIC_TRAINING_STAGE1_LR": "1e-3",
+        "ACOUSTIC_TRAINING_STAGE2_LR": "1e-4",
+        "ACOUSTIC_TRAINING_STAGE3_LR": "1e-5",
+        # --- Phase 20 augmentation knobs (D-01..D-08) ---
+        "ACOUSTIC_TRAINING_WIDE_GAIN_DB": "40.0",
+        "ACOUSTIC_TRAINING_RIR_ENABLED": "true",
+        "ACOUSTIC_TRAINING_RIR_PROBABILITY": "0.7",
+        # --- Phase 20 BG noise (D-10, D-18, D-20) ---
+        "ACOUSTIC_TRAINING_NOISE_AUGMENTATION_ENABLED": "true",
+        "ACOUSTIC_TRAINING_NOISE_DIRS": (
+            '["/app/data/noise/esc50","/app/data/noise/urbansound8k",'
+            '"/app/data/noise/fsd50k_subset","/app/data/field/uma16_ambient"]'
+        ),
+        "ACOUSTIC_TRAINING_UMA16_AMBIENT_DIR": "/app/data/field/uma16_ambient",
+        "ACOUSTIC_TRAINING_UMA16_AMBIENT_SNR_LOW": "-5.0",
+        "ACOUSTIC_TRAINING_UMA16_AMBIENT_SNR_HIGH": "15.0",
+        "ACOUSTIC_TRAINING_UMA16_AMBIENT_PURE_NEGATIVE_RATIO": "0.10",
+        # --- Sliding window (D-13) ---
+        "ACOUSTIC_TRAINING_WINDOW_OVERLAP_RATIO": "0.6",
+        # --- Output (D-25) ---
+        "ACOUSTIC_TRAINING_CHECKPOINT_PATH": "/tmp/models/efficientat_mn10_v7.pt",
+        "ACOUSTIC_TRAINING_PRETRAINED_GCS": gcs_pretrained,
+    }
+    return payload
+
+
+def submit_v7_job(image_uri: str, *, dry_run: bool = False) -> None:
+    """Submit the Phase 20 v7 Vertex AI job (D-21..D-25).
+
+    Uses ``build_env_vars_v7`` + ``check_l4_quota`` to pick the accelerator, then
+    runs a CustomContainerTrainingJob with the locked Phase 20 hyperparameters.
+    """
+    payload = build_env_vars_v7()
+    planned_accelerator = payload["accelerator_type"]
+    fallback = payload["fallback_accelerator_type"]
+    machine_type = payload["machine_type"]
+    display_name = payload["display_name"]
+    base_output_dir = payload["base_output_dir"]
+
+    # D-22: preflight L4 quota, fall back to T4 if denied.
+    if check_l4_quota(GCP_PROJECT, GCP_REGION):
+        accelerator_type = planned_accelerator
+    else:
+        accelerator_type = fallback
+
+    # Strip non-env metadata keys before handing the dict to Vertex.
+    meta_keys = {
+        "job_name",
+        "display_name",
+        "machine_type",
+        "accelerator_type",
+        "fallback_accelerator_type",
+        "base_output_dir",
+    }
+    env_vars = {k: v for k, v in payload.items() if k not in meta_keys}
+
+    if accelerator_type == "NVIDIA_L4":
+        print(f">>> [v7] L4 quota available — submitting with NVIDIA_L4 on {machine_type}")
+    else:
+        print(
+            f">>> [v7] L4 quota unavailable or unverifiable — FALLING BACK to {fallback} "
+            f"(original plan: NVIDIA_L4 on {machine_type})"
+        )
+
+    print(f"\n{'='*60}")
+    print(f"  Job:           {display_name}")
+    print(f"  Image:         {image_uri}")
+    print(f"  Machine:       {machine_type}")
+    print(f"  Accelerator:   {accelerator_type}")
+    print(f"  Output dir:    {base_output_dir}")
+    print(f"  Env vars:      {len(env_vars)} ACOUSTIC_TRAINING_* keys")
+    print(f"{'='*60}\n")
+
+    if dry_run:
+        print(">>> Dry run — not submitting job.")
+        return
+
+    from google.cloud import aiplatform
+
+    aiplatform.init(
+        project=GCP_PROJECT,
+        location=GCP_REGION,
+        staging_bucket=f"gs://{GCS_BUCKET}",
+    )
+
+    job = aiplatform.CustomContainerTrainingJob(
+        display_name=display_name,
+        container_uri=image_uri,
+    )
+
+    job.run(
+        replica_count=1,
+        machine_type=machine_type,
+        accelerator_type=accelerator_type,
+        accelerator_count=1,
+        environment_variables=env_vars,
+        base_output_dir=base_output_dir,
+        sync=False,
+    )
+
+    print(f"\n>>> v7 job submitted. Monitor: "
+          f"https://console.cloud.google.com/vertex-ai/training/custom-jobs?project={GCP_PROJECT}")
+    print(f">>> Download checkpoint when done: gsutil cp {base_output_dir}best_model.pt "
+          f"models/efficientat_mn10_v7.pt")
 
 
 def run(cmd: list[str], *, check: bool = True) -> subprocess.CompletedProcess:
@@ -156,6 +332,10 @@ Examples:
   python scripts/vertex_submit.py --gpu-type NVIDIA_A100_80GB --machine-type a2-ultragpu-1g
         """,
     )
+    parser.add_argument("--version", default="", choices=["", "v7"],
+                        help="Phase version preset (v7 uses Phase 20 locked config)")
+    parser.add_argument("--image", default="",
+                        help="Pre-built image URI (skip docker build). Required with --version v7.")
     parser.add_argument("--model-type", default="research_cnn",
                         choices=["research_cnn", "efficientat_mn10"],
                         help="Model architecture to train (default: research_cnn)")
@@ -179,6 +359,14 @@ Examples:
     parser.add_argument("--skip-build", action="store_true",
                         help="Skip Docker build (use existing image)")
     args = parser.parse_args()
+
+    # Phase 20 v7 preset — locked config, distinct submission path
+    if args.version == "v7":
+        if not args.image:
+            print("ERROR: --version v7 requires --image <phase20 image URI>", file=sys.stderr)
+            sys.exit(2)
+        submit_v7_job(args.image, dry_run=args.dry_run)
+        return
 
     # Build and push Docker image
     if args.skip_build:
