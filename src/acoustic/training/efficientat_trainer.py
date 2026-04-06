@@ -244,18 +244,36 @@ class EfficientATTrainingRunner:
 
     @staticmethod
     def _setup_stage1(model: nn.Module) -> None:
-        """Freeze all parameters, then unfreeze classifier only."""
+        """Freeze all parameters, then unfreeze ONLY the final binary head.
+
+        D-33: previously this unfroze the entire classifier MLP, which under
+        Adam@1e-3 on catastrophically-masked inputs drove the head to collapse
+        to the marginal class probability (see
+        .planning/debug/training-collapse-constant-output.md CONTRIBUTING-F).
+
+        Now we unfreeze only ``model.classifier[-1]`` -- the fresh
+        ``Linear(1280, 1)`` binary head. Stage 2 unfreezes the rest of the
+        classifier as before.
+        """
         for p in model.parameters():
             p.requires_grad = False
-        for p in model.classifier.parameters():
+        final_head = model.classifier[-1]
+        for p in final_head.parameters():
             p.requires_grad = True
 
     @staticmethod
     def _setup_stage2(model: nn.Module) -> None:
-        """Unfreeze last 3 feature blocks (classifier stays unfrozen)."""
+        """Unfreeze last 3 feature blocks + the full classifier MLP.
+
+        D-33: stage 1 only unfreezes the final binary head, so stage 2 must
+        also unfreeze the preceding classifier layers (Linear(1280, 1280),
+        Hardswish, Dropout) so the head can be fine-tuned end-to-end.
+        """
         for block in model.features[-3:]:
             for p in block.parameters():
                 p.requires_grad = True
+        for p in model.classifier.parameters():
+            p.requires_grad = True
 
     @staticmethod
     def _setup_stage3(model: nn.Module) -> None:

@@ -33,7 +33,12 @@ def binary_model(small_model):
 
 
 class TestStage1Freeze:
-    """After Stage 1 setup, only classifier params have requires_grad=True."""
+    """After Stage 1 setup, ONLY the final binary head has requires_grad=True.
+
+    D-33: narrowed from "whole classifier" to "final head only" to prevent
+    head collapse under Adam@1e-3 on masked inputs. See
+    .planning/debug/training-collapse-constant-output.md
+    """
 
     def test_stage1_freeze(self, binary_model):
         runner = EfficientATTrainingRunner.__new__(EfficientATTrainingRunner)
@@ -43,9 +48,17 @@ class TestStage1Freeze:
         for name, p in binary_model.features.named_parameters():
             assert not p.requires_grad, f"features param {name} should be frozen in stage 1"
 
-        # Classifier unfrozen
-        for name, p in binary_model.classifier.named_parameters():
-            assert p.requires_grad, f"classifier param {name} should be trainable in stage 1"
+        # Only the final head (Linear(1280, 1)) is unfrozen
+        final_head = binary_model.classifier[-1]
+        for name, p in final_head.named_parameters():
+            assert p.requires_grad, f"final head param {name} should be trainable in stage 1"
+
+        # Earlier classifier layers (e.g. Linear(1280, 1280)) stay frozen
+        for module in list(binary_model.classifier)[:-1]:
+            for name, p in module.named_parameters():
+                assert not p.requires_grad, (
+                    f"earlier classifier param {name} should be FROZEN in stage 1 (D-33)"
+                )
 
 
 class TestStage2Unfreeze:
