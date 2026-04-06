@@ -4,14 +4,14 @@ milestone: v1.0
 milestone_name: MVP
 status: executing
 stopped_at: Completed 15-02-PLAN.md
-last_updated: "2026-04-06T14:50:10.959Z"
-last_activity: 2026-04-06 -- Phase 20 planning complete
+last_updated: "2026-04-06T15:33:17.831Z"
+last_activity: 2026-04-06 -- Phase 20 execution started
 progress:
   total_phases: 15
   completed_phases: 10
-  total_plans: 35
+  total_plans: 37
   completed_plans: 24
-  percent: 69
+  percent: 65
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-03)
 
 **Core value:** Reliably detect and classify drones acoustically in real time, publishing target events over ZeroMQ so downstream systems can act on them.
-**Current focus:** Phase 15 — advanced-training-enhancements-focal-loss-noise-augmentation-balanced-sampling
+**Current focus:** Phase 20 — retrain-v7-with-wide-gain-room-ir-augmentation-vertex-remote
 
 ## Current Position
 
-Phase: 18
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-04-06 -- Phase 20 planning complete
+Phase: 20 (retrain-v7-with-wide-gain-room-ir-augmentation-vertex-remote) — EXECUTING
+Plan: 1 of 9
+Status: Executing Phase 20
+Last activity: 2026-04-06 -- Phase 20 execution started
 
 ## Performance Metrics
 

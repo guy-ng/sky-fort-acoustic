@@ -63,6 +63,85 @@ Out of scope: model architecture changes, ONNX/TFLite export (Phase 16), pipelin
 - **D-28:** Eval harness: extend existing evaluation tooling (Phase 9) to accept a UMA-16 eval set. Produces a confusion matrix + ROC curve report saved alongside the v7 checkpoint.
 - **D-29:** Promotion rule: v7 is promoted to `models/efficientat_mn10.pt` (default) ONLY if both D-26 AND D-27 pass. Otherwise keep v6 as default and investigate.
 
+### Trainer Correctness Fixes (added 2026-04-06 from training-collapse diagnosis)
+
+> Source: `.planning/debug/training-collapse-constant-output.md`. The diagnosis surfaced
+> three trainer-side bugs that would silently re-collapse v7 even with all Phase 20
+> augmentations correctly wired. These are mandatory pre-conditions for D-23 to mean
+> what it says.
+
+- **D-30: SpecAugment params must scale to the actual input length.** `efficientat_trainer.py:349`
+  currently uses `freqm=48, timem=192` (AudioSet 10-second defaults) on 1-second clips that
+  produce only ~100 mel time frames. `torchaudio.transforms.TimeMasking(time_mask_param=192)`
+  draws a mask up to `min(192, T)` — frequently masking the entire time axis to zero on a
+  significant fraction of training batches, which is the primary driver of the constant-output
+  collapse seen in v3/v5/v6. Phase 20 sets new defaults: `freqm ≤ n_mels // 16` (≈8 for
+  n_mels=128) and `timem ≤ input_dim_t // 10` (≈10 for input_dim_t=100). New config keys
+  `specaug_freq_mask` and `specaug_time_mask` (default 8 and 10) drive both `mel_train`
+  construction and any future tuning. `mel_eval` continues to use `freqm=0, timem=0`.
+
+- **D-31: Loss function must be config-driven (focal, not hardcoded BCE).** `efficientat_trainer.py:357`
+  unconditionally constructs `nn.BCEWithLogitsLoss()`, ignoring the config field
+  `loss_function` and the `build_loss_function()` factory in
+  `src/acoustic/training/losses.py`. The Vertex submission script in
+  `20-RESEARCH.md:554` explicitly sets `ACOUSTIC_TRAINING_LOSS_FUNCTION="focal"` for v7;
+  without the wiring fix that env var is silently dropped and v7 trains with plain BCE.
+  Phase 20 wires the trainer to call `build_loss_function(cfg)` so D-23's
+  `focal(α=0.25, γ=2.0)` actually takes effect, and `bce_pos_weight` is honored when
+  the BCE branch is selected. This is a small, surgical edit to one construction site.
+
+- **D-32: Behavioral checkpoint save gate (refuse-to-save degenerate models).** `EarlyStopping`
+  at `efficientat_trainer.py:381` is keyed exclusively on `avg_val_loss`. A constant-output
+  model achieves a stable `-log(p_majority)` loss and gets saved as "improved" on
+  epsilon-level numerical drift. Phase 20 adds a save gate keyed on the val confusion
+  matrix already computed at line ~489: refuse to save (and log a warning) when
+  `min(tp, tn) == 0` OR `val_accuracy < 0.55`. This is a reactive guard, not a primary
+  fix — but without it, even a buggy training run will silently produce a "best" checkpoint
+  that ships to the live pipeline. Implementation lives in the runner's per-epoch save hook,
+  not in the generic `EarlyStopping` class.
+
+- **D-34: Per-sample RMS normalization on BOTH the trainer dataset path AND `RawAudioPreprocessor.process()`.**
+  Empirical verification (`scripts/verify_rms_domain_mismatch.py`, run 2026-04-06)
+  surfaced two coupled problems that a single fix closes:
+    1. **Domain shift** — DADS raw RMS ≈ 0.18 vs live UMA-16 post-`cnn_input_gain=500`
+       RMS ≈ 9.3 → **52x amplitude ratio**, normalized log-mel mean shift of +1.10 units.
+       The trained model never sees the inference distribution.
+    2. **Label-amplitude shortcut in DADS** — drone clips are short, peak-normalized
+       (RMS ~0.21–0.28); no-drone clips are long, unnormalized (RMS ~0.002–0.08). The
+       model can learn "loud ⇒ drone" from absolute amplitude alone, with no acoustic
+       content. At inference, `cnn_input_gain` pushes everything into the loud regime
+       and the model collapses to all-ones — this is the v5/v6 signature.
+  Phase 20 fixes both by RMS-normalizing every waveform to a fixed target RMS
+  (`rms_target = 0.1`) immediately before mel computation, on both sides:
+    - `RawAudioPreprocessor.process()` in `src/acoustic/classification/preprocessing.py`
+      stops relying on `cnn_input_gain`. The gain knob can stay for backwards-compat
+      but must default to 1.0; the actual amplitude calibration is done by the new
+      `_rms_normalize(audio, target=0.1, eps=1e-6)` step that runs immediately before
+      the mel transform.
+    - `WindowedHFDroneDataset.__getitem__` (Plan 20-03) and the legacy `HFDroneDataset`
+      path apply the same `_rms_normalize` after augmentation and before returning the
+      waveform. Apply AFTER `BackgroundNoiseMixer` so SNR-mixed signals are normalized
+      as a unit, not pre-mix. RMS normalization runs LAST in the augmentation chain.
+  New `TrainingConfig` field `rms_normalize_target: float = 0.1`. New
+  `RawAudioPreprocessor` constructor arg with the same default. The "0.1" anchor is
+  chosen because it sits ~6 dB below DADS drone-clip RMS (0.18) and ~20 dB above the
+  raw UMA-16 ambient floor — a single target both regimes can land at without
+  saturation. Eval-time normalization is identical to train-time normalization (no
+  branching), guaranteeing the model sees the same distribution end-to-end.
+  This decision deletes the implicit assumption baked into D-01..D-04 that wide-gain
+  augmentation alone can bridge the 50–60 dB gap. RMS normalization makes that gap
+  irrelevant; wide-gain augmentation now exists purely to teach robustness to gain
+  variation around the normalized target, NOT to bridge the domain.
+
+- **D-33: Stage 1 unfreezing scope.** `efficientat_trainer.py:141` does
+  `for p in model.classifier.parameters(): p.requires_grad = True`, which unfreezes the
+  full pretrained `Linear(1280,1280) + Hardswish + Dropout + Linear(1280,1)` head — ~1.6M
+  params at `stage1_lr=1e-3`. Combined with masked-input batches (D-30) this drives rapid
+  head collapse before stages 2/3 ever start. Phase 20 narrows Stage 1 unfreezing to ONLY
+  the new final `Linear(1280, 1)` head — typically `model.classifier[-1]` or the explicit
+  binary head added at line ~342. Stage 2 is unchanged and unfreezes the rest of the
+  classifier as before. This is a 1–2 line change in `_setup_stage1`.
+
 ### Claude's Discretion
 - Exact pyroomacoustics room shape sampler implementation (uniform vs log-uniform per dimension).
 - RIR caching strategy (precompute pool of 500 RIRs vs generate per-sample).
@@ -88,6 +167,16 @@ None.
 
 ### Root-cause evidence for wide gain
 - `.planning/debug/uma16-no-detections.md` — Documents UMA-16 ambient RMS ≈ 8e-5 (−82 dBFS), vs DADS training data ~ −20 to −30 dBFS. Justifies D-01..D-04.
+
+### Root-cause evidence for trainer correctness fixes
+- `.planning/debug/training-collapse-constant-output.md` — Diagnosis of v3/v5/v6/local
+  collapse-to-constant pattern. Identifies SpecAugment over-masking (PRIMARY-A, → D-30),
+  hardcoded `BCEWithLogitsLoss` ignoring config (PRIMARY-C, → D-31), missing behavioral
+  save gate (CONTRIBUTING-D, → D-32), and over-broad Stage 1 unfreezing (CONTRIBUTING-F,
+  → D-33). Without these fixes, Phase 20 augmentations cannot rescue v7. The "local model
+  inverted labels" symptom is also explained as a domain-shift consequence of the gain
+  mismatch already addressed by D-01..D-04, NOT a label flip — verified against
+  `src/acoustic/api/test_pipeline_routes.py:100`.
 
 ### Existing training infrastructure (modify, don't replace)
 - `src/acoustic/training/augmentation.py` — `WaveformAugmentation`, `SpecAugment`, `BackgroundNoiseMixer`, `AudiomentationsAugmentation`, `ComposedAugmentation`. Phase 20 adds `RoomIRAugmentation` + widens gain.

@@ -52,7 +52,15 @@ created: 2026-04-06
 - [ ] `tests/unit/training/test_room_ir_augmentation.py` — stubs for D-05..D-08
 - [ ] `tests/unit/training/test_background_noise_mixer_uma16.py` — stubs for D-09..D-12
 - [ ] `tests/unit/training/test_sliding_window_dataset.py` — stubs for D-13..D-16 (including session-level split leakage test)
-- [ ] `tests/unit/training/test_training_config_phase20.py` — stubs for new config fields (wide_gain_db, rir_enabled, rir_probability, window_hop_ratio)
+- [ ] `tests/unit/training/test_training_config_phase20.py` — stubs for new config fields (wide_gain_db, rir_enabled, rir_probability, window_hop_ratio, **specaug_freq_mask, specaug_time_mask, save_gate_min_accuracy** per D-30/D-32)
+- [ ] `tests/unit/training/test_specaug_scaling.py` — stub for D-30 (mel_train uses cfg.specaug_freq_mask / specaug_time_mask, not legacy 48/192)
+- [ ] `tests/unit/training/test_trainer_loss_factory.py` — stub for D-31 (criterion = build_loss_function(cfg); focal selected when configured)
+- [ ] `tests/unit/training/test_save_gate.py` — stub for D-32 (refuse-to-save when min(tp,tn)==0 or val_acc < threshold)
+- [ ] `tests/unit/training/test_stage1_unfreeze_scope.py` — stub for D-33 (Stage 1 unfreezes only final binary head)
+- [ ] `tests/unit/test_rms_normalize.py` — stub for D-34 helper (numpy + torch, idempotent, silence-safe)
+- [ ] `tests/unit/test_raw_audio_preprocessor.py` — stub for D-34 inference path (RMS within 1e-3 of 0.1 across input range 0.001–10.0)
+- [ ] `tests/unit/training/test_rms_normalize_augmentation.py` — stub for D-34 trainer wiring (RmsNormalize is LAST in train + eval chains)
+- [ ] `tests/integration/test_rms_contract_train_inference.py` — stub for D-34 end-to-end parity gate
 - [ ] `tests/integration/test_vertex_dockerfile_copy.py` — stub asserting Dockerfile.vertex copies new data dirs (D-24)
 - [ ] `tests/conftest.py` — shared fixtures (tiny RIR, synthetic 16 kHz waveform, temp noise dir)
 
