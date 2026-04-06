@@ -167,3 +167,129 @@ class HFDatasetBuilder:
             waveforms.append(audio)
             labels.append(int(row["label"]))
         return waveforms, labels
+
+
+# ---------------------------------------------------------------------------
+# Phase 20 D-13/D-14/D-15/D-16: Sliding-window dataset
+# ---------------------------------------------------------------------------
+
+
+class WindowedHFDroneDataset(Dataset):
+    """Sliding-window dataset for Phase 20 v7 training (D-13..D-16).
+
+    Replaces HFDroneDataset's random 0.5s segment extraction with deterministic
+    sliding-window enumeration. CRITICAL: must be constructed with FILE INDICES
+    (from parquet_dataset.split_file_indices), not window indices, to preserve
+    session-level split isolation (D-15). Adjacent overlapping windows from the
+    same source file would otherwise leak across splits and inflate val/test
+    metrics by 10-20% (compass doc §4 "Data splitting: session-level grouping
+    is non-negotiable"; Plotz 2021).
+
+    Window math:
+        num_windows_per_file = max(1, 1 + (n_samples - window_samples) // hop_samples)
+
+    For DADS uniform 1s @ 16k clips, window=8000, hop=3200:
+        num_windows = 1 + (16000-8000)//3200 = 3 windows per file (60% overlap, D-13/D-14)
+
+    For test split with hop=8000 (no overlap, D-16):
+        num_windows = 1 + (16000-8000)//8000 = 2 windows per file
+    """
+
+    def __init__(
+        self,
+        hf_dataset,
+        file_indices: list[int],
+        window_samples: int = 8000,
+        hop_samples: int = 3200,
+        mel_config: MelConfig | None = None,
+        waveform_aug: Callable[[np.ndarray], np.ndarray] | None = None,
+        spec_aug: SpecAugment | None = None,
+        assumed_clip_samples: int = 16000,
+        sample_rate: int = 16000,
+    ) -> None:
+        # Duplicate file indices would silently break session-level isolation
+        assert len(set(file_indices)) == len(file_indices), (
+            "duplicate file indices not allowed — would break session-level split"
+        )
+
+        self._hf_ds = hf_dataset
+        self._window_samples = int(window_samples)
+        self._hop_samples = int(hop_samples)
+        self._mel_config = mel_config or MelConfig()
+        self._waveform_aug = waveform_aug
+        self._spec_aug = spec_aug
+        self._sr = int(sample_rate)
+        self._assumed_clip_samples = int(assumed_clip_samples)
+
+        # Build flat index list of (file_idx, window_offset)
+        # _items[k] = (file_idx, byte-offset-in-samples) for the k-th window
+        self._items: list[tuple[int, int]] = []
+        self._labels_cache: list[int] = []
+
+        # Pre-fetch labels via Arrow column (zero-copy) instead of per-row access
+        all_labels = list(hf_dataset["label"])
+
+        n = self._assumed_clip_samples
+        # Number of sliding windows per (uniform-length) clip
+        num_w = max(1, 1 + max(0, (n - self._window_samples)) // self._hop_samples)
+
+        for file_idx in file_indices:
+            label_int = int(all_labels[file_idx])
+            for w in range(num_w):
+                self._items.append((int(file_idx), w * self._hop_samples))
+                self._labels_cache.append(label_int)
+
+    def __len__(self) -> int:
+        return len(self._items)
+
+    def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor]:
+        """Return one (mel, label) tuple for the idx-th sliding window."""
+        file_idx, offset = self._items[idx]
+        row = self._hf_ds[file_idx]
+
+        # Decode WAV bytes (same path as HFDroneDataset)
+        audio_struct = row["audio"]
+        wav_bytes = audio_struct["bytes"]
+        audio = decode_wav_bytes(wav_bytes)
+
+        # Sanity check on uniform-clip assumption (Research A1 fallback hook)
+        if len(audio) != self._assumed_clip_samples:
+            # Loud failure beats silent leakage / corrupt windows
+            msg = (
+                f"WindowedHFDroneDataset: file_idx={file_idx} produced "
+                f"{len(audio)} samples, expected uniform "
+                f"{self._assumed_clip_samples}. DADS uniform-clip assumption "
+                f"violated — see Research A1."
+            )
+            raise AssertionError(msg)
+
+        # Slice the deterministic window
+        segment = audio[offset : offset + self._window_samples]
+        if len(segment) < self._window_samples:
+            pad = np.zeros(self._window_samples - len(segment), dtype=np.float32)
+            segment = np.concatenate([segment, pad])
+
+        # Waveform augmentation at 16 kHz BEFORE mel computation
+        if self._waveform_aug is not None:
+            segment = self._waveform_aug(segment)
+
+        # Mel spectrogram: returns (1, 1, 128, 64) → squeeze to (1, 128, 64)
+        features = mel_spectrogram_from_segment(segment, self._mel_config)
+        features = features.squeeze(0)
+
+        # Spectrogram augmentation
+        if self._spec_aug is not None:
+            features = self._spec_aug(features)
+
+        label_tensor = torch.tensor(self._labels_cache[idx], dtype=torch.float32)
+        return features, label_tensor
+
+    @property
+    def labels(self) -> list[int]:
+        """Integer labels for every flat (file, window) item — needed for samplers."""
+        return self._labels_cache
+
+    @property
+    def total_rows(self) -> int:
+        """Total rows in the underlying HF dataset (before windowing/splitting)."""
+        return len(self._hf_ds)
