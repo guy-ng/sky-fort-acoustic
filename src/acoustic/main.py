@@ -16,7 +16,7 @@ from acoustic.api.websocket import router as ws_router
 import sounddevice as sd
 
 from acoustic.audio.capture import AudioCapture, AudioRingBuffer
-from acoustic.audio.device import detect_uma16v2
+from acoustic.audio.device import detect_audio_device
 from acoustic.audio.monitor import DeviceMonitor, DeviceStatus
 from acoustic.audio.simulator import SimulatedAudioSource
 from acoustic.config import AcousticSettings
@@ -100,12 +100,18 @@ def _create_hardware_capture(
     settings: AcousticSettings,
     device_index: int | str,
     monitor: DeviceMonitor | None = None,
+    channels: int | None = None,
 ) -> AudioCapture:
-    """Create and start a new AudioCapture for the given device."""
+    """Create and start a new AudioCapture for the given device.
+
+    ``channels`` overrides ``settings.num_channels`` so fallback devices with
+    fewer than 16 input channels can still open a stream. Pass the value from
+    ``DeviceInfo.channels`` whenever the device may not be the UMA-16v2.
+    """
     capture = AudioCapture(
         device=device_index,
         fs=settings.sample_rate,
-        channels=settings.num_channels,
+        channels=channels if channels is not None else settings.num_channels,
         chunk_samples=settings.chunk_samples,
         ring_chunks=settings.ring_chunks,
         on_stream_finished=monitor.notify_stream_abort if monitor else None,
@@ -174,14 +180,19 @@ async def _initial_scan_task(app: FastAPI) -> None:
             await asyncio.sleep(INITIAL_SCAN_INTERVAL)
 
             _reset_portaudio()
-            device_info = detect_uma16v2()
+            device_info = detect_audio_device()
             if device_info is None:
                 continue
 
             logger.info("Device found during scan: %s (index=%s)", device_info.name, device_info.index)
 
             try:
-                capture = _create_hardware_capture(settings, device_info.index, monitor)
+                capture = _create_hardware_capture(
+                    settings,
+                    device_info.index,
+                    monitor,
+                    channels=1 if device_info.is_fallback else None,
+                )
             except Exception as exc:
                 logger.warning("Failed to create capture: %s — will retry", exc)
                 continue
@@ -236,14 +247,19 @@ async def _reconnect_loop(
         # Reset PortAudio to clear stale CoreAudio state
         _reset_portaudio()
 
-        device_info = detect_uma16v2()
+        device_info = detect_audio_device()
         if device_info is None:
             continue
 
         logger.info("Device found: %s (index=%s) — attempting capture", device_info.name, device_info.index)
 
         try:
-            capture = _create_hardware_capture(settings, device_info.index, monitor)
+            capture = _create_hardware_capture(
+                settings,
+                device_info.index,
+                monitor,
+                channels=1 if device_info.is_fallback else None,
+            )
         except Exception as exc:
             logger.warning("Failed to create capture: %s — will retry", exc)
             continue
@@ -278,7 +294,7 @@ async def _reconnect_loop(
 async def lifespan(app: FastAPI):
     """Manage audio capture and beamforming pipeline lifecycle."""
     settings = AcousticSettings()
-    device_info = detect_uma16v2()
+    device_info = detect_audio_device()
 
     # Start device monitor early so capture can wire its callbacks
     device_monitor = DeviceMonitor(poll_interval=3.0)
@@ -436,12 +452,24 @@ async def lifespan(app: FastAPI):
         capture.start()
         pipeline.start(capture.ring)
     elif device_info is not None:
-        logger.info("Starting with hardware audio capture (device=%s)", device_info.index)
-        capture = _create_hardware_capture(settings, device_info.index, device_monitor)
+        if device_info.is_fallback:
+            logger.warning(
+                "Starting with FALLBACK hardware capture (mono, detection-only): device=%s name=%s",
+                device_info.index,
+                device_info.name,
+            )
+        else:
+            logger.info("Starting with hardware audio capture (device=%s)", device_info.index)
+        capture = _create_hardware_capture(
+            settings,
+            device_info.index,
+            device_monitor,
+            channels=1 if device_info.is_fallback else None,
+        )
         pipeline.start(capture.ring)
     else:
         # No device at startup — start with empty pipeline, scan for device
-        logger.warning("UMA-16v2 not detected at startup — scanning for device...")
+        logger.warning("No input audio device detected at startup — scanning for device...")
         capture = None
 
     # Store on app.state for endpoint access

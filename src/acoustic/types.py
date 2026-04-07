@@ -19,6 +19,9 @@ class DeviceInfo:
     name: str
     channels: int
     default_samplerate: float
+    # True when this device was selected because the UMA-16v2 was not present.
+    # Callers may use this to switch to detection-only (mono) capture.
+    is_fallback: bool = False
 
 
 @dataclass

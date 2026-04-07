@@ -14,7 +14,7 @@ import threading
 import time
 from dataclasses import dataclass
 
-from acoustic.audio.device import detect_uma16v2
+from acoustic.audio.device import detect_audio_device
 from acoustic.types import DeviceInfo
 
 logger = logging.getLogger(__name__)
@@ -35,7 +35,7 @@ class DeviceStatus:
 class DeviceMonitor:
     """Polls for UMA-16v2 and notifies async subscribers on state changes.
 
-    Runs a daemon thread that calls detect_uma16v2() periodically.
+    Runs a daemon thread that calls detect_audio_device() periodically.
     When the detected/not-detected state changes, all registered
     asyncio.Queue subscribers receive a DeviceStatus message.
 
@@ -120,7 +120,7 @@ class DeviceMonitor:
     def _poll(self) -> None:
         while self._running:
             try:
-                info = detect_uma16v2()
+                info = detect_audio_device()
             except Exception:
                 logger.exception("Device detection error")
                 info = None
@@ -165,7 +165,7 @@ class DeviceMonitor:
         self._running = True
         # Initial detection
         try:
-            info = detect_uma16v2()
+            info = detect_audio_device()
         except Exception:
             info = None
         self._device_info = info
