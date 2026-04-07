@@ -16,7 +16,10 @@ import torch
 from torch.utils.data import Dataset
 
 from acoustic.classification.config import MelConfig
-from acoustic.classification.preprocessing import mel_spectrogram_from_segment
+from acoustic.classification.preprocessing import (
+    mel_spectrogram_from_segment,
+    pad_or_loop,
+)
 from acoustic.training.augmentation import SpecAugment
 from acoustic.training.parquet_dataset import decode_wav_bytes, split_indices
 
@@ -73,7 +76,6 @@ class HFDroneDataset(Dataset):
             start = random.randint(0, len(audio) - n)
             segment = audio[start : start + n]
         else:
-            from acoustic.classification.preprocessing import pad_or_loop
             segment = pad_or_loop(audio, n)
 
         # Waveform augmentation
@@ -220,6 +222,12 @@ class WindowedHFDroneDataset(Dataset):
         self._spec_aug = spec_aug
         self._sr = int(sample_rate)
         self._assumed_clip_samples = int(assumed_clip_samples)
+        # One-shot warning flag — DADS contains rare outlier clips that violate
+        # the uniform-length assumption (e.g. file_idx=174151 in the v7 corpus
+        # decodes to 8000 samples instead of 16000). We tolerate them in
+        # __getitem__ via pad_or_loop / truncation rather than crashing
+        # training, but warn once so the divergence is visible in logs.
+        self._warned_non_uniform = False
 
         # Build flat index list of (file_idx, window_offset)
         # _items[k] = (file_idx, byte-offset-in-samples) for the k-th window
@@ -252,16 +260,32 @@ class WindowedHFDroneDataset(Dataset):
         wav_bytes = audio_struct["bytes"]
         audio = decode_wav_bytes(wav_bytes)
 
-        # Sanity check on uniform-clip assumption (Research A1 fallback hook)
+        # Tolerate non-uniform clips (Research A1 fallback). The DADS corpus
+        # contains rare outlier files whose decoded length deviates from the
+        # uniform 1 s assumption (e.g. file_idx=174151 in v7 decodes to 8000
+        # samples). Pre-computed window offsets in self._items assume
+        # _assumed_clip_samples, so we reconcile the actual audio against that
+        # assumption rather than crash mid-training.
         if len(audio) != self._assumed_clip_samples:
-            # Loud failure beats silent leakage / corrupt windows
-            msg = (
-                f"WindowedHFDroneDataset: file_idx={file_idx} produced "
-                f"{len(audio)} samples, expected uniform "
-                f"{self._assumed_clip_samples}. DADS uniform-clip assumption "
-                f"violated — see Research A1."
-            )
-            raise AssertionError(msg)
+            if not self._warned_non_uniform:
+                logger.warning(
+                    "WindowedHFDroneDataset: non-uniform clip detected "
+                    "(file_idx=%d, %d samples vs assumed %d). "
+                    "Falling back to pad_or_loop/truncate; suppressing further "
+                    "warnings for this dataset instance.",
+                    file_idx,
+                    len(audio),
+                    self._assumed_clip_samples,
+                )
+                self._warned_non_uniform = True
+            if len(audio) < self._assumed_clip_samples:
+                # Tile the short clip up to the assumed length so every
+                # pre-allocated (file_idx, offset) window contains real audio
+                # rather than zero padding.
+                audio = pad_or_loop(audio, self._assumed_clip_samples)
+            else:
+                # Longer-than-expected: truncate so window offsets stay valid.
+                audio = audio[: self._assumed_clip_samples]
 
         # Slice the deterministic window
         segment = audio[offset : offset + self._window_samples]
