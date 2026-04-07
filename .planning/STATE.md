@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: MVP
-status: completed
+status: executing
 stopped_at: Phase 20.1 context gathered
-last_updated: "2026-04-06T22:56:18.430Z"
-last_activity: 2026-04-07 -- Plan 20-05 Task 1 committed (5 commits 428176c..70b02bb); blocker discovered before docker build/push; new data-acquisition phase needed before Wave 4 Task 2 + Wave 5 can run.
+last_updated: "2026-04-06T23:48:09.501Z"
+last_activity: 2026-04-06 -- Phase 20.1 execution started
 progress:
   total_phases: 16
   completed_phases: 10
-  total_plans: 37
+  total_plans: 40
   completed_plans: 32
-  percent: 86
+  percent: 80
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-03)
 
 **Core value:** Reliably detect and classify drones acoustically in real time, publishing target events over ZeroMQ so downstream systems can act on them.
-**Current focus:** Phase 20 — retrain-v7-with-wide-gain-room-ir-augmentation-vertex-remote
+**Current focus:** Phase 20.1 — acquire-noise-corpora-esc50-urbansound8k-fsd50k-subset-and-a
 
 ## Current Position
 
-Phase: 20 (retrain-v7-with-wide-gain-room-ir-augmentation-vertex-remote) — **BLOCKED**
-Plan: 8 of 9 (Plan 20-05 Task 1 code-complete; Task 2 blocked on data acquisition)
-Status: Phase 20 code-complete for Waves 1–4 Task 1; remote training cannot proceed until ESC50 / UrbanSound8K / FSD50K noise corpora are acquired and placed under `data/noise/{esc50,urbansound8k,fsd50k_subset}/`.
-Last activity: 2026-04-07 -- Plan 20-05 Task 1 committed (5 commits 428176c..70b02bb); blocker discovered before docker build/push; new data-acquisition phase needed before Wave 4 Task 2 + Wave 5 can run.
+Phase: 20.1 (acquire-noise-corpora-esc50-urbansound8k-fsd50k-subset-and-a) — EXECUTING
+Plan: 1 of 3
+Status: Executing Phase 20.1
+Last activity: 2026-04-07 - Completed quick task 260407-jx8: Fix WindowedHFDroneDataset assertion on non-uniform DADS clips
 
 ## Performance Metrics
 
@@ -139,6 +139,7 @@ None yet.
 | 260331-mok | Device disconnect overlay on heatmap | 2026-03-31 | c020721 | [260331-mok-device-state-and-reconnect-ws-disconnect](./quick/260331-mok-device-state-and-reconnect-ws-disconnect/) |
 | 260331-myc | Fix device disconnect/reconnect recovery | 2026-03-31 | 2b25331 | [260331-myc-fix-device-disconnect-reconnect-backend-](./quick/260331-myc-fix-device-disconnect-reconnect-backend-/) |
 | 260401-0fb | Beamforming map dB normalization + origin suppression | 2026-04-01 | caeaabd | [260401-0fb-beamforming-map-focus-on-drone-data-copy](./quick/260401-0fb-beamforming-map-focus-on-drone-data-copy/) |
+| 260407-jx8 | Fix WindowedHFDroneDataset assertion on non-uniform DADS clips | 2026-04-07 | 7ea498a | [260407-jx8-fix-windowedhfdronedataset-assertion-on-](./quick/260407-jx8-fix-windowedhfdronedataset-assertion-on-/) |
 
 ## Session Continuity
 
