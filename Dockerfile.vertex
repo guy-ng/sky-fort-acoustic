@@ -23,6 +23,14 @@ WORKDIR /app
 COPY src/ src/
 COPY scripts/vertex_train.py vertex_train.py
 
+# Strip macOS AppleDouble metadata files baked into the base image. The base
+# was built on (or rsynced through) a macOS host and `data/field/uma16_ambient/`
+# contains "._<name>.wav" sidecar files. soundfile.SoundFile() refuses them
+# with `LibsndfileError: Format not recognised`, which crashes
+# BackgroundNoiseMixer.warm_cache() at the start of training (Phase 20 v7).
+# Idempotent — costs nothing once the files are gone from the base.
+RUN find /app/data -name '._*' -delete && find /app/data -name '.DS_Store' -delete
+
 ENV PYTHONPATH=/app/src
 ENV PYTHONUNBUFFERED=1
 
