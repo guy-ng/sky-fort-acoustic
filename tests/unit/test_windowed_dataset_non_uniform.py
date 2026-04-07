@@ -74,7 +74,9 @@ def test_non_uniform_clips_do_not_crash(fake_decoder, caplog):
 
     Window math (assumed 16000, window 8000, hop 3200) yields 3 windows per
     file. With 3 files that's 9 __getitem__ calls — every one must return a
-    (mel, label) pair without raising AssertionError.
+    (raw_waveform_32k, label) pair without raising. Each waveform must be a
+    1D float32 tensor of length 16000 (= 0.5 s × 32 kHz, after the
+    16 kHz → 32 kHz resample for EfficientAT — quick task 260407-ls3).
     """
     fake_ds = _FakeHFDataset(labels=[0, 1, 1])
 
@@ -91,9 +93,15 @@ def test_non_uniform_clips_do_not_crash(fake_decoder, caplog):
 
     with caplog.at_level(logging.WARNING, logger=hf_dataset_module.__name__):
         for k in range(len(ds)):
-            features, label = ds[k]
-            assert isinstance(features, torch.Tensor)
-            assert features.shape == (1, 128, 64)
+            waveform, label = ds[k]
+            assert isinstance(waveform, torch.Tensor)
+            assert waveform.ndim == 1, (
+                f"expected 1D raw waveform, got shape {tuple(waveform.shape)}"
+            )
+            # 8000 samples @ 16 kHz → 16000 samples @ 32 kHz
+            assert waveform.shape[0] == 16000
+            assert waveform.dtype == torch.float32
+            assert torch.isfinite(waveform).all()
             assert isinstance(label, torch.Tensor)
 
     # First non-uniform clip must produce exactly one warning, then suppress.

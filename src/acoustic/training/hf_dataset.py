@@ -13,6 +13,7 @@ from collections.abc import Callable
 
 import numpy as np
 import torch
+import torchaudio.functional as F_audio
 from torch.utils.data import Dataset
 
 from acoustic.classification.config import MelConfig
@@ -24,6 +25,11 @@ from acoustic.training.augmentation import SpecAugment
 from acoustic.training.parquet_dataset import decode_wav_bytes, split_indices
 
 logger = logging.getLogger(__name__)
+
+# Sample rate constants for the EfficientAT path. DADS source is 16 kHz; the
+# EfficientAT mn10 model expects 32 kHz waveforms (matches AudioSet pretrain).
+_SOURCE_SR = 16000
+_TARGET_SR = 32000
 
 
 class HFDroneDataset(Dataset):
@@ -177,17 +183,23 @@ class HFDatasetBuilder:
 
 
 class WindowedHFDroneDataset(Dataset):
-    """Sliding-window dataset for Phase 20 v7 training (D-13..D-16).
+    """Sliding-window dataset for Phase 20 v7 EfficientAT training (D-13..D-16).
 
-    Replaces HFDroneDataset's random 0.5s segment extraction with deterministic
-    sliding-window enumeration. CRITICAL: must be constructed with FILE INDICES
-    (from parquet_dataset.split_file_indices), not window indices, to preserve
+    Returns ``(raw_waveform_32k, label)`` pairs — NOT mel spectrograms. The
+    EfficientAT trainer applies its own ``AugmentMelSTFT`` (mel + spec-aug)
+    per-batch on device, so this dataset hands it raw audio at the EfficientAT
+    sample rate (32 kHz). Quick task 260407-ls3 fixed an earlier version that
+    returned mel features, which crashed ``mel_train(batch_wav)`` with
+    ``RuntimeError: Expected 2D/3D input to conv1d, got [B,1,1,128,64]``.
+
+    CRITICAL: must be constructed with FILE INDICES (from
+    ``parquet_dataset.split_file_indices``), not window indices, to preserve
     session-level split isolation (D-15). Adjacent overlapping windows from the
     same source file would otherwise leak across splits and inflate val/test
     metrics by 10-20% (compass doc §4 "Data splitting: session-level grouping
     is non-negotiable"; Plotz 2021).
 
-    Window math:
+    Window math (in 16 kHz source-domain samples):
         num_windows_per_file = max(1, 1 + (n_samples - window_samples) // hop_samples)
 
     For DADS uniform 1s @ 16k clips, window=8000, hop=3200:
@@ -195,6 +207,9 @@ class WindowedHFDroneDataset(Dataset):
 
     For test split with hop=8000 (no overlap, D-16):
         num_windows = 1 + (16000-8000)//8000 = 2 windows per file
+
+    Each window is sliced at 16 kHz then resampled to 32 kHz before return,
+    yielding length ``window_samples * 2`` (e.g. 16000 samples = 0.5 s @ 32 kHz).
     """
 
     def __init__(
@@ -203,9 +218,7 @@ class WindowedHFDroneDataset(Dataset):
         file_indices: list[int],
         window_samples: int = 8000,
         hop_samples: int = 3200,
-        mel_config: MelConfig | None = None,
         waveform_aug: Callable[[np.ndarray], np.ndarray] | None = None,
-        spec_aug: SpecAugment | None = None,
         assumed_clip_samples: int = 16000,
         sample_rate: int = 16000,
     ) -> None:
@@ -217,9 +230,7 @@ class WindowedHFDroneDataset(Dataset):
         self._hf_ds = hf_dataset
         self._window_samples = int(window_samples)
         self._hop_samples = int(hop_samples)
-        self._mel_config = mel_config or MelConfig()
         self._waveform_aug = waveform_aug
-        self._spec_aug = spec_aug
         self._sr = int(sample_rate)
         self._assumed_clip_samples = int(assumed_clip_samples)
         # One-shot warning flag — DADS contains rare outlier clips that violate
@@ -251,7 +262,7 @@ class WindowedHFDroneDataset(Dataset):
         return len(self._items)
 
     def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor]:
-        """Return one (mel, label) tuple for the idx-th sliding window."""
+        """Return one (raw_waveform_32k, label) tuple for the idx-th window."""
         file_idx, offset = self._items[idx]
         row = self._hf_ds[file_idx]
 
@@ -287,26 +298,25 @@ class WindowedHFDroneDataset(Dataset):
                 # Longer-than-expected: truncate so window offsets stay valid.
                 audio = audio[: self._assumed_clip_samples]
 
-        # Slice the deterministic window
+        # Slice the deterministic window (in 16 kHz source-domain samples)
         segment = audio[offset : offset + self._window_samples]
         if len(segment) < self._window_samples:
             pad = np.zeros(self._window_samples - len(segment), dtype=np.float32)
             segment = np.concatenate([segment, pad])
 
-        # Waveform augmentation at 16 kHz BEFORE mel computation
+        # Waveform augmentation at 16 kHz BEFORE resampling. Augmentations like
+        # WideGain / RoomIR / BackgroundNoiseMixer expect source-rate audio.
         if self._waveform_aug is not None:
             segment = self._waveform_aug(segment)
 
-        # Mel spectrogram: returns (1, 1, 128, 64) → squeeze to (1, 128, 64)
-        features = mel_spectrogram_from_segment(segment, self._mel_config)
-        features = features.squeeze(0)
-
-        # Spectrogram augmentation
-        if self._spec_aug is not None:
-            features = self._spec_aug(features)
+        # Resample 16 kHz → 32 kHz for EfficientAT. The trainer's AugmentMelSTFT
+        # will compute mel + spec-aug per-batch on device; this dataset hands
+        # back raw waveform only. Quick task 260407-ls3 — see class docstring.
+        segment_t = torch.from_numpy(np.ascontiguousarray(segment, dtype=np.float32))
+        segment_t = F_audio.resample(segment_t, _SOURCE_SR, _TARGET_SR)
 
         label_tensor = torch.tensor(self._labels_cache[idx], dtype=torch.float32)
-        return features, label_tensor
+        return segment_t, label_tensor
 
     @property
     def labels(self) -> list[int]:
