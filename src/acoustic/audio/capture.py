@@ -7,6 +7,7 @@ import time
 
 import numpy as np
 import sounddevice as sd
+from scipy.signal import butter, sosfilt, sosfilt_zi
 
 logger = logging.getLogger(__name__)
 
@@ -69,12 +70,75 @@ class AudioCapture:
         chunk_samples: int,
         ring_chunks: int = 14,
         on_stream_finished: callable | None = None,
+        mic_channels: tuple[int, ...] | None = None,
+        highpass_hz: float | None = None,
+        lowpass_hz: float | None = None,
     ) -> None:
+        # When `mic_channels` is given, open the device with enough channels
+        # to cover the highest requested index but only forward those channels
+        # into the ring buffer. Used to skip on-board DSP channels (e.g.
+        # ReSpeaker XMOS firmware: channel 0 is the AGC/AEC/beamformer output,
+        # channels 1-4 are raw mic capsules).
+        if mic_channels is not None:
+            stream_channels = max(mic_channels) + 1
+            ring_channel_count = len(mic_channels)
+        else:
+            stream_channels = channels
+            ring_channel_count = channels
+
+        self._mic_channels = mic_channels
         self._ring = AudioRingBuffer(
             num_chunks=ring_chunks,
             chunk_samples=chunk_samples,
-            num_channels=channels,
+            num_channels=ring_channel_count,
         )
+
+        # Optional streaming Butterworth filter applied per ring channel
+        # before writing into the buffer. When both highpass_hz and lowpass_hz
+        # are set we build a single bandpass SOS rather than cascading two
+        # filters — same response, half the per-callback work and half the
+        # state. State is preserved across callbacks so consecutive chunks
+        # produce a continuous filtered signal without transient artifacts
+        # at chunk boundaries.
+        self._hp_sos: np.ndarray | None = None
+        self._hp_zi: np.ndarray | None = None
+        nyq = fs / 2.0
+
+        def _norm(hz: float | None) -> float | None:
+            if hz is None or hz <= 0:
+                return None
+            wn = float(hz) / nyq
+            return wn if 0 < wn < 1 else None
+
+        wn_hp = _norm(highpass_hz)
+        wn_lp = _norm(lowpass_hz)
+
+        sos = None
+        label = None
+        if wn_hp is not None and wn_lp is not None and wn_hp < wn_lp:
+            sos = butter(4, [wn_hp, wn_lp], btype="bandpass", output="sos")
+            label = f"bandpass {highpass_hz:.0f}-{lowpass_hz:.0f} Hz"
+        elif wn_hp is not None:
+            sos = butter(4, wn_hp, btype="highpass", output="sos")
+            label = f"high-pass {highpass_hz:.0f} Hz"
+        elif wn_lp is not None:
+            sos = butter(4, wn_lp, btype="lowpass", output="sos")
+            label = f"low-pass {lowpass_hz:.0f} Hz"
+
+        if sos is not None:
+            self._hp_sos = sos
+            zi = sosfilt_zi(sos)  # (n_sections, 2)
+            self._hp_zi = np.repeat(
+                zi[np.newaxis, :, :], ring_channel_count, axis=0
+            )
+            logger.info("Capture filter enabled: %s Butterworth (order 4)", label)
+        elif highpass_hz or lowpass_hz:
+            logger.warning(
+                "Ignoring filter (hp=%s, lp=%s) — outside valid range for fs=%d",
+                highpass_hz,
+                lowpass_hz,
+                fs,
+            )
         self._last_frame_time: float | None = None
         self._xrun_flag = False
         self._on_stream_finished = on_stream_finished
@@ -82,7 +146,7 @@ class AudioCapture:
         self._stream = sd.InputStream(
             device=device,
             samplerate=fs,
-            channels=channels,
+            channels=stream_channels,
             dtype="float32",
             blocksize=chunk_samples,
             callback=self._callback,
@@ -94,7 +158,27 @@ class AudioCapture:
         self._last_frame_time = time.monotonic()
         if status:
             self._xrun_flag = True
-        self._ring.write(indata)
+
+        # Channel selection
+        if self._mic_channels is not None:
+            if len(self._mic_channels) == 1:
+                ch = self._mic_channels[0]
+                data = indata[:, ch : ch + 1]
+            else:
+                data = indata[:, list(self._mic_channels)]
+        else:
+            data = indata
+
+        # Optional high-pass (state preserved across callbacks)
+        if self._hp_sos is not None:
+            filtered = np.empty_like(data)
+            for ch in range(data.shape[1]):
+                filtered[:, ch], self._hp_zi[ch] = sosfilt(
+                    self._hp_sos, data[:, ch], zi=self._hp_zi[ch]
+                )
+            data = filtered
+
+        self._ring.write(data)
 
     def _finished(self) -> None:
         """Called by PortAudio when the stream stops (e.g. device unplugged)."""

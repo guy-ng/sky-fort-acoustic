@@ -101,6 +101,21 @@ async def start_detection(body: PipelineStartRequest, request: Request):
             content={"message": "Detection session already running. Stop it first."},
         )
 
+    # Device-specific gain cap. Only fallback devices that publish a
+    # `recommended_gain` (e.g. ReSpeaker raw mic 1) get clamped — the UMA-16v2
+    # path is untouched and the user-provided gain still applies as-is.
+    device_info = getattr(request.app.state, "device_info", None)
+    if device_info is not None and device_info.recommended_gain is not None:
+        if body.gain > device_info.recommended_gain:
+            logger.warning(
+                "Clamping requested gain %.1f → %.1f for fallback device '%s' "
+                "(UMA-tuned gain clips on this mic)",
+                body.gain,
+                device_info.recommended_gain,
+                device_info.name,
+            )
+            body.gain = device_info.recommended_gain
+
     # Validate model file exists
     if not Path(body.model_path).is_file():
         return JSONResponse(
