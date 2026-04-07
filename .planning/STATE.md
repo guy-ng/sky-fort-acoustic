@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-04-03)
 Phase: 20.1 (acquire-noise-corpora-esc50-urbansound8k-fsd50k-subset-and-a) — EXECUTING
 Plan: 1 of 3
 Status: Executing Phase 20.1
-Last activity: 2026-04-07 - Completed quick task 260407-jx8: Fix WindowedHFDroneDataset assertion on non-uniform DADS clips
+Last activity: 2026-04-07 - Completed quick task 260407-ls3: Fix WindowedHFDroneDataset to return 32 kHz raw audio for EfficientAT v7
 
 ## Performance Metrics
 
@@ -140,6 +140,7 @@ None yet.
 | 260331-myc | Fix device disconnect/reconnect recovery | 2026-03-31 | 2b25331 | [260331-myc-fix-device-disconnect-reconnect-backend-](./quick/260331-myc-fix-device-disconnect-reconnect-backend-/) |
 | 260401-0fb | Beamforming map dB normalization + origin suppression | 2026-04-01 | caeaabd | [260401-0fb-beamforming-map-focus-on-drone-data-copy](./quick/260401-0fb-beamforming-map-focus-on-drone-data-copy/) |
 | 260407-jx8 | Fix WindowedHFDroneDataset assertion on non-uniform DADS clips | 2026-04-07 | 7ea498a | [260407-jx8-fix-windowedhfdronedataset-assertion-on-](./quick/260407-jx8-fix-windowedhfdronedataset-assertion-on-/) |
+| 260407-ls3 | Fix WindowedHFDroneDataset to return 32 kHz raw audio for EfficientAT v7 | 2026-04-07 | f007e91 | [260407-ls3-fix-windowedhfdronedataset-to-return-32-](./quick/260407-ls3-fix-windowedhfdronedataset-to-return-32-/) |
 
 ## Session Continuity
 
