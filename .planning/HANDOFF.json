@@ -1,0 +1,79 @@
+{
+  "version": "1.0",
+  "timestamp": "2026-04-07T11:32:28.488Z",
+  "phase": null,
+  "phase_name": "ad-hoc-debug: live-pipeline flat probability",
+  "phase_dir": null,
+  "plan": null,
+  "task": 1,
+  "total_tasks": 4,
+  "status": "paused",
+  "completed_tasks": [
+    {
+      "id": 3,
+      "name": "Inspect RawAudioPreprocessor gain behaviour",
+      "status": "done",
+      "commit": null,
+      "finding": "input_gain is a no-op in RawAudioPreprocessor (RMS normalize to 0.1 overwrites it). Active model (research_cnn_trained.pt) uses ResearchPreprocessor which does ref=max dB normalize + clip to [0,1], so gain/level is structurally irrelevant. Flat 0.514 is NOT a preprocessing issue."
+    }
+  ],
+  "remaining_tasks": [
+    {
+      "id": 1,
+      "name": "Add computer-mic audio source toggle",
+      "status": "not_started",
+      "scope": "Backend: new ComputerMicCapture in src/acoustic/audio/capture.py that opens default input device and tiles mono->16ch into ring buffer. POST /api/pipeline/audio-source {source: uma16|computer} endpoint in pipeline_routes.py that tears down current capture and rebuilds via pipeline.restart(new_ring). Gate _device_lifecycle_task in main.py to skip reconnect while on computer mic (similar to existing audio_source==simulated check at main.py:142). Frontend: segmented toggle at top of PipelinePanel.tsx, useAudioSource hook in usePipeline.ts."
+    },
+    {
+      "id": 2,
+      "name": "Log raw per-segment prob in CNN worker",
+      "status": "not_started",
+      "scope": "Add _raw_probs_debug: deque[(timestamp, raw_prob, aggregated_prob)] to CNNWorker in src/acoustic/classification/worker.py. Populate it in _loop before aggregation (line ~157). Add get_raw_probs() method. Add GET /api/pipeline/debug/raw-probs endpoint. Goal: confirm whether the 0.514 flatness is in the classifier output itself or introduced by WeightedAggregator.",
+      "note": "A partial edit was attempted this session and fully reverted. worker.py is clean."
+    },
+    {
+      "id": 4,
+      "name": "Restart both servers",
+      "status": "not_started",
+      "scope": "Kill existing uvicorn (PID 5985) and vite (PID 98258), restart fresh via README commands. Current backend cannot pick up code changes without restart. Verify health+log after restart."
+    }
+  ],
+  "blockers": [
+    {
+      "description": "Live backend (PID 5985) was started outside this session so its stdout/logs are not tailable. Any logger.info added to the code won't be visible until the backend is restarted.",
+      "type": "technical",
+      "workaround": "Expose debug state via a /api/pipeline/debug/* endpoint instead of (or in addition to) logging."
+    },
+    {
+      "description": "research_cnn_trained.pt is 449KB vs ~17MB for EfficientAT variants. Could be a stub/under-trained model. This is the leading hypothesis for the flat probability.",
+      "type": "technical",
+      "workaround": "Quickest test next session: swap to models/efficientat_mn10_v6.pt via Pipeline tab and see if prob finally varies."
+    }
+  ],
+  "human_actions_pending": [],
+  "decisions": [
+    {
+      "decision": "Paused before implementing computer-mic toggle due to context at 90%.",
+      "rationale": "Toggle requires new backend class + endpoint + lifecycle gating + frontend hook + UI + server restart. Too large to finish cleanly in the remaining context budget; better to start fresh.",
+      "phase": null
+    },
+    {
+      "decision": "Computer-mic capture will tile mono->16ch into the ring buffer.",
+      "rationale": "Pipeline's downstream code assumes settings.num_channels=16. Tiling keeps the ring buffer shape identical and is harmless for the CNN path (which averages back to mono via chunk.mean(axis=1) in pipeline.py:366). Beamforming output becomes meaningless on a computer mic but that is not what we are debugging."
+    }
+  ],
+  "uncommitted_files": [
+    ".planning/ROADMAP.md (M)",
+    ".planning/STATE.md (M)",
+    "Dockerfile.vertex-base (M)",
+    "data/noise/fsd50k_subset/.gitkeep (D)",
+    "scripts/acquire_noise_corpora.py (M)",
+    ".planning/phases/20.1-acquire-noise-corpora-esc50-urbansound8k-fsd50k-subset-and-a/.gitkeep (??)",
+    ".planning/phases/20.1-acquire-noise-corpora-esc50-urbansound8k-fsd50k-subset-and-a/logs/ (??)",
+    "docs/targets-api.md (??)",
+    "models/ (??)",
+    "scripts/fetch_fsd50k_hf.py (??)"
+  ],
+  "next_action": "Quick reality check first: switch session to models/efficientat_mn10_v6.pt via the Pipeline tab and observe /api/pipeline/status drone_probability over 5s. If it varies, the research_cnn_trained.pt model is broken and the whole 'stuck sample' problem is moot. Then proceed with task 2 (raw-prob debug endpoint) -> task 1 (computer-mic toggle) -> task 4 (restart).",
+  "context_notes": "This session was a debugging detour triggered by 'pipeline keeps checking same sample'. Investigation showed the pipeline loop, ring buffer, capture, and CNN cadence are all working correctly. What is broken is that the CNN outputs 0.5143 +/- 0.0002 on all real mic audio over 5+ seconds. User's session has confidence=0.08 as a workaround which forces DRONE_CONFIRMED state permanently. The root cause is almost certainly the model weights, not the plumbing. Key files inspected: src/acoustic/pipeline.py, src/acoustic/classification/worker.py, src/acoustic/classification/preprocessing.py, src/acoustic/audio/capture.py, src/acoustic/audio/device.py, src/acoustic/main.py, src/acoustic/api/pipeline_routes.py, web/src/components/pipeline/PipelinePanel.tsx, web/src/hooks/usePipeline.ts. No code changes left on disk (one attempted edit to worker.py was reverted in full)."
+}
