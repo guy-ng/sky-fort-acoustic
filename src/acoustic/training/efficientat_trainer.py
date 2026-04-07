@@ -11,6 +11,7 @@ import logging
 import os
 import random
 import threading
+from collections import Counter
 from collections.abc import Callable
 from pathlib import Path
 
@@ -41,6 +42,29 @@ logger = logging.getLogger(__name__)
 
 _SOURCE_SR = 16000  # DADS/field data sample rate
 _TARGET_SR = 32000  # EfficientAT expected sample rate
+
+
+def _build_weighted_sampler(dataset: Dataset) -> WeightedRandomSampler:
+    """Inverse-frequency sampler covering every __getitem__ index in ``dataset``.
+
+    Reads ``dataset.labels`` (exposed by ``_EfficientATDataset``,
+    ``_LazyEfficientATDataset``, and ``WindowedHFDroneDataset``) so
+    ``num_samples`` automatically matches ``len(dataset)``. For the Phase 20
+    sliding-window path this means every epoch draws all 3 windows per file
+    (quick task 260407-nir); the previous implementation used a file-level
+    label list and capped coverage at file count.
+
+    Uses ``collections.Counter`` (O(n)) rather than ``list.count`` inside a
+    comprehension (O(n²)).
+    """
+    dataset_labels = dataset.labels  # type: ignore[attr-defined]
+    label_counts = Counter(dataset_labels)
+    weights = [1.0 / max(1, label_counts[l]) for l in dataset_labels]
+    return WeightedRandomSampler(
+        weights,
+        num_samples=len(dataset),  # type: ignore[arg-type]
+        replacement=True,
+    )
 
 
 class _EfficientATDataset(Dataset):
@@ -478,10 +502,7 @@ class EfficientATTrainingRunner:
             loader_kwargs["persistent_workers"] = True
             loader_kwargs["prefetch_factor"] = 4
 
-        sampler = WeightedRandomSampler(
-            [1.0 / max(1, train_lbl.count(l)) for l in train_lbl],
-            num_samples=len(train_lbl), replacement=True,
-        )
+        sampler = _build_weighted_sampler(train_ds)
         train_loader = DataLoader(train_ds, batch_size=cfg.batch_size, sampler=sampler, **loader_kwargs)
         val_loader = DataLoader(val_ds, batch_size=cfg.batch_size, shuffle=False, **loader_kwargs)
 
