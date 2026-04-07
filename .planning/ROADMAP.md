@@ -434,3 +434,20 @@ Plans:
 - [ ] 20.1-01-PLAN.md — soundata dep + scripts/acquire_noise_corpora.py (CLI, disk guard, idempotency marker, FSD50K class filter) + unit tests (D-01..D-10) + operator-gated download checkpoint
 - [ ] 20.1-02-PLAN.md — tests/integration/test_noise_corpora_present.py preflight gate with module-level ACOUSTIC_SKIP_NOISE_PREFLIGHT opt-out + D-15 actionable failure messages + meta-tests (D-11..D-15)
 - [ ] 20.1-03-PLAN.md — tests/integration/test_parquet_shards_in_sync.py (ambient rglob + eval labels.json row formulas + mtime gate) + drift meta-tests (D-16..D-19)
+
+### Phase 21: Build Raspberry Pi 4 edge drone-detection app using efficientat_mn10_v6.pt with configurable detection params, GPIO LED alarm, and model conversion
+
+**Goal:** Ship a standalone Raspberry Pi 4 edge application that loads a host-converted ONNX build of `efficientat_mn10_v6.pt`, runs continuous audio classification from a single USB microphone, drives a GPIO LED alarm through a hysteresis state machine, persists every detection to an always-on rotating JSONL log, and installs cleanly via a systemd unit + bare-venv script. The edge app lives in a new `apps/rpi-edge/` tree, vendors a pure-numpy port of the training-side mel preprocessing (CI drift-guarded), and exposes a localhost-only `/health` + `/status` HTTP endpoint.
+**Requirements**: 28 D-XX decisions in 21-CONTEXT.md (no formal REQ-IDs — this phase replicates CLS-01..CLS-04 / AUD-01..AUD-03 behavior on the Pi edge)
+**Depends on:** Phase 20
+**Plans:** 8 plans
+
+Plans:
+- [ ] 21-01-PLAN.md — Wave 0: apps/rpi-edge/ skeleton, pinned deps, 13 RED pytest stubs, conftest fixtures, model head-shape inspection
+- [ ] 21-02-PLAN.md — Pure-numpy mel preprocessing (no torch) + golden-parity test + main-repo CI drift guard (D-02, D-04)
+- [ ] 21-03-PLAN.md — Host-side scripts/convert_efficientat_to_onnx.py with FP32 + int8 exports, sanity gate, sha256 checksums (D-05, D-06, D-07, D-08)
+- [ ] 21-04-PLAN.md — EdgeConfig dataclass tree + YAML loader (yaml.safe_load) + CLI overrides, all four D-11 param groups, loopback-only validation (D-09, D-10, D-11)
+- [ ] 21-05-PLAN.md — AudioCapture (48→32 kHz resample_poly), OnnxClassifier (int8-preferred + FP32 fallback + checksum verify), HysteresisStateMachine (D-01, D-03, D-12)
+- [ ] 21-06-PLAN.md — GPIO LED (SIGTERM-safe), AudioAlarm (silent-degrade), DetectionLogger (always-on rotating JSONL) (D-13..D-23)
+- [ ] 21-07-PLAN.md — Stdlib HTTP /health + /status (127.0.0.1 only), RuntimeState, __main__ composition root, e2e golden WAV test (D-24)
+- [ ] 21-08-PLAN.md — systemd unit (hardened), scripts/install_edge_rpi.sh (idempotent), README, on-device smoke test checkpoint (D-23, D-25, D-26, D-27, D-28)
