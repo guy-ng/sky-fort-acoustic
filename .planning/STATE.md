@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-04-03)
 Phase: 20.1 (acquire-noise-corpora-esc50-urbansound8k-fsd50k-subset-and-a) — EXECUTING
 Plan: 1 of 3
 Status: Executing Phase 20.1
-Last activity: 2026-04-07 - Completed quick task 260407-ls3: Fix WindowedHFDroneDataset to return 32 kHz raw audio for EfficientAT v7
+Last activity: 2026-04-07 - Completed quick task 260407-nir: Fix WeightedRandomSampler to cover all windows in sliding-window path
 
 ## Performance Metrics
 
@@ -80,6 +80,7 @@ Last activity: 2026-04-07 - Completed quick task 260407-ls3: Fix WindowedHFDrone
 - Source: Research-validated beamforming parameters, spatial aliasing analysis for UMA-16v2
 - Phase 20 added: Retrain v7 with wide gain + room-IR augmentation, Vertex remote training, 60% overlap windows, expanded BG noise negatives
 - Phase 20.1 inserted after Phase 20 (2026-04-07): Acquire noise corpora ESC50 / UrbanSound8K / FSD50K subset and add host preflight test (URGENT — unblocks Phase 20 Plan 20-05 Task 2 Vertex submission)
+- Phase 21 added (2026-04-07): Build Raspberry Pi 4 edge drone-detection app using efficientat_mn10_v6.pt with configurable detection params, GPIO LED alarm, and model conversion
 
 ### Decisions
 
@@ -141,6 +142,7 @@ None yet.
 | 260401-0fb | Beamforming map dB normalization + origin suppression | 2026-04-01 | caeaabd | [260401-0fb-beamforming-map-focus-on-drone-data-copy](./quick/260401-0fb-beamforming-map-focus-on-drone-data-copy/) |
 | 260407-jx8 | Fix WindowedHFDroneDataset assertion on non-uniform DADS clips | 2026-04-07 | 7ea498a | [260407-jx8-fix-windowedhfdronedataset-assertion-on-](./quick/260407-jx8-fix-windowedhfdronedataset-assertion-on-/) |
 | 260407-ls3 | Fix WindowedHFDroneDataset to return 32 kHz raw audio for EfficientAT v7 | 2026-04-07 | f007e91 | [260407-ls3-fix-windowedhfdronedataset-to-return-32-](./quick/260407-ls3-fix-windowedhfdronedataset-to-return-32-/) |
+| 260407-nir | Fix WeightedRandomSampler to cover all windows in sliding-window path | 2026-04-07 | 9809d3f | [260407-nir-fix-weightedrandomsampler-to-use-dataset](./quick/260407-nir-fix-weightedrandomsampler-to-use-dataset/) |
 
 ## Session Continuity
 
