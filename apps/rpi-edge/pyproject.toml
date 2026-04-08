@@ -1,0 +1,21 @@
+[project]
+name = "skyfort-edge"
+version = "0.1.0"
+description = "Sky Fort edge drone-detection app for Raspberry Pi 4"
+requires-python = ">=3.11,<3.12"
+dependencies = [
+    "numpy==1.26.4",
+    "scipy==1.14.1",
+    "sounddevice==0.5.1",
+    "PyYAML==6.0.2",
+    "onnxruntime==1.18.1",
+    "gpiozero==2.0.1",
+    "lgpio==0.2.2.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "pytest-asyncio>=0.24"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

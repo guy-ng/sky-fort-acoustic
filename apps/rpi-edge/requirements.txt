@@ -1,0 +1,7 @@
+numpy==1.26.4
+scipy==1.14.1
+sounddevice==0.5.1
+PyYAML==6.0.2
+onnxruntime==1.18.1
+gpiozero==2.0.1
+lgpio==0.2.2.0
