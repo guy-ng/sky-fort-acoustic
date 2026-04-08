@@ -22,6 +22,10 @@ from acoustic.classification.preprocessing import (
     pad_or_loop,
 )
 from acoustic.training.augmentation import SpecAugment
+from acoustic.classification.efficientat.window_contract import (
+    EFFICIENTAT_SEGMENT_SAMPLES,
+    source_window_samples,
+)
 from acoustic.training.parquet_dataset import decode_wav_bytes, split_indices
 
 logger = logging.getLogger(__name__)
@@ -202,22 +206,23 @@ class WindowedHFDroneDataset(Dataset):
     Window math (in 16 kHz source-domain samples):
         num_windows_per_file = max(1, 1 + (n_samples - window_samples) // hop_samples)
 
-    For DADS uniform 1s @ 16k clips, window=8000, hop=3200:
-        num_windows = 1 + (16000-8000)//3200 = 3 windows per file (60% overlap, D-13/D-14)
+    For DADS uniform 1s @ 16k clips, window=16000 (1.0 s), hop=8000 (50% overlap):
+        num_windows = 1 + (16000-16000)//8000 = 1 window per file
+        (meaningful overlap only on multi-second field recordings)
 
-    For test split with hop=8000 (no overlap, D-16):
-        num_windows = 1 + (16000-8000)//8000 = 2 windows per file
+    For test split with hop=16000 (no overlap):
+        num_windows = 1 + (16000-16000)//16000 = 1 window per file
 
     Each window is sliced at 16 kHz then resampled to 32 kHz before return,
-    yielding length ``window_samples * 2`` (e.g. 16000 samples = 0.5 s @ 32 kHz).
+    yielding length ``window_samples * 2`` (e.g. 32000 samples = 1.0 s @ 32 kHz).
     """
 
     def __init__(
         self,
         hf_dataset,
         file_indices: list[int],
-        window_samples: int = 8000,
-        hop_samples: int = 3200,
+        window_samples: int = 16000,
+        hop_samples: int = 8000,
         waveform_aug: Callable[[np.ndarray], np.ndarray] | None = None,
         assumed_clip_samples: int = 16000,
         sample_rate: int = 16000,
