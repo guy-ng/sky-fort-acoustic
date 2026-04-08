@@ -8,17 +8,10 @@ Real-time acoustic drone detection and tracking microservice using a UMA-16v2 16
 
 ```bash
 cd /path/to/sky-fort-acoustic
-source .venv/bin/activate
-python -m uvicorn acoustic.main:app --reload --host 0.0.0.0 --port 8000
+.venv/bin/uvicorn acoustic.main:app --reload --host 0.0.0.0 --port 8000 --app-dir src
 ```
 
-Or without activating the venv:
-
-```bash
-.venv/bin/uvicorn acoustic.main:app --reload --host 0.0.0.0 --port 8000
-```
-
-Runs on **http://localhost:8000**
+Runs on **http://localhost:8000**. The `--app-dir src` flag is required because the `acoustic` package lives under `src/`.
 
 ### Frontend
 
@@ -29,15 +22,52 @@ cd web
 npm run dev
 ```
 
-Runs on **http://localhost:5173**
+Runs on **http://localhost:5173**.
 
-### Simulated Mode (no hardware)
+### Run Both in the Background
 
-If the UMA-16v2 mic is not connected, the backend automatically falls back to simulated audio. To force it explicitly:
+Useful for quick iteration when you don't want two terminals open:
 
 ```bash
-AUDIO_SOURCE=simulated python -m uvicorn acoustic.main:app --reload
+.venv/bin/uvicorn acoustic.main:app --reload --host 0.0.0.0 --port 8000 --app-dir src > /tmp/sfa-backend.log 2>&1 &
+(cd web && npm run dev > /tmp/sfa-frontend.log 2>&1 &)
 ```
+
+Tail logs with `tail -f /tmp/sfa-backend.log` / `tail -f /tmp/sfa-frontend.log`.
+
+### Restarting the Backend
+
+```bash
+# Stop whatever is on :8000, then start a fresh detached backend
+lsof -tiTCP:8000 -sTCP:LISTEN | xargs -r kill -9
+.venv/bin/uvicorn acoustic.main:app --reload --host 0.0.0.0 --port 8000 --app-dir src > /tmp/sfa-backend.log 2>&1 &
+disown 2>/dev/null || true
+
+# Verify it came up (give it ~5s to import torch etc.)
+sleep 5 && curl -s http://localhost:8000/health
+```
+
+### Stopping Services
+
+```bash
+# Find anything bound to the two ports
+lsof -iTCP:8000 -sTCP:LISTEN -nP
+lsof -iTCP:5173 -sTCP:LISTEN -nP
+
+# Kill by PID (prefer SIGTERM; fall back to SIGKILL only if needed)
+kill <pid>            # graceful
+kill -9 <pid>         # force
+
+# One-liner: kill whatever is listening on both dev ports
+lsof -tiTCP:8000 -sTCP:LISTEN | xargs -r kill -9
+lsof -tiTCP:5173 -sTCP:LISTEN | xargs -r kill -9
+```
+
+Note: `uvicorn --reload` spawns a reloader parent and a worker child — both will appear in `lsof`. Killing the parent takes the worker with it.
+
+### Hardware Fallback
+
+If the UMA-16v2 is not connected, the backend auto-falls back to any available input device (ReSpeaker 4 Mic, built-in mic, etc.) and replicates channels to keep the pipeline shape consistent. Beamforming output is meaningless on non-UMA hardware but CNN classification still runs. Check `/health` — `device_name` reports the active device.
 
 ## API
 

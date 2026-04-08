@@ -1,15 +1,28 @@
+import { useState } from 'react'
 import { Panel } from '../components/layout/Panel'
 import { PipelinePanel } from '../components/pipeline/PipelinePanel'
 import { RecordingPanel } from '../components/recording/RecordingPanel'
 import { RecordingsList } from '../components/recording/RecordingsList'
 import { TrainingPanel } from '../components/training/TrainingPanel'
-import { TestPipelinePanel } from '../components/test-pipeline/TestPipelinePanel'
 import { useHealth } from '../hooks/useHealth'
 import { useDeviceStatus } from '../hooks/useDeviceStatus'
 import { useRecordingsList } from '../hooks/useRecordings'
 import { usePipelineSocket } from '../hooks/usePipeline'
 import type { HealthStatus } from '../utils/types'
 import type { DeviceStatusState } from '../hooks/useDeviceStatus'
+
+interface ScanInput {
+  index: number
+  name: string
+  channels: number
+  default_samplerate: number
+}
+
+interface ScanResult {
+  detected: boolean
+  active: { index: number; name: string; channels: number; is_fallback: boolean } | null
+  inputs: ScanInput[]
+}
 
 function DroneStatus({ state, probability }: { state: string | null; probability: number | null }) {
   const isConfirmed = state === 'DRONE_CONFIRMED'
@@ -91,6 +104,28 @@ function deviceLabel(ds: DeviceStatusState): string {
 
 function SystemPanel({ health, deviceStatus }: { health: HealthStatus | undefined; deviceStatus: DeviceStatusState }) {
   const pipelineRunning = health?.pipeline_running ?? false
+  const [scanning, setScanning] = useState(false)
+  const [scanResult, setScanResult] = useState<ScanResult | null>(null)
+  const [scanError, setScanError] = useState<string | null>(null)
+
+  const onScan = async () => {
+    setScanning(true)
+    setScanError(null)
+    try {
+      const res = await fetch('/api/pipeline/rescan-device', { method: 'POST' })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body?.message ?? `HTTP ${res.status}`)
+      }
+      const data = (await res.json()) as ScanResult
+      setScanResult(data)
+    } catch (err) {
+      setScanError(err instanceof Error ? err.message : String(err))
+      setScanResult(null)
+    } finally {
+      setScanning(false)
+    }
+  }
 
   return (
     <div className="flex flex-col gap-0">
@@ -116,6 +151,58 @@ function SystemPanel({ health, deviceStatus }: { health: HealthStatus | undefine
       <StatRow label="Last Frame">
         {formatFrameAge(health?.last_frame_time)}
       </StatRow>
+
+      <div className="flex flex-col gap-2 mt-3 pt-3 border-t border-hud-border">
+        <button
+          type="button"
+          onClick={onScan}
+          disabled={scanning}
+          className={`w-full rounded border border-hud-border px-3 py-1.5 text-xs font-mono uppercase tracking-wider transition-colors ${
+            scanning
+              ? 'bg-hud-bg text-hud-text-dim cursor-wait'
+              : 'bg-hud-bg text-hud-text hover:bg-hud-border hover:text-hud-accent'
+          }`}
+        >
+          {scanning ? 'Scanning…' : '⟳ Scan Mic Devices'}
+        </button>
+
+        {scanError && (
+          <div className="text-xs text-hud-danger font-mono">
+            Scan failed: {scanError}
+          </div>
+        )}
+
+        {scanResult && (
+          <div className="flex flex-col gap-1 text-xs font-mono">
+            <div className="text-hud-text-dim uppercase tracking-wider">
+              {scanResult.inputs.length} input{scanResult.inputs.length === 1 ? '' : 's'} found
+              {scanResult.active && (
+                <span className="text-hud-accent"> · active: {scanResult.active.name}</span>
+              )}
+            </div>
+            <ul className="flex flex-col gap-0.5">
+              {scanResult.inputs.map((dev) => {
+                const isActive = scanResult.active?.index === dev.index
+                return (
+                  <li
+                    key={dev.index}
+                    className={`flex items-center justify-between gap-2 px-2 py-1 rounded ${
+                      isActive ? 'bg-hud-border/50 text-hud-accent' : 'text-hud-text-dim'
+                    }`}
+                  >
+                    <span className="truncate">
+                      [{dev.index}] {dev.name}
+                    </span>
+                    <span className="shrink-0 text-hud-text-dim/70">
+                      {dev.channels}ch
+                    </span>
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
@@ -165,13 +252,6 @@ export function ToolsPage() {
         <Panel title="TRAINING" className="lg:col-span-1">
           <div className="flex flex-col gap-1 max-h-[600px] overflow-y-auto">
             <TrainingPanel />
-          </div>
-        </Panel>
-
-        {/* Test Pipeline */}
-        <Panel title="TEST PIPELINE">
-          <div className="flex flex-col gap-1 max-h-[500px] overflow-y-auto">
-            <TestPipelinePanel />
           </div>
         </Panel>
       </div>

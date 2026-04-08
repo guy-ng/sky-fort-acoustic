@@ -33,14 +33,22 @@ Acoustic-UAV-Identification-main-main/
 
 # Model weights (use Git LFS or download separately)
 *.pt
+*.pt.jit
 *.onnx
 *.onnx.data
 models/pretrained/
+models/ast-drone-detection/
 # Plan 21-03: committed ONNX artifacts for Pi edge runtime (D-05/D-06/D-07).
 # These two files are intentionally tracked so the Pi can verify them via the
 # committed sha256 manifest. Source .pt remains ignored.
 !models/efficientat_mn10_v6_fp32.onnx
 !models/efficientat_mn10_v6_int8.onnx
+
+# SSH keys
+*.pub
+
+# Scratch notes
+rp.md
 
 # Claude local config
 .claude/

@@ -21,6 +21,78 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/pipeline", tags=["pipeline"])
 
 
+@router.post("/rescan-device")
+async def rescan_device(request: Request) -> dict:
+    """Force a fresh scan of connected audio input devices.
+
+    Resets PortAudio to clear any stale CoreAudio / ALSA device cache, then
+    re-queries the system for available inputs. Returns the active device that
+    would be chosen right now (UMA-16v2 first, first fallback input otherwise)
+    plus the full list of input devices.
+
+    The background DeviceMonitor will also observe the refreshed state on its
+    next poll (within ~3s), so this endpoint is primarily a way for the UI to
+    get an immediate answer without waiting for the poll cycle.
+    """
+    import sounddevice as sd
+
+    from acoustic.audio.device import detect_audio_device
+
+    try:
+        sd._terminate()
+        sd._initialize()
+    except Exception as exc:
+        logger.warning("PortAudio reset failed during rescan: %s", exc)
+
+    try:
+        devices = sd.query_devices()
+    except Exception as exc:
+        logger.exception("query_devices failed during rescan")
+        return JSONResponse(
+            status_code=500,
+            content={"message": f"Device query failed: {exc}"},
+        )
+
+    inputs = []
+    for idx, dev in enumerate(devices):
+        channels = int(dev.get("max_input_channels", 0) or 0)
+        if channels < 1:
+            continue
+        inputs.append({
+            "index": idx,
+            "name": dev.get("name", ""),
+            "channels": channels,
+            "default_samplerate": float(dev.get("default_samplerate", 0.0) or 0.0),
+        })
+
+    try:
+        active = detect_audio_device()
+    except Exception:
+        logger.exception("detect_audio_device failed during rescan")
+        active = None
+
+    active_payload = None
+    if active is not None:
+        active_payload = {
+            "index": active.index,
+            "name": active.name,
+            "channels": active.channels,
+            "is_fallback": bool(getattr(active, "is_fallback", False)),
+        }
+
+    logger.info(
+        "Manual device rescan: %d input(s) found, active=%s",
+        len(inputs),
+        active_payload["name"] if active_payload else "none",
+    )
+
+    return {
+        "detected": active is not None,
+        "active": active_payload,
+        "inputs": inputs,
+    }
+
+
 @router.post("/activate", response_model=ActivateModelResponse)
 async def activate_model(body: ActivateModelRequest, request: Request) -> ActivateModelResponse | JSONResponse:
     """Load a trained model and hot-swap it into the live CNN pipeline.

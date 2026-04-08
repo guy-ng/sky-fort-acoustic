@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: MVP
 status: executing
-stopped_at: Phase 20.1 context gathered
-last_updated: "2026-04-06T23:48:09.501Z"
-last_activity: 2026-04-06 -- Phase 20.1 execution started
+stopped_at: Session resumed, routing to /gsd-execute-phase 21 (final plan 21-08)
+last_updated: "2026-04-08T12:59:08.513Z"
+last_activity: 2026-04-08 -- Phase 23 planning complete
 progress:
-  total_phases: 16
-  completed_phases: 10
-  total_plans: 40
-  completed_plans: 32
-  percent: 80
+  total_phases: 19
+  completed_phases: 11
+  total_plans: 58
+  completed_plans: 42
+  percent: 72
 ---
 
 # Project State
@@ -27,8 +27,8 @@ See: .planning/PROJECT.md (updated 2026-04-03)
 
 Phase: 20.1 (acquire-noise-corpora-esc50-urbansound8k-fsd50k-subset-and-a) — EXECUTING
 Plan: 1 of 3
-Status: Executing Phase 20.1
-Last activity: 2026-04-07 - Completed quick task 260407-nir: Fix WeightedRandomSampler to cover all windows in sliding-window path
+Status: Ready to execute
+Last activity: 2026-04-08 -- Phase 23 planning complete
 
 ## Performance Metrics
 
@@ -81,6 +81,8 @@ Last activity: 2026-04-07 - Completed quick task 260407-nir: Fix WeightedRandomS
 - Phase 20 added: Retrain v7 with wide gain + room-IR augmentation, Vertex remote training, 60% overlap windows, expanded BG noise negatives
 - Phase 20.1 inserted after Phase 20 (2026-04-07): Acquire noise corpora ESC50 / UrbanSound8K / FSD50K subset and add host preflight test (URGENT — unblocks Phase 20 Plan 20-05 Task 2 Vertex submission)
 - Phase 21 added (2026-04-07): Build Raspberry Pi 4 edge drone-detection app using efficientat_mn10_v6.pt with configurable detection params, GPIO LED alarm, and model conversion
+- Phase 22 added (2026-04-08): EfficientAT v8 retrain with fixed train/serve window contract (1.0s @ 32kHz, 50% overlap), 2026-04-08 field recordings, Vertex L4 us-east1. Driven by v7 regression post-mortem in .planning/debug/efficientat-v7-regression-vs-v6.md (root cause: window_samples literal 0.5s in trainer mismatched 1.0s inference contract).
+- Phase 23 added (2026-04-08): Evaluate AUDRON multi-branch hybrid architecture (MFCC 1D-CNN + STFT 2D-CNN + BiLSTM-Attention + Autoencoder fusion) as alternative/complement to EfficientAT classifier line. Research-first phase — deliverable is adopt/reject/hybrid decision, NOT a trained model. Source: AmygdalaAI-India Lab framework, claims 98.51% accuracy / 300m+ detection. Must NOT disrupt phase 22 v8 retrain or phase 20.1 noise corpora.
 
 ### Decisions
 
@@ -146,6 +148,7 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-06T22:56:18.425Z
-Stopped at: Phase 20.1 context gathered
-Resume file: .planning/phases/20.1-acquire-noise-corpora-esc50-urbansound8k-fsd50k-subset-and-a/20.1-CONTEXT.md
+Last session: 2026-04-08
+Stopped at: Session resumed, routing to /gsd-execute-phase 21 (final plan 21-08)
+Resume file: .planning/phases/21-build-raspberry-pi-4-edge-drone-detection-app-using-efficien/21-08-PLAN.md
+Note: STATE.md header is stale — Phase 20.1 is fully complete (3/3 plans), Phase 21 is 7/8 complete with only 21-08 (systemd unit + install script + README) remaining.
