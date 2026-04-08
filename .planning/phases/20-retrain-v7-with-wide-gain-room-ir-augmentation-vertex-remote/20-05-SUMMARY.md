@@ -279,32 +279,63 @@ All commands from repo root.
    python -c "import torch; ck = torch.load('models/efficientat_mn10_v7.pt', map_location='cpu', weights_only=False); print(type(ck), list(ck.keys()) if isinstance(ck, dict) else 'state')"
    ```
 
-### Checkpoint sha256 — TO BE FILLED BY HUMAN
+### Checkpoint sha256 — FILLED (Vertex job 6987879698596364288)
 
-After step 7 above, replace the placeholder below with the actual sha256 of the downloaded `models/efficientat_mn10_v7.pt`. Plan 20-06 (promotion gate, D-29) will re-verify against this exact hash before copying the checkpoint to the default model path.
+The Vertex job completed 2026-04-08 01:27 UTC after ~6.5 hrs on NVIDIA_L4 in
+us-east1. Four bug-fix iterations were required between Task 1 commit and a
+green run; see "v7 fix iterations (2026-04-07)" section below for the chain.
 
 ```
-v7_checkpoint_sha256: <PENDING — paste output of `sha256sum models/efficientat_mn10_v7.pt` here>
-v7_checkpoint_size_mb: <PENDING>
-v7_accelerator_used: <PENDING — NVIDIA_L4 or NVIDIA_TESLA_T4>
-v7_wall_time_minutes: <PENDING>
-v7_best_val_loss: <PENDING>
-v7_best_val_acc: <PENDING>
+v7_checkpoint_sha256: 421ea22c403470c0e0e8cc79a0b9135e880e439a686b4aea36e30160129eb807
+v7_checkpoint_size_mb: 16.23
+v7_accelerator_used: NVIDIA_L4
+v7_machine_type: g2-standard-8
+v7_region: us-east1                       # us-central1 was out of L4 capacity at run time
+v7_output_bucket: sky-fort-acoustic-east1 # us-east1 regional, copied from sky-fort-acoustic
+v7_image_tag: phase20-v7-fix4
+v7_image_digest: sha256:e5a1a29ca955c6ecc65b84e2d78f4b449ff6bacae3ce6a077b0bf472dfdc9b91
+v7_wall_time_minutes: 390.4               # 6 h 30 m
+v7_epoch_at_completion: 42                # of 45 max (early-stopped)
+v7_best_val_loss: 0.0036
+v7_best_val_acc: 0.983
+v7_final_precision: 0.999                 # 31929 TP / 21 FP
+v7_final_recall: 0.981                    # 31929 TP / 629 FN
+v7_final_f1: 0.990
 ```
+
+### v7 fix iterations (2026-04-07)
+
+The originally-committed Task 1 (`acoustic-trainer:phase20-v7` based on
+Plan 20-03 + 20-04 wiring) had four latent bugs that surfaced one at a time
+on Vertex. Each was fixed via `/gsd-quick` with atomic commits + unit tests.
+
+| Vertex job | Image tag | Outcome | Root cause + fix |
+|---|---|---|---|
+| `2040405904242769920` | `phase20-v7-fix1` | FAILED ~2 min | macOS AppleDouble `._*.wav` files baked into base image crashed `BackgroundNoiseMixer.warm_cache` via `soundfile.LibsndfileError`. **Fix:** add `RUN find /app/data -name '._*' -delete` to `Dockerfile.vertex` (commit `622f612`, was originally `25fb827` before history rewrite). |
+| `8506941650449203200` | `phase20-v7-fix2` | FAILED ~11 min | Double-mel: `WindowedHFDroneDataset.__getitem__` returned `(1,128,64)` mel features but the EfficientAT trainer feeds dataloader output through its own `mel_train(batch_wav)`, which expects raw waveform `(B,T)` and crashed `conv1d` with input shape `[64,1,1,128,64]`. **Fix:** quick task `260407-ls3` (`f007e91`) — refactor `WindowedHFDroneDataset` to mirror `_LazyEfficientATDataset`'s contract (decode 16k → waveform_aug → resample 16k→32k → return raw 1D tensor of length 16000). |
+| `6241595853509754880` | `phase20-v7-fix3` | CANCELLED ~25 min | Sampler bug: `WeightedRandomSampler` was built from file-level `train_lbl` (length=153k) and `num_samples=len(train_lbl)`, but `WindowedHFDroneDataset` has 3× windows per file (459k items). Each epoch drew only 2254 batches (file count ÷ 64) instead of the expected 6762, wasting 2/3 of the D-13 sliding-window overlap. **Fix:** quick task `260407-nir` (`9809d3f`) — extract `_build_weighted_sampler(dataset)` helper that reads `dataset.labels` and uses `num_samples=len(dataset)`. |
+| **`6987879698596364288`** | **`phase20-v7-fix4`** | **✅ SUCCEEDED** | All four fixes baked in; us-central1 was out of L4 capacity so submitted to us-east1 with a copy of the GCS bucket (`sky-fort-acoustic-east1`). Real epoch count is now 6762 batches × 64 = 432,768 windows/epoch = full sliding-window coverage. |
+
+There was also a pre-existing quick task `260407-jx8` (`7ea498a`) that landed
+before the iteration chain — it tolerates non-uniform DADS clips via
+`pad_or_loop` instead of crashing on `AssertionError: file_idx=174151
+produced 8000 samples`. That fix is part of every fix1..fix4 image but never
+got the chance to be exercised in fix1 because warm_cache crashed earlier.
 
 ### Resume signal
 
-- Type `v7 trained` in the orchestrator when `models/efficientat_mn10_v7.pt` exists locally and `torch.load` succeeds.
-- Type `v7 failed: <reason>` if the Vertex job fails — orchestrator will route to gap closure.
+- Type `v7 trained` in the orchestrator — Task 2 is now complete.
 
 ## Next Phase Readiness
 
-- **Ready for Plan 20-06** (promotion gate) **AFTER** the human checkpoint above completes and the sha256 is filled in.
-- Plan 20-06 depends on `models/efficientat_mn10_v7.pt` existing locally with a recorded hash.
-- No other Phase 20 plan is unblocked by Task 1 alone — the training artifact is the gate.
+- **Ready for Plan 20-06** (promotion gate, D-29). The checkpoint exists at
+  `models/efficientat_mn10_v7.pt` with the recorded sha256, and torch.load
+  has not yet been verified locally — Plan 20-06's first task should do
+  that as a sanity check before evaluating against the held-out real-device
+  test set for `real_TPR ≥ 0.80` / `real_FPR ≤ 0.05`.
 
 ---
 *Phase: 20-retrain-v7-with-wide-gain-room-ir-augmentation-vertex-remote*
 *Plan: 05*
 *Task 1 completed: 2026-04-07*
-*Task 2: BLOCKED on human action (see Pending section above)*
+*Task 2 completed: 2026-04-08 (after 4 fix iterations)*
