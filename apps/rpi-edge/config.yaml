@@ -1,0 +1,43 @@
+# Sky Fort Edge default config (D-09/D-10/D-11)
+# No hot-reload: systemctl restart skyfort-edge to apply changes.
+
+thresholds:
+  score_threshold: 0.5        # D-11
+  enter_threshold: 0.6        # hysteresis rising edge
+  exit_threshold: 0.4         # hysteresis falling edge
+  confirm_hits: 3             # frames above enter_threshold to latch
+  release_hits: 5             # frames below exit_threshold to release
+  class_allowlist: []         # empty = all classes
+  per_class_thresholds: {}    # override score_threshold per class
+
+timing:
+  window_seconds: 1.0         # D-03 default inference window
+  hop_seconds: 0.5            # D-03 default hop (50% overlap -> ~2 Hz inference)
+  smoothing_window: 3         # N-frame moving average
+  ema_alpha: 0.0              # 0 = disabled
+  post_release_cooldown_seconds: 1.0
+
+hardware:
+  input_device: null          # null = default USB mic
+  capture_sample_rate: 48000  # D-02: capture 48 kHz -> resample to 32 kHz on-Pi
+  led_gpio_pin: 17            # D-13 single LED
+  min_on_seconds: 2.0         # D-14 latch hold time
+  alarm_audio_device: null    # D-17 null = default ALSA sink
+  alarm_enabled: false        # D-18 disabled by default
+
+model:
+  onnx_path: /opt/skyfort-edge/models/efficientat_mn10_v6_int8.onnx       # D-07 int8 preferred
+  fallback_onnx_path: /opt/skyfort-edge/models/efficientat_mn10_v6_fp32.onnx  # D-07 FP32 fallback
+  prefer_int8: true
+  num_threads: 2
+  execution_provider: CPUExecutionProvider
+  log_level: INFO             # D-23 general log level (detection log is separate)
+
+detection_log:                # D-20/D-21/D-22 -- CANNOT be disabled
+  path: /var/lib/skyfort-edge/detections.jsonl
+  rotate_max_bytes: 10485760  # 10 MB
+  rotate_backup_count: 5
+
+http:                         # D-24 localhost only
+  bind_host: 127.0.0.1        # T-21-01: never 0.0.0.0
+  bind_port: 8088
