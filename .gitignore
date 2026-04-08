@@ -36,6 +36,11 @@ Acoustic-UAV-Identification-main-main/
 *.onnx
 *.onnx.data
 models/pretrained/
+# Plan 21-03: committed ONNX artifacts for Pi edge runtime (D-05/D-06/D-07).
+# These two files are intentionally tracked so the Pi can verify them via the
+# committed sha256 manifest. Source .pt remains ignored.
+!models/efficientat_mn10_v6_fp32.onnx
+!models/efficientat_mn10_v6_int8.onnx
 
 # Claude local config
 .claude/
