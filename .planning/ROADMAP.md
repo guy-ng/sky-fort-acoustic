@@ -451,3 +451,32 @@ Plans:
 - [ ] 21-06-PLAN.md — GPIO LED (SIGTERM-safe), AudioAlarm (silent-degrade), DetectionLogger (always-on rotating JSONL) (D-13..D-23)
 - [ ] 21-07-PLAN.md — Stdlib HTTP /health + /status (127.0.0.1 only), RuntimeState, __main__ composition root, e2e golden WAV test (D-24)
 - [ ] 21-08-PLAN.md — systemd unit (hardened), scripts/install_edge_rpi.sh (idempotent), README, on-device smoke test checkpoint (D-23, D-25, D-26, D-27, D-28)
+
+### Phase 22: EfficientAT v8 retrain with fixed train/serve window contract and 2026-04-08 field recordings
+
+**Goal:** Train `efficientat_mn10_v8.pt` that beats v6 on a real-device hold-out and replaces v6 in operational use. Fix the train/serve window-length contract bug (root cause of v7 regression — see `.planning/debug/efficientat-v7-regression-vs-v6.md`), include 2026-04-08 field recordings as new training/eval data, train on Vertex AI L4 in `us-east1`, and gate promotion on the D-27 real-device TPR/FPR metrics.
+**Requirements**: REQ-22-W1, REQ-22-W2, REQ-22-W3, REQ-22-W4, REQ-22-D1, REQ-22-D2, REQ-22-D3, REQ-22-G1, REQ-22-G2 (phase-local — see 22-RESEARCH.md § Phase Requirements)
+**Depends on:** Phase 20.1 (noise corpora), Phase 21 (edge consumer)
+**Plans:** 9 plans
+
+**User constraints (locked before planning):**
+- Window: 1.0 second @ 32 kHz (32000 samples) — must equal `EfficientATMelConfig().segment_samples`
+- Sliding-window overlap: 50% (`window_overlap_ratio=0.5`)
+- New training data: all `data/field/drone/20260408_*.wav` and `data/field/background/20260408_*.wav`. The `20260408_091054_136dc5.wav` "10inch payload 4kg" recording was trimmed to 61.4s on 2026-04-08; use as-is.
+- Cloud: Vertex AI region `us-east1`, NVIDIA L4 GPU
+- Data integrity preflight required: assert every recording is correctly transferred, decoded, and reaches the training loop (no silent drops, no SR mismatches, no label flips)
+- Carry over from Phase 20: wide-gain aug, room-IR aug, BG noise negatives (ESC50/UrbanSound8K/FSD50K subset), focal loss, save gate D-32, narrow Stage 1
+- Must fix from v7 post-mortem: derive `window_samples` from `EfficientATMelConfig` (not the 0.5 literal at `efficientat_trainer.py:456`); single source of truth for window length shared with `pipeline.py`; `WindowedHFDroneDataset` length assertion; runtime length-mismatch WARN in `EfficientATClassifier.predict`; move `RmsNormalize` post-resample for train/serve domain parity
+- Promotion gate: execute Plan 20-06 eval harness; require real_TPR ≥ 0.80 / real_FPR ≤ 0.05 on UMA-16 hold-out before v8 replaces v6
+- Hold-out: split 2026-04-08 recordings into train vs eval — no double-dipping
+
+Plans:
+- [ ] 22-01-PLAN.md — Wave 0 test scaffolds + model provenance lock
+- [ ] 22-02-PLAN.md — window_contract.py + literal swaps (BLOCKING)
+- [ ] 22-03-PLAN.md — length assertion + runtime WARN + RmsNormalize parity + dataset generalization
+- [ ] 22-04-PLAN.md — data integrity preflight + frozen holdout manifest
+- [ ] 22-05-PLAN.md — Kaggle DroneAudioDataset investigation + ingest/reject decision
+- [ ] 22-06-PLAN.md — ConcatDataset(DADS+field) + fine-tune from v6 + Vertex v8 submit path + Dockerfile:v2
+- [ ] 22-07-PLAN.md — eval harness (uma16_eval + promotion) + promote_efficientat.py CLI
+- [ ] 22-08-PLAN.md — Vertex L4 us-east1 training run + v8 checkpoint + sha256 sidecar
+- [ ] 22-09-PLAN.md — D-27 promotion gate execution + v8 operational swap
