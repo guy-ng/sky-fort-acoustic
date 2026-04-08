@@ -59,7 +59,7 @@ created: 2026-04-08
 | 22-06-T3 | 06 | 4 | — | T-22-04 | base image v2 with field data | grep | `grep -q 20260408 Dockerfile.vertex-base` | n/a | ⬜ pending |
 | 22-07-T1 | 07 | 5 | REQ-22-G1 | T-22-02 | eval harness + promotion module | e2e | `pytest tests/e2e/test_eval_harness.py -x -q` | ✅ | ⬜ pending |
 | 22-07-T2 | 07 | 5 | REQ-22-G1 | T-22-03 | promote_efficientat CLI exists | script | `python scripts/promote_efficientat.py --help >/dev/null` | n/a | ⬜ pending |
-| 22-08-T1 | 08 | 6 | — | T-22-04 | quota + preflight | script | `python scripts/preflight_v8_data.py` | n/a | ⬜ pending |
+| 22-08-T1 | 08 | 6 | — | T-22-04 | quota + preflight + cross-region image pull | script | `python scripts/preflight_v8_data.py && test -f models/vertex_v8_image_pull_check.log && grep -q 'STATUS: OK' models/vertex_v8_image_pull_check.log` | n/a | ⬜ pending |
 | 22-08-T2 | 08 | 6 | REQ-22-D1 | T-22-04 | Vertex training run | manual | Vertex job SUCCEEDED | n/a | ⬜ pending |
 | 22-08-T3 | 08 | 6 | — | T-22-02 | v8 sha sidecar + smoke | script | `test -f models/efficientat_mn10_v8.pt && test -f models/efficientat_mn10_v8.sha256` | n/a | ⬜ pending |
 | 22-09-T1 | 09 | 7 | REQ-22-G1 | T-22-03 | metrics_v8.json | script | `python -c "import json;m=json.load(open('.planning/phases/22-efficientat-v8-retrain-with-fixed-train-serve-window-contrac/metrics_v8.json'));assert 'real_TPR' in m and 'real_FPR' in m"` | n/a | ⬜ pending |

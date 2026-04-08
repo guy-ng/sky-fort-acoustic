@@ -952,22 +952,26 @@ class EfficientATClassifier:
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Is `models/efficientat_mn10.pt` (dated Apr 5, size 17020041) actually v5 or something older — NOT v6?**
    - What we know: `models/efficientat_mn10_v6.pt` is a distinct file (17019638 bytes, Apr 6). `models/efficientat_mn10.pt` is a different size and predates v6.
    - What's unclear: which checkpoint the live service currently loads by default.
    - Recommendation: Before Phase 22 promotion, read the service's actual model-load code path and confirm which file it reads. If it's not v6, Phase 22 promotion is replacing the WRONG baseline.
+   - **RESOLVED via 22-01-T3** — Plan 01 Task 3 computes sha256 of the actually-loaded model file and records the live-service model-load identity in `models/MODEL_PROVENANCE.md`.
 
 2. **Does Artifact Registry support cross-region pull from us-central1 → us-east1 Vertex jobs without extra setup?**
    - Recommendation: `gcloud` dry-run on a small test image before Phase 22 real submission.
+   - **RESOLVED via 22-08-T1 cross-region image-pull dry-run** — Plan 08 Task 1 runs a pre-submission `gcloud artifacts docker images describe` + a `docker pull` from a us-east1 GCE VM and aborts the run if the image cannot be pulled. Log captured at `models/vertex_v8_image_pull_check.log`.
 
 3. **Should we overfit-check v8 on the 2026-04-08 training fraction as a Wave 0 sanity test?**
    - Recommendation: yes — a quick 1-epoch smoke run on ONLY the 2026-04-08 training files (no DADS) should reach high accuracy on training. If it doesn't, something is wrong with the preprocessing pipeline before the real Vertex job burns hours.
+   - **DECLINED** — out of scope, deferred to follow-up phase if v8 underperforms.
 
 4. **Is there an existing `.sha256` file or sidecar metadata for `efficientat_mn10_v6.pt`?**
    - VERIFIED: no sidecar JSON in `models/`. Only `efficientat_mn10_v6_onnx.sha256` exists (for the Phase 21 ONNX export, not the PT checkpoint).
    - Recommendation: compute and record the v6 PT sha256 in Phase 22's summary so fine-tune-from-v6 is reproducible.
+   - **RESOLVED via 22-01-T3** — verified inline (no sidecar exists); Plan 01 Task 3 creates the v6 PT sha256 sidecar.
 
 ---
 
