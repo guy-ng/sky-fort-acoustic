@@ -95,25 +95,38 @@ class LocalhostJSONServer:
             (http_cfg.bind_host, int(http_cfg.bind_port)), handler_cls
         )
         self._thread: Optional[threading.Thread] = None
+        self._started = False
 
     @property
     def server_address(self) -> tuple[str, int]:
         return self._server.server_address  # type: ignore[return-value]
 
     def start(self) -> None:
+        if self._started:
+            return
         self._thread = threading.Thread(
             target=self._server.serve_forever,
             name="skyfort-edge-http",
             daemon=True,
         )
         self._thread.start()
+        self._started = True
         log.info("HTTP server listening on %s", self._server.server_address)
 
     def stop(self) -> None:
+        # HTTPServer.shutdown() blocks forever on an Event that is only set
+        # by serve_forever(). If start() was never called, calling
+        # _server.shutdown() deadlocks the caller. Guard with _started.
+        if self._started:
+            try:
+                self._server.shutdown()
+            except Exception:
+                log.exception("HTTPServer.shutdown raised")
+            self._started = False
         try:
-            self._server.shutdown()
-        finally:
             self._server.server_close()
+        except Exception:
+            log.exception("HTTPServer.server_close raised")
         if self._thread is not None:
             self._thread.join(timeout=2.0)
             self._thread = None
