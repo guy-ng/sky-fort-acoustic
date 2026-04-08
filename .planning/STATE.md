@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: MVP
-status: executing
-stopped_at: Session resumed, routing to /gsd-execute-phase 21 (final plan 21-08)
-last_updated: "2026-04-08T12:59:08.513Z"
-last_activity: 2026-04-08 -- Phase 23 planning complete
+status: verifying
+stopped_at: Completed 23-01-PLAN.md
+last_updated: "2026-04-08T14:09:44.933Z"
+last_activity: 2026-04-08
 progress:
   total_phases: 19
-  completed_phases: 11
+  completed_phases: 12
   total_plans: 58
-  completed_plans: 42
-  percent: 72
+  completed_plans: 43
+  percent: 74
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-03)
 
 **Core value:** Reliably detect and classify drones acoustically in real time, publishing target events over ZeroMQ so downstream systems can act on them.
-**Current focus:** Phase 20.1 — acquire-noise-corpora-esc50-urbansound8k-fsd50k-subset-and-a
+**Current focus:** Phase 23 — evaluate-audron-multi-branch-hybrid-architecture-mfcc-stft-c
 
 ## Current Position
 
-Phase: 20.1 (acquire-noise-corpora-esc50-urbansound8k-fsd50k-subset-and-a) — EXECUTING
-Plan: 1 of 3
-Status: Ready to execute
-Last activity: 2026-04-08 -- Phase 23 planning complete
+Phase: 23 (evaluate-audron-multi-branch-hybrid-architecture-mfcc-stft-c) — EXECUTING
+Plan: 1 of 1
+Status: Phase complete — ready for verification
+Last activity: 2026-04-08
 
 ## Performance Metrics
 
@@ -63,6 +63,7 @@ Last activity: 2026-04-08 -- Phase 23 planning complete
 | Phase 14 P01 | 19min | 2 tasks | 13 files |
 | Phase 14 P02 | 23min | 2 tasks | 8 files |
 | Phase 15 P02 | 7m17s | 2 tasks | 6 files |
+| Phase 23 P01 | 3m45s | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -122,6 +123,7 @@ Recent decisions affecting current work:
 - [Phase 15]: All training uses logits mode -- both FocalLoss and BCEWithLogitsLoss expect raw logits
 - [Phase 15]: TorchScript export with logits_mode=False for inference-ready sigmoid output
 - [Phase 15]: ComposedAugmentation class over closure for DataLoader num_workers picklability
+- [Phase 23]: REJECT AUDRON as classifier replacement -- no public code, indoor-only dataset, no edge story, EfficientAT wins on every operational axis
 
 ### Pending Todos
 
@@ -148,7 +150,7 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-08
-Stopped at: Session resumed, routing to /gsd-execute-phase 21 (final plan 21-08)
-Resume file: .planning/phases/21-build-raspberry-pi-4-edge-drone-detection-app-using-efficien/21-08-PLAN.md
+Last session: 2026-04-08T14:09:44.927Z
+Stopped at: Completed 23-01-PLAN.md
+Resume file: None
 Note: STATE.md header is stale — Phase 20.1 is fully complete (3/3 plans), Phase 21 is 7/8 complete with only 21-08 (systemd unit + install script + README) remaining.
