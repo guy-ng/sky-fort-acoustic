@@ -480,3 +480,13 @@ Plans:
 - [ ] 22-07-PLAN.md — eval harness (uma16_eval + promotion) + promote_efficientat.py CLI
 - [ ] 22-08-PLAN.md — Vertex L4 us-east1 training run + v8 checkpoint + sha256 sidecar
 - [ ] 22-09-PLAN.md — D-27 promotion gate execution + v8 operational swap
+
+### Phase 23: Evaluate AUDRON multi-branch hybrid architecture (MFCC+STFT-CNN+BiLSTM+Autoencoder fusion) as alternative or complement to EfficientAT classifier line
+
+**Goal:** Research-first evaluation — deliver adopt/reject/hybrid decision on AUDRON architecture with evidence, comparison table, and revisit conditions. NOT a trained model.
+**Requirements**: RES-01 (research recommendation), RES-02 (comparison table), RES-03 (follow-on phases), RES-04 (reject documentation), RES-05 (source verification)
+**Depends on:** Phase 22
+**Plans:** 1 plan
+
+- [ ] 23-01-PLAN.md — Verify sources + produce DECISION.md (adopt/reject/hybrid record)
+
