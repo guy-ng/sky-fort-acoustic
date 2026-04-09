@@ -226,6 +226,9 @@ class WindowedHFDroneDataset(Dataset):
         waveform_aug: Callable[[np.ndarray], np.ndarray] | None = None,
         assumed_clip_samples: int = 16000,
         sample_rate: int = 16000,
+        *,
+        post_resample_norm: Callable[[np.ndarray], np.ndarray] | None = None,
+        per_file_lengths: list[int] | None = None,
     ) -> None:
         # Duplicate file indices would silently break session-level isolation
         assert len(set(file_indices)) == len(file_indices), (
@@ -238,6 +241,15 @@ class WindowedHFDroneDataset(Dataset):
         self._waveform_aug = waveform_aug
         self._sr = int(sample_rate)
         self._assumed_clip_samples = int(assumed_clip_samples)
+        # Phase 22 Wave 2 (REQ-22-W4): post-resample normalize hook. When
+        # passed, runs on the 32 kHz tensor so trainer RmsNormalize operates in
+        # the same domain as ``RawAudioPreprocessor.process`` at inference.
+        self._post_resample_norm = post_resample_norm
+        # Phase 22 Wave 2 (REQ-22-W2): per-file clip-length table. Enables
+        # multi-second field recordings to produce multiple sliding windows per
+        # file without truncating to _assumed_clip_samples. None preserves the
+        # legacy DADS uniform-length path verbatim.
+        self._per_file_lengths: dict[int, int] | None = None
         # One-shot warning flag — DADS contains rare outlier clips that violate
         # the uniform-length assumption (e.g. file_idx=174151 in the v7 corpus
         # decodes to 8000 samples instead of 16000). We tolerate them in
@@ -253,15 +265,40 @@ class WindowedHFDroneDataset(Dataset):
         # Pre-fetch labels via Arrow column (zero-copy) instead of per-row access
         all_labels = list(hf_dataset["label"])
 
-        n = self._assumed_clip_samples
-        # Number of sliding windows per (uniform-length) clip
-        num_w = max(1, 1 + max(0, (n - self._window_samples)) // self._hop_samples)
+        if per_file_lengths is not None:
+            assert len(per_file_lengths) == len(file_indices), (
+                "per_file_lengths must match file_indices length: "
+                f"{len(per_file_lengths)} vs {len(file_indices)}"
+            )
+            self._per_file_lengths = {
+                int(fi): int(cl)
+                for fi, cl in zip(file_indices, per_file_lengths, strict=True)
+            }
+            for file_idx, clip_len in zip(
+                file_indices, per_file_lengths, strict=True,
+            ):
+                label_int = int(all_labels[file_idx])
+                num_w = max(
+                    1,
+                    1
+                    + max(0, int(clip_len) - self._window_samples)
+                    // self._hop_samples,
+                )
+                for w in range(num_w):
+                    self._items.append((int(file_idx), w * self._hop_samples))
+                    self._labels_cache.append(label_int)
+        else:
+            n = self._assumed_clip_samples
+            # Number of sliding windows per (uniform-length) clip
+            num_w = max(
+                1, 1 + max(0, (n - self._window_samples)) // self._hop_samples,
+            )
 
-        for file_idx in file_indices:
-            label_int = int(all_labels[file_idx])
-            for w in range(num_w):
-                self._items.append((int(file_idx), w * self._hop_samples))
-                self._labels_cache.append(label_int)
+            for file_idx in file_indices:
+                label_int = int(all_labels[file_idx])
+                for w in range(num_w):
+                    self._items.append((int(file_idx), w * self._hop_samples))
+                    self._labels_cache.append(label_int)
 
     def __len__(self) -> int:
         return len(self._items)
@@ -276,13 +313,23 @@ class WindowedHFDroneDataset(Dataset):
         wav_bytes = audio_struct["bytes"]
         audio = decode_wav_bytes(wav_bytes)
 
+        # Phase 22 Wave 2 (REQ-22-W2): if per_file_lengths was provided, use
+        # the file-specific clip length; otherwise fall back to the uniform
+        # _assumed_clip_samples (legacy DADS path).
+        if self._per_file_lengths is not None:
+            expected_clip_len = self._per_file_lengths.get(
+                file_idx, self._assumed_clip_samples,
+            )
+        else:
+            expected_clip_len = self._assumed_clip_samples
+
         # Tolerate non-uniform clips (Research A1 fallback). The DADS corpus
         # contains rare outlier files whose decoded length deviates from the
         # uniform 1 s assumption (e.g. file_idx=174151 in v7 decodes to 8000
         # samples). Pre-computed window offsets in self._items assume
-        # _assumed_clip_samples, so we reconcile the actual audio against that
+        # expected_clip_len, so we reconcile the actual audio against that
         # assumption rather than crash mid-training.
-        if len(audio) != self._assumed_clip_samples:
+        if len(audio) != expected_clip_len:
             if not self._warned_non_uniform:
                 logger.warning(
                     "WindowedHFDroneDataset: non-uniform clip detected "
@@ -291,17 +338,17 @@ class WindowedHFDroneDataset(Dataset):
                     "warnings for this dataset instance.",
                     file_idx,
                     len(audio),
-                    self._assumed_clip_samples,
+                    expected_clip_len,
                 )
                 self._warned_non_uniform = True
-            if len(audio) < self._assumed_clip_samples:
+            if len(audio) < expected_clip_len:
                 # Tile the short clip up to the assumed length so every
                 # pre-allocated (file_idx, offset) window contains real audio
                 # rather than zero padding.
-                audio = pad_or_loop(audio, self._assumed_clip_samples)
+                audio = pad_or_loop(audio, expected_clip_len)
             else:
                 # Longer-than-expected: truncate so window offsets stay valid.
-                audio = audio[: self._assumed_clip_samples]
+                audio = audio[:expected_clip_len]
 
         # Slice the deterministic window (in 16 kHz source-domain samples)
         segment = audio[offset : offset + self._window_samples]
@@ -319,6 +366,26 @@ class WindowedHFDroneDataset(Dataset):
         # back raw waveform only. Quick task 260407-ls3 — see class docstring.
         segment_t = torch.from_numpy(np.ascontiguousarray(segment, dtype=np.float32))
         segment_t = F_audio.resample(segment_t, _SOURCE_SR, _TARGET_SR)
+
+        # Phase 22 Wave 2 (REQ-22-W2): fail-loud length contract. Asserting
+        # here catches any silent window-drift at the first bad item, unlike
+        # v7 which silently shipped 0.5 s windows through to production.
+        assert segment_t.shape[-1] == EFFICIENTAT_SEGMENT_SAMPLES, (
+            f"WindowedHFDroneDataset contract violation at idx={idx} "
+            f"file_idx={file_idx}: expected {EFFICIENTAT_SEGMENT_SAMPLES} "
+            f"samples, got {segment_t.shape[-1]}. This is the v7 train/serve "
+            f"mismatch signature — do not silence."
+        )
+
+        # Phase 22 Wave 2 (REQ-22-W4): optional post-resample normalize. When
+        # passed by the trainer (e.g. RmsNormalize), runs on the 32 kHz tensor
+        # so train/serve normalization lives in the same sample-rate domain.
+        if self._post_resample_norm is not None:
+            arr = segment_t.numpy()
+            arr = self._post_resample_norm(arr)
+            segment_t = torch.from_numpy(
+                np.ascontiguousarray(arr, dtype=np.float32),
+            )
 
         label_tensor = torch.tensor(self._labels_cache[idx], dtype=torch.float32)
         return segment_t, label_tensor
