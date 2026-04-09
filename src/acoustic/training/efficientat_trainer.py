@@ -247,12 +247,14 @@ class EfficientATTrainingRunner:
             mixer.warm_cache()
             augs.append(mixer)
 
-        # Stage 5: RMS normalization — LAST in the chain (D-34).
-        # Kills the train/inference domain shift AND the DADS amplitude
-        # shortcut by landing every sample at a fixed target RMS regardless
-        # of gain, RIR, or SNR-mixed noise level.
-        augs.append(RmsNormalize(target=cfg.rms_normalize_target))
-
+        # Phase 22 REQ-22-W4: RmsNormalize moved POST-resample. It used to be
+        # appended here as the final 16 kHz-domain op (D-34 "RMS last in
+        # chain"). That contract still holds semantically — RMS is still the
+        # last waveform-domain step — but it now runs at 32 kHz via the
+        # ``post_resample_norm`` kwarg on ``WindowedHFDroneDataset`` so the
+        # training normalization lives in the same sample-rate regime as
+        # ``RawAudioPreprocessor.process`` at inference. See the v7 post-mortem
+        # in .planning/debug/efficientat-v7-regression-vs-v6.md.
         return ComposedAugmentation(augs)
 
     def _build_eval_augmentation(self) -> ComposedAugmentation | None:
@@ -264,13 +266,16 @@ class EfficientATTrainingRunner:
         to represent clean inputs). Wide gain and audiomentations are also
         omitted; only background noise is mixed in so val/test SNR matches
         the train chain's noise floor.
+
+        Phase 22 REQ-22-W4: RmsNormalize is no longer appended here. It runs
+        as ``post_resample_norm`` on the dataset (32 kHz domain) so train,
+        val, and inference share the exact same normalization point. When
+        noise mixing is disabled the eval chain may be ``None`` — that's the
+        correct signal for the dataset to run ONLY post_resample_norm.
         """
         cfg = self._config
-        # D-34: eval chain MUST end with RmsNormalize unconditionally so
-        # val/test inputs land in the same regime as train + live inference.
-        rms_stage = RmsNormalize(target=cfg.rms_normalize_target)
         if not (cfg.noise_augmentation_enabled and cfg.noise_dirs):
-            return ComposedAugmentation([rms_stage])
+            return None
         mixer = BackgroundNoiseMixer(
             noise_dirs=[Path(d) for d in cfg.noise_dirs],
             snr_range=(cfg.noise_snr_range_low, cfg.noise_snr_range_high),
@@ -278,7 +283,7 @@ class EfficientATTrainingRunner:
             p=cfg.noise_probability,
         )
         mixer.warm_cache()
-        return ComposedAugmentation([mixer, rms_stage])
+        return ComposedAugmentation([mixer])
 
     @staticmethod
     def _setup_stage1(model: nn.Module) -> None:
@@ -464,12 +469,21 @@ class EfficientATTrainingRunner:
                 )
                 test_hop = window_samples  # D-16: non-overlapping test split
 
+                # Phase 22 REQ-22-W4: RmsNormalize moved post-resample for
+                # train/serve domain parity (see
+                # .planning/debug/efficientat-v7-regression-vs-v6.md). D-34
+                # "RMS last in chain" contract still holds semantically — RMS
+                # is the last waveform-domain op — just executed at 32 kHz
+                # inside WindowedHFDroneDataset to match inference.
+                post_norm = RmsNormalize(target=cfg.rms_normalize_target)
+
                 train_ds = WindowedHFDroneDataset(
                     hf_builder._hf_ds,
                     file_indices=train_files,
                     window_samples=window_samples,
                     hop_samples=train_hop,
                     waveform_aug=self._build_train_augmentation(),
+                    post_resample_norm=post_norm,
                 )
                 val_ds = WindowedHFDroneDataset(
                     hf_builder._hf_ds,
@@ -477,6 +491,7 @@ class EfficientATTrainingRunner:
                     window_samples=window_samples,
                     hop_samples=test_hop,
                     waveform_aug=self._build_eval_augmentation(),
+                    post_resample_norm=post_norm,
                 )
                 train_lbl = [hf_builder.all_labels[i] for i in train_files]
                 val_lbl = [hf_builder.all_labels[i] for i in val_files]

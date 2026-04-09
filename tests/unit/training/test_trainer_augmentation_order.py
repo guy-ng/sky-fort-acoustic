@@ -1,9 +1,14 @@
-"""RED stub locking the train/eval augmentation chain order (D-02, D-07, D-08).
+"""Lock the train/eval augmentation chain order (D-02, D-07, D-08).
 
 Plan 20-04 wires WideGain → RoomIR → Audiomentations → BackgroundNoiseMixer
 into ``EfficientATTrainingRunner._build_train_augmentation``. The eval chain
 must explicitly EXCLUDE ``RoomIRAugmentation`` (eval data is already real or
 synthetically clean — adding RIR at eval time would corrupt the metric).
+
+Phase 22 Plan 03 update: RmsNormalize is no longer the tail of these
+16 kHz chains. It moved to ``WindowedHFDroneDataset.post_resample_norm`` so
+normalization runs in the 32 kHz domain (train/serve parity). See
+.planning/debug/efficientat-v7-regression-vs-v6.md.
 """
 
 from __future__ import annotations
@@ -37,10 +42,11 @@ def _build_runner(noise_dir: Path):
 def test_train_chain_order(temp_noise_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Train chain must be exactly:
     [WideGainAugmentation, RoomIRAugmentation, AudiomentationsAugmentation,
-     BackgroundNoiseMixer, RmsNormalize]
+     BackgroundNoiseMixer]
 
-    Plan 20-08 (D-34) appends RmsNormalize as the LAST stage so train-time
-    signals land at the same RMS target as the inference path.
+    Phase 22 Plan 03 (REQ-22-W4): RmsNormalize dropped from the 16 kHz chain
+    and moved to ``WindowedHFDroneDataset.post_resample_norm`` for train/serve
+    parity in the 32 kHz domain.
     """
     # Patch warm_cache so we don't need real noise loading.
     from acoustic.training import augmentation as aug_mod
@@ -59,13 +65,16 @@ def test_train_chain_order(temp_noise_dir: Path, monkeypatch: pytest.MonkeyPatch
         "RoomIRAugmentation",
         "AudiomentationsAugmentation",
         "BackgroundNoiseMixer",
-        "RmsNormalize",
     ]
 
 
 def test_eval_chain_excludes_rir(temp_noise_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Eval chain must NOT contain RoomIRAugmentation (D-08) but MUST end
-    with RmsNormalize (D-34)."""
+    """Eval chain must NOT contain RoomIRAugmentation (D-08).
+
+    Phase 22 Plan 03: eval chain no longer ends with RmsNormalize (that moved
+    to post_resample_norm). With noise enabled the chain contains ONLY
+    BackgroundNoiseMixer.
+    """
     from acoustic.training import augmentation as aug_mod
 
     monkeypatch.setattr(
@@ -76,8 +85,10 @@ def test_eval_chain_excludes_rir(temp_noise_dir: Path, monkeypatch: pytest.Monke
     )
     runner = _build_runner(temp_noise_dir)
     eval_aug = runner._build_eval_augmentation()
+    assert eval_aug is not None
     names = [type(a).__name__ for a in eval_aug._augmentations]
     assert "RoomIRAugmentation" not in names
-    assert names[-1] == "RmsNormalize", (
-        f"eval chain must end with RmsNormalize (D-34); got {names}"
+    assert "RmsNormalize" not in names
+    assert names == ["BackgroundNoiseMixer"], (
+        f"eval chain should hold only BackgroundNoiseMixer post-Plan-03; got {names}"
     )
