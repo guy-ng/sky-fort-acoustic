@@ -457,7 +457,7 @@ Plans:
 **Goal:** Train `efficientat_mn10_v8.pt` that beats v6 on a real-device hold-out and replaces v6 in operational use. Fix the train/serve window-length contract bug (root cause of v7 regression — see `.planning/debug/efficientat-v7-regression-vs-v6.md`), include 2026-04-08 field recordings as new training/eval data, train on Vertex AI L4 in `us-east1`, and gate promotion on the D-27 real-device TPR/FPR metrics.
 **Requirements**: REQ-22-W1, REQ-22-W2, REQ-22-W3, REQ-22-W4, REQ-22-D1, REQ-22-D2, REQ-22-D3, REQ-22-G1, REQ-22-G2 (phase-local — see 22-RESEARCH.md § Phase Requirements)
 **Depends on:** Phase 20.1 (noise corpora), Phase 21 (edge consumer)
-**Plans:** 9 plans
+**Plans:** 3/9 plans executed
 
 **User constraints (locked before planning):**
 - Window: 1.0 second @ 32 kHz (32000 samples) — must equal `EfficientATMelConfig().segment_samples`
@@ -471,9 +471,9 @@ Plans:
 - Hold-out: split 2026-04-08 recordings into train vs eval — no double-dipping
 
 Plans:
-- [ ] 22-01-PLAN.md — Wave 0 test scaffolds + model provenance lock
-- [ ] 22-02-PLAN.md — window_contract.py + literal swaps (BLOCKING)
-- [ ] 22-03-PLAN.md — length assertion + runtime WARN + RmsNormalize parity + dataset generalization
+- [x] 22-01-PLAN.md — Wave 0 test scaffolds + model provenance lock
+- [x] 22-02-PLAN.md — window_contract.py + literal swaps (BLOCKING)
+- [x] 22-03-PLAN.md — length assertion + runtime WARN + RmsNormalize parity + dataset generalization
 - [ ] 22-04-PLAN.md — data integrity preflight + frozen holdout manifest
 - [ ] 22-05-PLAN.md — Kaggle DroneAudioDataset investigation + ingest/reject decision
 - [ ] 22-06-PLAN.md — ConcatDataset(DADS+field) + fine-tune from v6 + Vertex v8 submit path + Dockerfile:v2

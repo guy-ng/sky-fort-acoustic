@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: MVP
 status: verifying
-stopped_at: Completed 23-01-PLAN.md
-last_updated: "2026-04-08T14:09:44.933Z"
-last_activity: 2026-04-08
+stopped_at: Completed 22-03-PLAN.md
+last_updated: "2026-04-09T08:38:10.286Z"
+last_activity: 2026-04-09
 progress:
   total_phases: 19
   completed_phases: 12
   total_plans: 58
-  completed_plans: 43
-  percent: 74
+  completed_plans: 46
+  percent: 79
 ---
 
 # Project State
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-04-03)
 Phase: 23 (evaluate-audron-multi-branch-hybrid-architecture-mfcc-stft-c) — EXECUTING
 Plan: 1 of 1
 Status: Phase complete — ready for verification
-Last activity: 2026-04-08
+Last activity: 2026-04-09
 
 ## Performance Metrics
 
@@ -64,6 +64,7 @@ Last activity: 2026-04-08
 | Phase 14 P02 | 23min | 2 tasks | 8 files |
 | Phase 15 P02 | 7m17s | 2 tasks | 6 files |
 | Phase 23 P01 | 3m45s | 2 tasks | 1 files |
+| Phase 22 P03 | 20m | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -124,6 +125,8 @@ Recent decisions affecting current work:
 - [Phase 15]: TorchScript export with logits_mode=False for inference-ready sigmoid output
 - [Phase 15]: ComposedAugmentation class over closure for DataLoader num_workers picklability
 - [Phase 23]: REJECT AUDRON as classifier replacement -- no public code, indoor-only dataset, no edge story, EfficientAT wins on every operational axis
+- [Phase 22]: Phase 22 Plan 03: RmsNormalize moved post-resample (32 kHz domain) for train/serve parity — D-34 contract preserved semantically, not literally
+- [Phase 22]: Phase 22 Plan 03: Classifier length-mismatch WARN is a signal not a gate — predict() still runs the model on out-of-domain input, WARN makes drift operator-visible
 
 ### Pending Todos
 
@@ -150,7 +153,7 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-08T14:09:44.927Z
-Stopped at: Completed 23-01-PLAN.md
+Last session: 2026-04-09T08:38:10.280Z
+Stopped at: Completed 22-03-PLAN.md
 Resume file: None
 Note: STATE.md header is stale — Phase 20.1 is fully complete (3/3 plans), Phase 21 is 7/8 complete with only 21-08 (systemd unit + install script + README) remaining.
