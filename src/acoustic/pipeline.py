@@ -29,6 +29,9 @@ from acoustic.beamforming import (
     parabolic_interpolation_2d,
     srp_phat_2d,
 )
+from acoustic.classification.efficientat.window_contract import (
+    EFFICIENTAT_WINDOW_SECONDS,
+)
 from acoustic.config import AcousticSettings
 from acoustic.types import PeakDetection, placeholder_target_from_peak
 
@@ -81,8 +84,8 @@ def _training_window_seconds(model_type: str) -> float:
     """
     mt = (model_type or "").lower()
     if "efficientat" in mt or "mn10" in mt or "mn05" in mt:
-        return 1.0
-    # default to research_cnn training window
+        return EFFICIENTAT_WINDOW_SECONDS
+    # default to research_cnn training window — intentional, different window
     return 0.5
 
 

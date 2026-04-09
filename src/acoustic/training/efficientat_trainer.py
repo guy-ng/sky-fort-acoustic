@@ -23,6 +23,10 @@ from torch.utils.data import DataLoader, Dataset, WeightedRandomSampler
 
 from acoustic.classification.efficientat.config import EfficientATMelConfig
 from acoustic.classification.efficientat.model import get_model
+from acoustic.classification.efficientat.window_contract import (
+    EFFICIENTAT_SEGMENT_SAMPLES,
+    source_window_samples,
+)
 from acoustic.classification.efficientat.preprocess import AugmentMelSTFT
 from acoustic.training.augmentation import (
     AudiomentationsAugmentation,
@@ -453,7 +457,7 @@ class EfficientATTrainingRunner:
                     train=1.0 - cfg.val_split,
                     val=cfg.val_split / 2.0,
                 )
-                window_samples = int(0.5 * _SOURCE_SR)  # 8000 samples = 0.5 s @ 16 kHz
+                window_samples = source_window_samples(_SOURCE_SR)  # 1.0 s @ source SR (= 16000 @ 16kHz)
                 train_hop = max(
                     1,
                     int(window_samples * (1.0 - cfg.window_overlap_ratio)),
