@@ -85,8 +85,8 @@
 
 ### Visualization
 
-- [ ] **VIZ-01**: Heatmap displays beamforming output using corrected 500–4000 Hz frequency band
-- [ ] **VIZ-02**: Functional Beamforming with configurable ν parameter produces sidelobe-suppressed clean maps for display
+- [x] **VIZ-01**: Heatmap displays beamforming output using corrected 500–4000 Hz frequency band
+- [x] **VIZ-02**: Functional Beamforming with configurable ν parameter produces sidelobe-suppressed clean maps for display
 
 ### Direction Broadcasting
 
@@ -162,5 +162,5 @@
 | DOA-03 | Phase 18 | Pending |
 | DIR-01 | Phase 18 | Pending |
 | DIR-02 | Phase 18 | Pending |
-| VIZ-01 | Phase 19 | Pending |
-| VIZ-02 | Phase 19 | Pending |
+| VIZ-01 | Phase 19 | Complete |
+| VIZ-02 | Phase 19 | Complete |

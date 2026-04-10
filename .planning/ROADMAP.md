@@ -365,7 +365,7 @@ Plans:
 **UI hint**: yes
 
 Plans:
-- [ ] 19-01-PLAN.md — Backend: functional beamforming transform, config, PATCH endpoint
+- [x] 19-01-PLAN.md — Backend: functional beamforming transform, config, PATCH endpoint
 - [ ] 19-02-PLAN.md — Frontend: remove v*v squaring + visual verification
 
 ## Progress
@@ -393,7 +393,7 @@ Phases execute in numeric order. Phase 11 is conditional. v3.0 phases: 13 -> 14 
 | 16. Edge Export Pipeline - ONNX TensorRT TFLite Quantization | v3.0 | 0/3 | Not started | - |
 | 17. Beamforming Engine Upgrade and Pipeline Integration | v4.0 | 3/3 | Complete    | 2026-04-06 |
 | 18. Direction of Arrival and WebSocket Broadcasting | v4.0 | 3/3 | Complete    | 2026-04-10 |
-| 19. Functional Beamforming Visualization | v4.0 | 0/0 | Not started | - |
+| 19. Functional Beamforming Visualization | v4.0 | 1/2 | In Progress|  |
 | 20. Retrain v7 with wide gain + RIR + Vertex remote | v1.0 | 7/9 + 1 partial | ⚠ Blocked (data acq.) | - |
 
 ### Phase 20: Retrain v7 with wide gain + room-IR augmentation, Vertex remote training, 60% overlap windows, expanded BG noise negatives
@@ -402,7 +402,7 @@ Phases execute in numeric order. Phase 11 is conditional. v3.0 phases: 13 -> 14 
 
 **Requirements**: TBD
 **Depends on:** Phase 19
-**Plans:** 3/3 plans complete
+**Plans:** 1/2 plans executed
 **Status:** ⚠ BLOCKED on noise-corpora data acquisition (2026-04-07)
 
 **Blocker:** `Dockerfile.vertex-base` and `build_env_vars_v7()` reference `data/noise/{esc50,urbansound8k,fsd50k_subset}/` — only `.gitkeep` placeholders exist on disk. Plan 20-00 created the placeholder dirs but the actual ESC50 / UrbanSound8K / FSD50K downloads were always meant to be a manual capture step that has not happened. Submitting v7 as-is would silently train against ONE noise source (UMA-16 outdoor_quiet ambient pool, 31 min) instead of FOUR — almost certainly failing the locked promotion gate (DADS≥0.95 / real_TPR≥0.80 / real_FPR≤0.05). See `.planning/phases/20-.../20-05-SUMMARY.md` "BLOCKED ON DATA ACQUISITION" section.

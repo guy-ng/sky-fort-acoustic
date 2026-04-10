@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: MVP
 status: executing
-stopped_at: Phase 19 UI-SPEC approved
-last_updated: "2026-04-10T21:07:41.149Z"
+stopped_at: Completed 19-01-PLAN.md
+last_updated: "2026-04-10T21:22:38.318Z"
 last_activity: 2026-04-10 -- Phase 19 planning complete
 progress:
   total_phases: 19
   completed_phases: 13
   total_plans: 63
-  completed_plans: 49
-  percent: 78
+  completed_plans: 50
+  percent: 79
 ---
 
 # Project State
@@ -66,6 +66,7 @@ Last activity: 2026-04-10 -- Phase 19 planning complete
 | Phase 15 P02 | 7m17s | 2 tasks | 6 files |
 | Phase 23 P01 | 3m45s | 2 tasks | 1 files |
 | Phase 22 P03 | 20m | 3 tasks | 8 files |
+| Phase 19 P01 | 4m39s | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -128,6 +129,7 @@ Recent decisions affecting current work:
 - [Phase 23]: REJECT AUDRON as classifier replacement -- no public code, indoor-only dataset, no edge story, EfficientAT wins on every operational axis
 - [Phase 22]: Phase 22 Plan 03: RmsNormalize moved post-resample (32 kHz domain) for train/serve parity — D-34 contract preserved semantically, not literally
 - [Phase 22]: Phase 22 Plan 03: Classifier length-mismatch WARN is a signal not a gate — predict() still runs the model on out-of-domain input, WARN makes drift operator-visible
+- [Phase 19]: Functional beamforming applied only to latest_map (visualization) — srp_map left untouched for MCRA and peak detection
 
 ### Pending Todos
 
@@ -154,7 +156,7 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-10T20:59:02.814Z
-Stopped at: Phase 19 UI-SPEC approved
-Resume file: .planning/phases/19-functional-beamforming-visualization/19-UI-SPEC.md
+Last session: 2026-04-10T21:22:38.313Z
+Stopped at: Completed 19-01-PLAN.md
+Resume file: None
 Note: STATE.md header is stale — Phase 20.1 is fully complete (3/3 plans), Phase 21 is 7/8 complete with only 21-08 (systemd unit + install script + README) remaining.
