@@ -402,7 +402,16 @@ class BeamformingPipeline:
             prev_state = self._state_machine.state
             state = self._state_machine.update(result.drone_probability)
             if state == DetectionState.CONFIRMED and self._tracker is not None:
-                self._tracker.update(result.az_deg, result.el_deg, result.drone_probability)
+                if self.latest_peaks:
+                    self._tracker.update_multi(
+                        self.latest_peaks,
+                        confidence=result.drone_probability,
+                    )
+                else:
+                    # Fallback: no beamforming peaks available, use CNN result bearing
+                    self._tracker.update(
+                        result.az_deg, result.el_deg, result.drone_probability
+                    )
 
             # Log every CNN result for the pipeline tab
             if session is not None:

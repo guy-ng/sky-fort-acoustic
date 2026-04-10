@@ -339,6 +339,7 @@ async def lifespan(app: FastAPI):
         from acoustic.classification.research_cnn import ResearchClassifier, ResearchCNN
         from acoustic.classification.state_machine import DetectionStateMachine
         from acoustic.classification.worker import CNNWorker
+        from acoustic.tracking.doa import MountingOrientation
         from acoustic.tracking.events import EventBroadcaster
         from acoustic.tracking.tracker import TargetTracker
 
@@ -433,7 +434,14 @@ async def lifespan(app: FastAPI):
             exit_threshold=settings.cnn_exit_threshold,
             confirm_hits=settings.cnn_confirm_hits,
         )
-        tracker = TargetTracker(ttl=settings.cnn_target_ttl, broadcaster=broadcaster)
+        mounting = MountingOrientation(settings.mounting_orientation)
+        tracker = TargetTracker(
+            ttl=settings.cnn_target_ttl,
+            broadcaster=broadcaster,
+            mounting=mounting,
+            association_threshold_deg=settings.doa_association_threshold_deg,
+            smoothing_alpha=settings.doa_smoothing_alpha,
+        )
         cnn_worker.start()
         classifier_mode = "ensemble" if ensemble_active else ("active" if classifier is not None else "dormant")
         logger.info(

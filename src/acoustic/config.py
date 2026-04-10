@@ -49,6 +49,9 @@ class AcousticSettings(BaseSettings):
     doa_smoothing_alpha: float = 1.0  # EMA alpha: 1.0 = no smoothing, lower = smoother (D-05)
     doa_association_threshold_deg: float = 7.5  # Max angular distance for peak-to-target match (D-03)
 
+    # WebSocket target broadcast rate (DIR-02, D-07)
+    ws_targets_hz: float = 2.0  # /ws/targets update rate in Hz. Range: 0.5-10 Hz.
+
     # Beamforming grid
     az_range: float = 90.0
     el_range: float = 45.0
