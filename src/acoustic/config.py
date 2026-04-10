@@ -44,6 +44,9 @@ class AcousticSettings(BaseSettings):
     # Demand-driven activation (BF-16)
     bf_holdoff_seconds: float = 5.0
 
+    # Direction of Arrival (Phase 18)
+    mounting_orientation: str = "vertical_y_up"
+
     # Beamforming grid
     az_range: float = 90.0
     el_range: float = 45.0
