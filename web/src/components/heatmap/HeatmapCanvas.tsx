@@ -54,9 +54,8 @@ export const HeatmapCanvas = forwardRef<HeatmapCanvasHandle, HeatmapCanvasProps>
 
       for (let i = 0; i < expectedLen; i++) {
         const v = floats[i]
-        // Squared normalization for visual contrast (POC uses alpha**2)
-        const normalized = v * v
-        const lutIdx = Math.round(normalized * 255) * 3
+        // Backend owns contrast via functional beamforming (D-08) -- direct LUT mapping
+        const lutIdx = Math.round(v * 255) * 3
         const pixIdx = i * 4
         pixels[pixIdx] = lut[lutIdx]
         pixels[pixIdx + 1] = lut[lutIdx + 1]
