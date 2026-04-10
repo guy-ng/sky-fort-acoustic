@@ -349,7 +349,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] TBD (run /gsd:plan-phase 18 to break down)
+- [ ] 18-01-PLAN.md — DOA coordinate transform module (array-to-world pan/tilt with mounting orientation)
+- [ ] 18-02-PLAN.md — Multi-target tracker upgrade (nearest-neighbor association, EMA smoothing, pan/tilt fields)
+- [ ] 18-03-PLAN.md — Pipeline wiring, schema enrichment, configurable /ws/targets rate
 
 ### Phase 19: Functional Beamforming Visualization
 **Goal**: The heatmap displays a clean, sidelobe-suppressed beamforming map using functional beamforming with the corrected frequency band
