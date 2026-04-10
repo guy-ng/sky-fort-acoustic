@@ -35,5 +35,7 @@ class TargetEvent(BaseModel):
     confidence: float
     az_deg: float
     el_deg: float
+    pan_deg: float = 0.0
+    tilt_deg: float = 0.0
     speed_mps: float | None = None
     timestamp: float

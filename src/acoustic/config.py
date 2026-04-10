@@ -46,6 +46,8 @@ class AcousticSettings(BaseSettings):
 
     # Direction of Arrival (Phase 18)
     mounting_orientation: str = "vertical_y_up"
+    doa_smoothing_alpha: float = 1.0  # EMA alpha: 1.0 = no smoothing, lower = smoother (D-05)
+    doa_association_threshold_deg: float = 7.5  # Max angular distance for peak-to-target match (D-03)
 
     # Beamforming grid
     az_range: float = 90.0
