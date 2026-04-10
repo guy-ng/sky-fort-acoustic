@@ -38,13 +38,12 @@ created: 2026-04-10
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| 18-01-01 | 01 | 1 | DOA-01 | — | N/A | unit | `python -m pytest tests/acoustic/tracking/test_doa.py -k "test_coordinate_transform"` | ❌ W0 | ⬜ pending |
-| 18-01-02 | 01 | 1 | DOA-02 | — | N/A | unit | `python -m pytest tests/acoustic/tracking/test_doa.py -k "test_broadside_zero"` | ❌ W0 | ⬜ pending |
-| 18-01-03 | 01 | 1 | DOA-03 | — | N/A | unit | `python -m pytest tests/acoustic/tracking/test_doa.py -k "test_smoothing"` | ❌ W0 | ⬜ pending |
-| 18-02-01 | 02 | 2 | DIR-01 | — | N/A | unit | `python -m pytest tests/acoustic/tracking/test_tracker.py -k "test_multi_target"` | ❌ W0 | ⬜ pending |
-| 18-02-02 | 02 | 2 | DIR-01 | — | N/A | unit | `python -m pytest tests/acoustic/tracking/test_tracker.py -k "test_association"` | ❌ W0 | ⬜ pending |
-| 18-03-01 | 03 | 3 | DIR-02 | — | N/A | integration | `python -m pytest tests/acoustic/api/test_websocket.py -k "test_ws_targets_direction"` | ❌ W0 | ⬜ pending |
-| 18-03-02 | 03 | 3 | DIR-02 | — | N/A | integration | `python -m pytest tests/acoustic/api/test_websocket.py -k "test_ws_events_direction"` | ❌ W0 | ⬜ pending |
+| 18-01-01 | 01 | 1 | DOA-01 | — | N/A | unit | `python -m pytest tests/unit/test_doa.py -k "test_coordinate_transform"` | ❌ W0 | ⬜ pending |
+| 18-01-02 | 01 | 1 | DOA-02 | — | N/A | unit | `python -m pytest tests/unit/test_doa.py -k "test_broadside_zero"` | ❌ W0 | ⬜ pending |
+| 18-02-01 | 02 | 2 | DOA-03 | — | N/A | unit | `python -m pytest tests/unit/test_tracker.py -k "test_multi_target"` | ❌ W0 | ⬜ pending |
+| 18-02-02 | 02 | 2 | DOA-03 | — | N/A | unit | `python -m pytest tests/unit/test_tracker.py -k "test_association"` | ❌ W0 | ⬜ pending |
+| 18-03-01 | 03 | 3 | DIR-01 | — | N/A | unit | `python -m pytest tests/unit/test_target_schema.py -k "test_target_event_direction"` | ❌ W0 | ⬜ pending |
+| 18-03-02 | 03 | 3 | DIR-02 | — | N/A | integration | `python -m pytest tests/unit/test_events_ws.py -k "test_ws_direction"` | ❌ W0 | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -52,9 +51,10 @@ created: 2026-04-10
 
 ## Wave 0 Requirements
 
-- [ ] `tests/acoustic/tracking/test_doa.py` — stubs for DOA-01, DOA-02, DOA-03
-- [ ] `tests/acoustic/tracking/test_tracker.py` — extend with multi-target tests for DIR-01
-- [ ] `tests/acoustic/api/test_websocket.py` — extend with direction broadcast tests for DIR-02
+- [ ] `tests/unit/test_doa.py` — stubs for DOA-01, DOA-02 (coordinate transform)
+- [ ] `tests/unit/test_tracker.py` — extend with multi-target tests for DOA-03
+- [ ] `tests/unit/test_target_schema.py` — extend with pan_deg/tilt_deg tests for DIR-01
+- [ ] `tests/unit/test_events_ws.py` — extend with direction broadcast tests for DIR-02
 
 *Existing infrastructure covers framework and fixtures.*
 
