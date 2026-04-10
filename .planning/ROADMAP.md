@@ -349,9 +349,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 18-01-PLAN.md — DOA coordinate transform module (array-to-world pan/tilt with mounting orientation)
-- [ ] 18-02-PLAN.md — Multi-target tracker upgrade (nearest-neighbor association, EMA smoothing, pan/tilt fields)
-- [ ] 18-03-PLAN.md — Pipeline wiring, schema enrichment, configurable /ws/targets rate
+- [x] 18-01-PLAN.md — DOA coordinate transform module (array-to-world pan/tilt with mounting orientation)
+- [x] 18-02-PLAN.md — Multi-target tracker upgrade (nearest-neighbor association, EMA smoothing, pan/tilt fields)
+- [x] 18-03-PLAN.md — Pipeline wiring, schema enrichment, configurable /ws/targets rate
 
 ### Phase 19: Functional Beamforming Visualization
 **Goal**: The heatmap displays a clean, sidelobe-suppressed beamforming map using functional beamforming with the corrected frequency band
@@ -391,7 +391,7 @@ Phases execute in numeric order. Phase 11 is conditional. v3.0 phases: 13 -> 14 
 | 15. Advanced Training Enhancements | v3.0 | 2/2 | Complete   | 2026-04-04 |
 | 16. Edge Export Pipeline - ONNX TensorRT TFLite Quantization | v3.0 | 0/3 | Not started | - |
 | 17. Beamforming Engine Upgrade and Pipeline Integration | v4.0 | 3/3 | Complete    | 2026-04-06 |
-| 18. Direction of Arrival and WebSocket Broadcasting | v4.0 | 0/0 | Not started | - |
+| 18. Direction of Arrival and WebSocket Broadcasting | v4.0 | 3/3 | Complete    | 2026-04-10 |
 | 19. Functional Beamforming Visualization | v4.0 | 0/0 | Not started | - |
 | 20. Retrain v7 with wide gain + RIR + Vertex remote | v1.0 | 7/9 + 1 partial | ⚠ Blocked (data acq.) | - |
 
@@ -401,7 +401,7 @@ Phases execute in numeric order. Phase 11 is conditional. v3.0 phases: 13 -> 14 
 
 **Requirements**: TBD
 **Depends on:** Phase 19
-**Plans:** 7/9 complete + 1 code-complete-but-blocked (20-05 Task 1)
+**Plans:** 3/3 plans complete
 **Status:** ⚠ BLOCKED on noise-corpora data acquisition (2026-04-07)
 
 **Blocker:** `Dockerfile.vertex-base` and `build_env_vars_v7()` reference `data/noise/{esc50,urbansound8k,fsd50k_subset}/` — only `.gitkeep` placeholders exist on disk. Plan 20-00 created the placeholder dirs but the actual ESC50 / UrbanSound8K / FSD50K downloads were always meant to be a manual capture step that has not happened. Submitting v7 as-is would silently train against ONE noise source (UMA-16 outdoor_quiet ambient pool, 31 min) instead of FOUR — almost certainly failing the locked promotion gate (DADS≥0.95 / real_TPR≥0.80 / real_FPR≤0.05). See `.planning/phases/20-.../20-05-SUMMARY.md` "BLOCKED ON DATA ACQUISITION" section.
