@@ -35,6 +35,9 @@ class AcousticSettings(BaseSettings):
     bf_max_peaks: int = 5
     bf_peak_threshold: float = 3.0
 
+    # VIZ-02: Functional beamforming exponent for sidelobe suppression
+    bf_nu: float = 100.0
+
     # MCRA noise estimation (BF-14)
     bf_mcra_alpha_s: float = 0.8
     bf_mcra_alpha_d: float = 0.95

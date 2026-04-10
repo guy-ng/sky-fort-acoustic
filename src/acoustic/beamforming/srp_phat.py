@@ -19,8 +19,8 @@ def srp_phat_2d(
     c: float,
     az_grid_deg: np.ndarray,
     el_grid_deg: np.ndarray,
-    fmin: float = 100.0,
-    fmax: float = 2000.0,
+    fmin: float = 500.0,
+    fmax: float = 4000.0,
 ) -> np.ndarray:
     """2D SRP-PHAT beamforming.
 

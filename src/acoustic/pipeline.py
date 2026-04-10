@@ -222,7 +222,14 @@ class BeamformingPipeline:
             fmin=self._settings.bf_freq_min,
             fmax=self._settings.bf_freq_max,
         )
-        self.latest_map = srp_map.astype(np.float32)
+        # VIZ-02: Functional beamforming for sidelobe suppression (D-01, D-07)
+        max_val = srp_map.max()
+        if max_val > 0:
+            fb_map = (srp_map / max_val) ** self._settings.bf_nu
+            fb_map[fb_map < 1e-6] = 0.0
+            self.latest_map = fb_map.astype(np.float32)
+        else:
+            self.latest_map = np.zeros_like(srp_map, dtype=np.float32)
 
         # BF-14: MCRA noise floor
         noise_floor = self._mcra.update(srp_map)
