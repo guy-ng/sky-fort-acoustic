@@ -64,3 +64,48 @@ class TestTargetEvent:
         event = self._make_event(event=EventType.LOST)
         d = event.model_dump()
         assert d["event"] == "lost"
+
+    def test_target_event_has_pan_tilt_fields(self) -> None:
+        event = TargetEvent(
+            event=EventType.NEW,
+            target_id="abc",
+            class_label="drone",
+            confidence=0.95,
+            az_deg=30.0,
+            el_deg=10.0,
+            pan_deg=30.0,
+            tilt_deg=10.0,
+            timestamp=1.0,
+        )
+        data = event.model_dump()
+        assert data["pan_deg"] == 30.0
+        assert data["tilt_deg"] == 10.0
+
+    def test_target_event_pan_tilt_defaults_zero(self) -> None:
+        event = TargetEvent(
+            event=EventType.NEW,
+            target_id="abc",
+            class_label="drone",
+            confidence=0.95,
+            az_deg=30.0,
+            el_deg=10.0,
+            timestamp=1.0,
+        )
+        assert event.pan_deg == 0.0
+        assert event.tilt_deg == 0.0
+
+    def test_target_state_has_pan_tilt_fields(self) -> None:
+        from acoustic.api.models import TargetState
+
+        state = TargetState(
+            id="abc",
+            class_label="drone",
+            speed_mps=None,
+            az_deg=30.0,
+            el_deg=10.0,
+            pan_deg=30.0,
+            tilt_deg=10.0,
+            confidence=0.95,
+        )
+        assert state.pan_deg == 30.0
+        assert state.tilt_deg == 10.0

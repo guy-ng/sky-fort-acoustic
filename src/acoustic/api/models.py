@@ -15,6 +15,8 @@ class TargetState(BaseModel):
     speed_mps: float | None  # None until Phase 3 Doppler
     az_deg: float  # Azimuth in degrees
     el_deg: float  # Elevation in degrees
+    pan_deg: float = 0.0   # World pan degrees (D-08: 0=broadside, D-09: +=right)
+    tilt_deg: float = 0.0  # World tilt degrees (D-08: 0=horizontal, D-09: +=up)
     confidence: float  # 0.0-1.0
 
 

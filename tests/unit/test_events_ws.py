@@ -68,3 +68,26 @@ class TestEventBroadcaster:
             msg = q.get_nowait()
             assert msg["target_id"] == "abc-123"
             assert msg["event"] == "new"
+
+    def test_broadcast_event_includes_pan_tilt(self) -> None:
+        broadcaster = EventBroadcaster()
+        q = broadcaster.subscribe()
+
+        event = TargetEvent(
+            event=EventType.UPDATE,
+            target_id="test-123",
+            class_label="drone",
+            confidence=0.9,
+            az_deg=25.0,
+            el_deg=8.0,
+            pan_deg=25.0,
+            tilt_deg=8.0,
+            timestamp=100.0,
+        )
+        broadcaster.broadcast(event)
+
+        data = q.get_nowait()
+        assert "pan_deg" in data
+        assert "tilt_deg" in data
+        assert data["pan_deg"] == 25.0
+        assert data["tilt_deg"] == 8.0
