@@ -6,12 +6,19 @@ import logging
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field
 
 from acoustic.api.models import BeamformingMapResponse, TargetState
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api")
+
+
+class SettingsUpdate(BaseModel):
+    """Partial settings update for runtime-configurable parameters."""
+
+    bf_nu: float | None = Field(None, ge=1.0, le=1000.0)
 
 
 @router.get("/map", response_model=BeamformingMapResponse)
@@ -66,3 +73,17 @@ async def get_targets(request: Request) -> list[dict]:
     """
     pipeline = request.app.state.pipeline
     return pipeline.latest_targets
+
+
+@router.patch("/settings")
+async def update_settings(request: Request, body: SettingsUpdate) -> dict:
+    """Update runtime-configurable acoustic settings.
+
+    Currently supports: bf_nu (functional beamforming exponent).
+    """
+    settings = request.app.state.settings
+    updated = {}
+    for field_name, value in body.model_dump(exclude_none=True).items():
+        setattr(settings, field_name, value)
+        updated[field_name] = value
+    return {"updated": updated}
