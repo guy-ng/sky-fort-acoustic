@@ -63,7 +63,7 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. Beamforming produces an updating spatial map with a visible peak when a sound source is present
   4. Peak azimuth and elevation (pan/tilt degrees) are calculated and logged for the strongest source
   5. Configuration via environment variables controls device selection, frequency band, and service ports
-**Plans**: 3 plans
+**Plans**: 2 plans
 
 Plans:
 - [x] 01-01-PLAN.md — Project scaffolding, Docker setup, config, device detection, audio capture pipeline with ring buffer and simulator
@@ -80,7 +80,7 @@ Plans:
   3. REST endpoint returns a list of active targets with their current state
   4. Web UI displays target markers overlaid on the heatmap with class, speed, bearing, and ID (placeholder data until Phase 3)
   5. Web UI styling matches sky-fort-dashboard (React 19, Tailwind 4, same component patterns)
-**Plans**: 3 plans
+**Plans**: 2 plans
 
 Plans:
 - [x] 02-01-PLAN.md — Backend REST endpoints, WebSocket streaming, Pydantic models, and integration tests
@@ -97,7 +97,7 @@ Plans:
   3. Detection does not flicker -- the hysteresis state machine prevents rapid on/off transitions
   4. `/ws/events` WebSocket subscribers receive detection events (new target), periodic updates (bearing), and lost events
   5. CNN model loads from a configurable file path at startup
-**Plans**: 3 plans
+**Plans**: 2 plans
 
 Plans:
 - [x] 03-01-PLAN.md — ONNX CNN inference with mel-spectrogram preprocessing, hysteresis state machine, config extensions, and unit tests
@@ -113,7 +113,7 @@ Plans:
   2. User can browse a list of recordings showing label, date, duration, and notes
   3. User can play back a recording and see it processed through beamforming, CNN, and tracking as if it were live
   4. User can attach and edit metadata on recordings (drone type, distance, conditions, notes)
-**Plans**: 3 plans
+**Plans**: 2 plans
 
 Plans:
 - [ ] 04-01: Recording manager (capture, storage, metadata CRUD)
@@ -128,7 +128,7 @@ Plans:
   2. Training runs as a background process without interrupting live detection
   3. Training produces a new model file and reports validation metrics (accuracy, confusion matrix)
   4. User can see training progress and results in the web UI
-**Plans**: 3 plans
+**Plans**: 2 plans
 
 Plans:
 - [ ] 05-01: Training pipeline (dataset preparation, PyTorch training loop, model output)
@@ -180,7 +180,7 @@ Plans:
   2. Training runs as a background thread with resource isolation (os.nice, thread limits) and does not degrade live detection latency below the 150ms beamforming deadline
   3. Training produces a model checkpoint (.pt) and exports to a deployable format on completion
   4. Training data augmentation (SpecAugment time/frequency masking and waveform augmentation) is applied during training and can be toggled via config
-**Plans**: 3 plans
+**Plans**: 2 plans
 
 Plans:
 - [x] 08-01-PLAN.md — TrainingConfig, data augmentation (SpecAugment + waveform), DroneAudioDataset with lazy loading and random segment extraction
@@ -210,7 +210,7 @@ Plans:
   1. User can start a labeled recording session from the web UI, specifying drone type and recording conditions
   2. User can attach and edit metadata on recordings (drone type, distance, altitude, conditions, notes)
   3. Recordings are automatically saved into a directory structure (data/field/{label}/) that the training pipeline can directly consume without manual reorganization
-**Plans**: 3 plans
+**Plans**: 2 plans
 **UI hint**: yes
 
 Plans:
@@ -307,7 +307,7 @@ Plans:
   3. ONNX model converts to TFLite INT8 with post-training quantization using calibration dataset
   4. Quantized models maintain >94% accuracy (within 1% of full-precision baseline)
   5. REST API endpoint allows model export with format selection (onnx, tensorrt, tflite)
-**Plans**: 3 plans
+**Plans**: 2 plans
 
 Plans:
 - [ ] 16-01-PLAN.md — Core ONNX export pipeline: model wrappers, ExportPipeline class, parity validation, unit tests
@@ -329,7 +329,7 @@ Plans:
   4. MCRA noise estimator provides an adaptive noise floor that adjusts to changing outdoor conditions without manual recalibration
   5. The live pipeline's process_chunk calls the real beamforming engine (not the zero-map stub) and produces updating spatial maps at the 150ms chunk rate
   6. Beamforming activates only after CNN drone detection and deactivates after 5 seconds of no detection — idle state returns zero maps to save compute
-**Plans**: 3 plans
+**Plans**: 2 plans
 
 Plans:
 - [x] 17-01-PLAN.md — Bandpass pre-filter (500-4000 Hz Butterworth), parabolic sub-grid interpolation, config extensions
@@ -346,7 +346,7 @@ Plans:
   3. Per-target direction tracking persists bearing across updates and smoothly tracks a moving source without jumps or resets
   4. WebSocket /ws/events broadcasts detection events containing target ID, azimuth, elevation, pan, and tilt degrees for each active target
   5. Periodic direction updates are published per active target at a configurable rate (default matching the beamforming chunk rate)
-**Plans**: 3 plans
+**Plans**: 2 plans
 
 Plans:
 - [x] 18-01-PLAN.md — DOA coordinate transform module (array-to-world pan/tilt with mounting orientation)
@@ -361,11 +361,12 @@ Plans:
   1. The heatmap reflects beamforming output computed in the 500-4000 Hz band, showing sharper source localization than the previous 100-2000 Hz band
   2. Functional beamforming with a configurable nu parameter (default nu=100) suppresses sidelobes so that the heatmap shows distinct source peaks instead of smeared energy
   3. The nu parameter is adjustable at runtime via config or API so operators can tune visualization sharpness for different environments
-**Plans**: 3 plans
+**Plans**: 2 plans
 **UI hint**: yes
 
 Plans:
-- [ ] TBD (run /gsd:plan-phase 19 to break down)
+- [ ] 19-01-PLAN.md — Backend: functional beamforming transform, config, PATCH endpoint
+- [ ] 19-02-PLAN.md — Frontend: remove v*v squaring + visual verification
 
 ## Progress
 
