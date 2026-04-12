@@ -33,7 +33,7 @@ key-decisions:
 metrics:
   duration: 5m28s
   completed: "2026-04-12T19:59:25Z"
-  tasks_completed: 1
+  tasks_completed: 2
   tasks_total: 2
   files_changed: 2
 ---
@@ -74,18 +74,11 @@ Created `scripts/investigate_kaggle_drone_dataset.py` that probes the DroneAudio
 
 Full report: `KAGGLE_DATASET_INVESTIGATION.md`
 
-### Task 2: Human Decision Checkpoint (PENDING)
+### Task 2: Human Decision Checkpoint (COMPLETE)
 
-This task is a `checkpoint:decision` requiring human review. The investigation report is ready for review. The user must select one of:
+**Decision:** REJECT — decided 2026-04-13 by user.
 
-| Option | Description |
-|---|---|
-| **INGEST** | Integrate into v8 training (requires license clearance + de-duplication) |
-| **INGEST-AS-SUPPLEMENTARY-EVAL** | Use as out-of-distribution eval set only |
-| **REJECT** | Document reason, move on (recommended) |
-| **DEFER** | Revisit in a future phase |
-
-**Blocking reason:** License review requires human eyeballs. No automated decision can be made on legal compliance.
+Rationale: No license, indoor-only recordings are a poor match for outdoor UMA-16v2 detection. Phase 22 stays focused on the v7 window-contract fix and field data integration. No further action required.
 
 ## Deviations from Plan
 
@@ -103,6 +96,6 @@ This task is a `checkpoint:decision` requiring human review. The investigation r
 |---|---|---|
 | 1 | d932fe1 | feat(22-05): investigate Kaggle DroneAudioDataset for v8 training integration |
 
-## Self-Check: PENDING
+## Self-Check: PASS
 
-Task 2 checkpoint not yet resolved -- plan is partially complete (1/2 tasks). Investigation artifacts verified present.
+All tasks complete. Investigation produced, checkpoint resolved (REJECT). No dataset ingested — no downstream impact on plans 22-06 through 22-09.

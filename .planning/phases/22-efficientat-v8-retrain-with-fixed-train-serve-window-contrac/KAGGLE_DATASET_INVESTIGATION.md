@@ -60,9 +60,8 @@
 
 5. **Phase 22 scope risk.** Adding dataset ingestion (license clearance, de-duplication, manifest update, class balance re-check) to an already 9-plan phase delays the primary goal: fixing the v7 window-contract regression.
 
-## Open Items for Human Review
+## Final Decision
 
-- **License:** This is the primary blocker. If the user has a relationship with the authors or can obtain explicit permission, the license concern is resolved. Otherwise, this is a hard stop.
-- **Operational fit:** User should decide whether indoor Bebop/Membo data adds value for outdoor UMA-16 detection or risks harming it.
-- **Alternative use:** Even if rejected for training, the dataset could be useful as a "challenging distribution" eval set to test how the detector handles out-of-distribution (indoor) drone audio. This does not require a training data license -- only an evaluation license.
-- **Preferred split if ingested:** Training data, supplementary eval set, or both?
+**REJECT** — decided 2026-04-13 by user.
+
+Rationale: No license, indoor-only recordings are a poor match for outdoor UMA-16v2 detection. Phase 22 stays focused on the v7 window-contract fix and field data integration.
