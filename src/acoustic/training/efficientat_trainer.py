@@ -19,7 +19,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torchaudio.functional as F_audio
-from torch.utils.data import DataLoader, Dataset, WeightedRandomSampler
+from torch.utils.data import ConcatDataset, DataLoader, Dataset, WeightedRandomSampler
 
 from acoustic.classification.efficientat.config import EfficientATMelConfig
 from acoustic.classification.efficientat.model import get_model
@@ -163,6 +163,43 @@ class _LazyEfficientATDataset(Dataset):
     @property
     def labels(self) -> list[int]:
         return self._labels
+
+
+class _FieldRecordingDataset:
+    """Minimal HF-dataset-compatible wrapper for in-memory field recordings.
+
+    WindowedHFDroneDataset expects ``hf_dataset["label"]`` (column access) and
+    ``hf_dataset[idx]`` (row access returning a dict with ``audio`` key). This
+    thin wrapper provides both interfaces for a plain ``list[dict]``.
+    """
+
+    def __init__(self, items: list[dict]) -> None:
+        self._items = items
+
+    def __len__(self) -> int:
+        return len(self._items)
+
+    def __getitem__(self, key):
+        if isinstance(key, str):
+            # Column access: hf_dataset["label"] -> list
+            return [item[key] for item in self._items]
+        # Row access: hf_dataset[idx] -> dict
+        item = self._items[key]
+        # WindowedHFDroneDataset expects row["audio"]["bytes"] for HF path,
+        # but for field recordings we store raw arrays. Override __getitem__
+        # in WindowedHFDroneDataset via the per_file_lengths path which reads
+        # audio differently. Actually, we need to return something decode_wav_bytes
+        # can handle OR return the raw audio directly.
+        # The dataset accesses row["audio"]["bytes"] then calls decode_wav_bytes.
+        # We can't easily change that, so we encode the array as WAV bytes.
+        import io
+        import soundfile as sf
+
+        audio = item["audio"]["array"]
+        sr = item["audio"]["sampling_rate"]
+        buf = io.BytesIO()
+        sf.write(buf, audio, sr, format="WAV", subtype="FLOAT")
+        return {"audio": {"bytes": buf.getvalue()}, "label": item["label"]}
 
 
 class EfficientATTrainingRunner:
@@ -324,6 +361,64 @@ class EfficientATTrainingRunner:
         for p in model.parameters():
             p.requires_grad = True
 
+    def _build_field_dataset(
+        self, cfg: TrainingConfig, post_norm,
+    ) -> WindowedHFDroneDataset:
+        """Phase 22: multi-second field recordings at 16 kHz source SR.
+
+        Uses the generalized WindowedHFDroneDataset with per_file_lengths so
+        each file generates its correct number of sliding windows.
+        """
+        import soundfile as sf
+
+        from scripts.preflight_v8_data import HOLDOUT_FILES
+
+        drone_dir = Path(cfg.field_drone_dir)
+        bg_dir = Path(cfg.field_background_dir)
+
+        # Build an in-memory hf-dataset-like list of dicts
+        # (matches WindowedHFDroneDataset expectations)
+        items: list[dict] = []
+        per_file_lengths: list[int] = []
+        for label, subdir in [(1, drone_dir), (0, bg_dir)]:
+            for wav in sorted(subdir.glob("20260408_*.wav")):
+                if wav.name in HOLDOUT_FILES:
+                    continue
+                audio, sr = sf.read(str(wav), dtype="float32")
+                assert sr == _SOURCE_SR, f"{wav}: sr={sr}"
+                items.append(
+                    {"audio": {"array": audio, "sampling_rate": sr}, "label": label}
+                )
+                per_file_lengths.append(int(audio.shape[0]))
+
+        assert len(items) > 0, (
+            f"No field recordings found in {drone_dir} / {bg_dir}"
+        )
+        logger.info(
+            "Phase 22 field dataset: %d files, labels=%s",
+            len(items),
+            Counter(d["label"] for d in items),
+        )
+
+        window_samples = source_window_samples(_SOURCE_SR)  # 16000
+        hop_samples = window_samples // 2  # 8000 = 50% overlap
+
+        # Wrap list-of-dicts in a minimal object that mimics HF dataset column
+        # access (hf_dataset["label"] returns a list). WindowedHFDroneDataset
+        # uses this for label pre-fetching.
+        field_hf_ds = _FieldRecordingDataset(items)
+
+        return WindowedHFDroneDataset(
+            hf_dataset=field_hf_ds,
+            file_indices=list(range(len(items))),
+            window_samples=window_samples,
+            hop_samples=hop_samples,
+            waveform_aug=self._build_train_augmentation(),
+            post_resample_norm=post_norm,
+            per_file_lengths=per_file_lengths,
+            sample_rate=_SOURCE_SR,
+        )
+
     def _load_data(
         self, *, _synthetic: bool = False,
     ) -> tuple[list[np.ndarray], list[int], list[np.ndarray], list[int]] | None:
@@ -432,6 +527,21 @@ class EfficientATTrainingRunner:
         mel_cfg = self._mel_config
         total_epochs = cfg.stage1_epochs + cfg.stage2_epochs + cfg.stage3_epochs
 
+        # --- Phase 22 v8: data integrity preflight ---
+        if cfg.run_data_preflight:
+            from scripts.preflight_v8_data import preflight_field_recordings
+
+            logger.info("Running Phase 22 data integrity preflight...")
+            preflight_manifest = preflight_field_recordings(
+                drone_dir=Path(cfg.field_drone_dir),
+                bg_dir=Path(cfg.field_background_dir),
+            )
+            logger.info(
+                "Preflight OK: drone=%d, bg=%d",
+                len(preflight_manifest["drone"]),
+                len(preflight_manifest["background"]),
+            )
+
         # --- Load data ---
         result = self._load_data(_synthetic=_synthetic)
 
@@ -477,7 +587,7 @@ class EfficientATTrainingRunner:
                 # inside WindowedHFDroneDataset to match inference.
                 post_norm = RmsNormalize(target=cfg.rms_normalize_target)
 
-                train_ds = WindowedHFDroneDataset(
+                dads_train_ds = WindowedHFDroneDataset(
                     hf_builder._hf_ds,
                     file_indices=train_files,
                     window_samples=window_samples,
@@ -485,6 +595,26 @@ class EfficientATTrainingRunner:
                     waveform_aug=self._build_train_augmentation(),
                     post_resample_norm=post_norm,
                 )
+
+                # Phase 22 v8: concatenate field recordings with DADS
+                if cfg.include_field_recordings:
+                    field_train_ds = self._build_field_dataset(cfg, post_norm)
+                    train_ds = ConcatDataset([dads_train_ds, field_train_ds])
+                    # Reconstruct a flat labels list for _build_weighted_sampler
+                    train_labels = (
+                        list(dads_train_ds._labels_cache)
+                        + list(field_train_ds._labels_cache)
+                    )
+                    train_ds.labels = train_labels  # type: ignore[attr-defined]
+                    logger.info(
+                        "Phase 22 ConcatDataset: DADS=%d + field=%d = %d windows",
+                        len(dads_train_ds),
+                        len(field_train_ds),
+                        len(train_ds),
+                    )
+                else:
+                    train_ds = dads_train_ds
+
                 val_ds = WindowedHFDroneDataset(
                     hf_builder._hf_ds,
                     file_indices=val_files,
@@ -563,6 +693,36 @@ class EfficientATTrainingRunner:
         # Replace head for binary classification
         in_features = model.classifier[-1].in_features
         model.classifier[-1] = nn.Linear(in_features, 1)
+
+        # Phase 22 v8: fine-tune from a previously trained binary-head checkpoint
+        # (e.g. v6). This loads AFTER head replacement so the binary head weights
+        # come from the trained checkpoint, not random init.
+        if cfg.finetune_from_trained and cfg.pretrained_weights:
+            logger.info(
+                "Fine-tuning from trained checkpoint: %s", cfg.pretrained_weights
+            )
+            ft_path = Path(cfg.pretrained_weights)
+            if ft_path.exists():
+                sd = torch.load(
+                    str(ft_path), map_location="cpu", weights_only=True
+                )
+                missing, unexpected = model.load_state_dict(sd, strict=False)
+                logger.info(
+                    "Loaded trained checkpoint: %d missing keys, %d unexpected keys",
+                    len(missing),
+                    len(unexpected),
+                )
+                # Sanity: binary head MUST load cleanly
+                assert not any("classifier" in k for k in missing), (
+                    f"classifier weights missing from checkpoint: "
+                    f"{[k for k in missing if 'classifier' in k]}"
+                )
+            else:
+                logger.warning(
+                    "finetune_from_trained=True but checkpoint not found: %s",
+                    ft_path,
+                )
+
         model = model.to(device)
 
         # Mel preprocessors (training with SpecAugment, eval without)
@@ -588,7 +748,8 @@ class EfficientATTrainingRunner:
             bce_pos_weight=cfg.bce_pos_weight,
         ).to(device)
 
-        ckpt_path = Path(cfg.checkpoint_path)
+        # Phase 22 v8: cfg.output_path overrides checkpoint_path when set
+        ckpt_path = Path(cfg.output_path if cfg.output_path else cfg.checkpoint_path)
         ckpt_path.parent.mkdir(parents=True, exist_ok=True)
 
         # --- Stage definitions ---

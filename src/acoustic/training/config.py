@@ -141,6 +141,14 @@ class TrainingConfig(BaseSettings):
     # Alias retained for plan-body compatibility (D-12 must-haves grep)
     uma16_ambient_pure_negative_ratio: float = 0.10
 
+    # --- Phase 22 v8 additions (fine-tune from v6, field data, preflight) ---
+    finetune_from_trained: bool = False  # Phase 22 v8 — load a binary-head checkpoint
+    include_field_recordings: bool = False  # Phase 22 v8 — concat 2026-04-08 field data
+    run_data_preflight: bool = False  # Phase 22 v8 — call scripts.preflight_v8_data
+    field_drone_dir: str = "data/field/drone"
+    field_background_dir: str = "data/field/background"
+    output_path: str = ""  # override checkpoint_path for v8 saves
+
     # D-34: per-sample RMS normalization target. Applied as the LAST step
     # in the augmentation chain on BOTH training and eval splits, and
     # mirrored on the inference side via AcousticSettings.cnn_rms_normalize_target
