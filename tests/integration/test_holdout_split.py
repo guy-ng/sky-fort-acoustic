@@ -1,5 +1,6 @@
 """Phase 22 Wave 0: holdout split determinism. Green after Plan 04."""
-import pytest
+
+from scripts.preflight_v8_data import HOLDOUT_FILES
 
 HOLDOUT = frozenset({
     "20260408_091054_136dc5.wav",  # 10inch 4kg (explicit)
@@ -12,13 +13,7 @@ HOLDOUT = frozenset({
 
 def test_holdout_split_is_frozen_in_code():
     """The 5-file holdout list lives in code (not config) and is git-tracked."""
-    # When Plan 04 lands: from scripts.preflight_v8_data import HOLDOUT_FILES
-    # assert set(HOLDOUT_FILES) == HOLDOUT
-    try:
-        from scripts.preflight_v8_data import HOLDOUT_FILES
-        assert set(HOLDOUT_FILES) == HOLDOUT
-    except ImportError:
-        pytest.xfail("Plan 04 creates preflight_v8_data")
+    assert set(HOLDOUT_FILES) == HOLDOUT
 
 
 def test_holdout_covers_all_four_drone_subclasses():

@@ -1,11 +1,5 @@
 """Phase 22 Wave 0: data integrity preflight. Green after Plan 04."""
 from pathlib import Path
-import pytest
-
-pytestmark = pytest.mark.xfail(
-    strict=False,
-    reason="Phase 22 Plan 04 creates scripts/preflight_v8_data.py",
-)
 
 DRONE_DIR = Path("data/field/drone")
 BG_DIR = Path("data/field/background")
