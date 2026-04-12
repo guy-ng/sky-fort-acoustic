@@ -3,11 +3,6 @@ import json
 from pathlib import Path
 import pytest
 
-pytestmark = pytest.mark.xfail(
-    strict=False,
-    reason="Phase 22 Plan 07 creates promote_efficientat.py + uma16_eval.py",
-)
-
 
 def test_promote_if_gates_pass_is_importable():
     from acoustic.evaluation.promotion import promote_if_gates_pass  # noqa
