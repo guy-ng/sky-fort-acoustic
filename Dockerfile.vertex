@@ -22,6 +22,7 @@ WORKDIR /app
 # Code-only layer (base image already has deps + data/noise + data/field/uma16_ambient).
 COPY src/ src/
 COPY scripts/vertex_train.py vertex_train.py
+COPY scripts/preflight_v8_data.py scripts/preflight_v8_data.py
 
 # Strip macOS AppleDouble metadata files baked into the base image. The base
 # was built on (or rsynced through) a macOS host and `data/field/uma16_ambient/`
