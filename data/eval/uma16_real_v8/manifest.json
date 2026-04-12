@@ -1,0 +1,56 @@
+{
+  "phase": 22,
+  "purpose": "Phase 22 v8 promotion gate — D-27 real-device holdout",
+  "created": "2026-04-08",
+  "expected_sr": 16000,
+  "expected_channels": 1,
+  "files": [
+    {
+      "name": "20260408_091054_136dc5.wav",
+      "class": "drone",
+      "sub_label": "10inch 4kg payload",
+      "source_path": "data/field/drone/20260408_091054_136dc5.wav",
+      "duration_s": 61.4,
+      "sha256": "d12ff5210ec6f2b5040685705a6f2538539bdab8a369d06b9e5a8be9f37debac",
+      "note": "TRIMMED from 71.4s on 2026-04-08; .bak preserved"
+    },
+    {
+      "name": "20260408_092615_1a055f.wav",
+      "class": "drone",
+      "sub_label": "10inch heavy",
+      "source_path": "data/field/drone/20260408_092615_1a055f.wav",
+      "duration_s": 218.4,
+      "sha256": "f6f9c4c8087647f91df212f739ac2d7694ba1839d5db3f19b8e5d4912d61ef15"
+    },
+    {
+      "name": "20260408_091724_bb0ed8.wav",
+      "class": "drone",
+      "sub_label": "phantom 4",
+      "source_path": "data/field/drone/20260408_091724_bb0ed8.wav",
+      "duration_s": 52.5,
+      "sha256": "0ee272bb3bd68ec4bfdaad6d9f315eeab2d5c49cd47beebf585a554c93decd72"
+    },
+    {
+      "name": "20260408_084222_44dc5c.wav",
+      "class": "drone",
+      "sub_label": "5inch",
+      "source_path": "data/field/drone/20260408_084222_44dc5c.wav",
+      "duration_s": 21.0,
+      "sha256": "ecefac6844beef40a627a5774043ebca5263e55b4829f2353380f1c77e8d667b"
+    },
+    {
+      "name": "20260408_090757_1c50e9.wav",
+      "class": "background",
+      "sub_label": "ambient",
+      "source_path": "data/field/background/20260408_090757_1c50e9.wav",
+      "duration_s": 104.4,
+      "sha256": "e35b57e3ecac6fa9a060062aa52e4bd20530cb94a4ced0e5849fe7d49e7d5eb9"
+    }
+  ],
+  "promotion_gate": {
+    "real_tpr_min": 0.80,
+    "real_fpr_max": 0.05,
+    "decision_rule": "v8 MUST meet both thresholds on THIS manifest (and nothing else) before replacing models/efficientat_mn10.pt"
+  },
+  "isolation_invariant": "None of these filenames may appear in any training DataLoader. Enforced by HOLDOUT_FILES in scripts/preflight_v8_data.py."
+}

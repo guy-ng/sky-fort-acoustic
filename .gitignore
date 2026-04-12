@@ -1,7 +1,13 @@
 # Existing data and POC code - not part of the new service
 audio-data/
 POC-code/
-data/
+data/*
+!data/eval/
+data/eval/*
+!data/eval/uma16_real_v8/
+data/eval/uma16_real_v8/*
+!data/eval/uma16_real_v8/manifest.json
+!data/eval/uma16_real_v8/.gitkeep
 
 # OS files
 .DS_Store
