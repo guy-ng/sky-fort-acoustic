@@ -274,7 +274,7 @@ def submit_v8_job(image_uri: str, *, dry_run: bool = False) -> str | None:
         f"fall back to us-central1"
     )
 
-    output_dir = f"gs://{GCS_BUCKET}/training/efficientat_v8"
+    output_dir = f"gs://{GCS_BUCKET}-east1/training/efficientat_v8"
     env = build_env_vars_v8(output_dir)
 
     print(f"\n{'='*60}")
@@ -293,7 +293,8 @@ def submit_v8_job(image_uri: str, *, dry_run: bool = False) -> str | None:
 
     from google.cloud import aiplatform as aip
 
-    aip.init(project=GCP_PROJECT, location=GCP_REGION_V8)
+    aip.init(project=GCP_PROJECT, location=GCP_REGION_V8,
+             staging_bucket=f"gs://{GCS_BUCKET}")
     job = aip.CustomContainerTrainingJob(
         display_name="efficientat-mn10-v8-phase22",
         container_uri=image_uri,
