@@ -37,6 +37,7 @@ from datetime import datetime, timezone
 # --- GCP Configuration ---
 GCP_PROJECT = "interception-dashboard"
 GCP_REGION = "us-central1"
+GCP_REGION_V8 = "us-east1"  # Phase 22 (user-locked)
 GCS_BUCKET = "sky-fort-acoustic"
 GCR_IMAGE = f"us-central1-docker.pkg.dev/{GCP_PROJECT}/acoustic-training/acoustic-trainer"
 GCR_BASE_IMAGE = (
@@ -224,6 +225,95 @@ def submit_v7_job(image_uri: str, *, dry_run: bool = False) -> None:
           f"models/efficientat_mn10_v7.pt")
 
 
+def build_env_vars_v8(
+    output_dir: str,
+    *,
+    pretrained_v6_path: str = "/app/models/efficientat_mn10_v6.pt",
+) -> dict[str, str]:
+    """Phase 22 v8 env vars. Additive to v7; does not mutate build_env_vars_v7."""
+    env = build_env_vars_v7()
+    # Strip v7 metadata keys before updating
+    meta_keys = {
+        "job_name",
+        "display_name",
+        "machine_type",
+        "accelerator_type",
+        "fallback_accelerator_type",
+        "base_output_dir",
+    }
+    env = {k: v for k, v in env.items() if k not in meta_keys}
+    env.update({
+        "ACOUSTIC_TRAINING_MODEL_TYPE": "efficientat_mn10",
+        "ACOUSTIC_TRAINING_FINETUNE_FROM_TRAINED": "true",
+        "ACOUSTIC_TRAINING_PRETRAINED_WEIGHTS": pretrained_v6_path,
+        "ACOUSTIC_TRAINING_INCLUDE_FIELD_RECORDINGS": "true",
+        "ACOUSTIC_TRAINING_RUN_DATA_PREFLIGHT": "true",
+        "ACOUSTIC_TRAINING_FIELD_DRONE_DIR": "/app/data/field/drone",
+        "ACOUSTIC_TRAINING_FIELD_BACKGROUND_DIR": "/app/data/field/background",
+        "ACOUSTIC_TRAINING_WINDOW_OVERLAP_RATIO": "0.5",
+        "ACOUSTIC_TRAINING_OUTPUT_PATH": f"{output_dir}/efficientat_mn10_v8.pt",
+        "ACOUSTIC_TRAINING_CHECKPOINT_PATH": "/tmp/models/efficientat_mn10_v8.pt",
+    })
+    return env
+
+
+# Default v8 base image URI (Phase 22 Dockerfile.vertex-base:v2)
+GCR_BASE_IMAGE_V2 = (
+    f"us-central1-docker.pkg.dev/{GCP_PROJECT}/acoustic-training/acoustic-trainer-base:v2"
+)
+
+
+def submit_v8_job(image_uri: str, *, dry_run: bool = False) -> str | None:
+    """Phase 22: submit Vertex job for v8 training in us-east1 L4.
+
+    Additive path -- does not touch submit_v7_job. Rollback = re-run v7.
+    Returns the job resource name (or None on dry run).
+    """
+    assert check_l4_quota(GCP_PROJECT, GCP_REGION_V8), (
+        f"L4 quota unavailable in {GCP_REGION_V8} -- request quota increase or "
+        f"fall back to us-central1"
+    )
+
+    output_dir = f"gs://{GCS_BUCKET}/training/efficientat_v8"
+    env = build_env_vars_v8(output_dir)
+
+    print(f"\n{'='*60}")
+    print(f"  Job:           efficientat-mn10-v8-phase22")
+    print(f"  Image:         {image_uri}")
+    print(f"  Region:        {GCP_REGION_V8}")
+    print(f"  Machine:       g2-standard-8")
+    print(f"  Accelerator:   NVIDIA_L4")
+    print(f"  Output dir:    {output_dir}")
+    print(f"  Env vars:      {len(env)} keys")
+    print(f"{'='*60}\n")
+
+    if dry_run:
+        print(">>> Dry run -- not submitting job.")
+        return None
+
+    from google.cloud import aiplatform as aip
+
+    aip.init(project=GCP_PROJECT, location=GCP_REGION_V8)
+    job = aip.CustomContainerTrainingJob(
+        display_name="efficientat-mn10-v8-phase22",
+        container_uri=image_uri,
+    )
+    resource_name = job.run(
+        replica_count=1,
+        machine_type="g2-standard-8",
+        accelerator_type="NVIDIA_L4",
+        accelerator_count=1,
+        environment_variables=env,
+        base_output_dir=output_dir,
+        sync=False,  # do not block -- Plan 08 task will poll
+    )
+
+    print(f"\n>>> v8 job submitted. Monitor: "
+          f"https://console.cloud.google.com/vertex-ai/training/custom-jobs"
+          f"?project={GCP_PROJECT}&region={GCP_REGION_V8}")
+    return resource_name
+
+
 def run(cmd: list[str], *, check: bool = True) -> subprocess.CompletedProcess:
     """Run a shell command with logging."""
     print(f"  $ {' '.join(cmd)}")
@@ -332,8 +422,8 @@ Examples:
   python scripts/vertex_submit.py --gpu-type NVIDIA_A100_80GB --machine-type a2-ultragpu-1g
         """,
     )
-    parser.add_argument("--version", default="", choices=["", "v7"],
-                        help="Phase version preset (v7 uses Phase 20 locked config)")
+    parser.add_argument("--version", default="", choices=["", "v7", "v8"],
+                        help="Phase version preset (v7=Phase 20, v8=Phase 22 locked config)")
     parser.add_argument("--image", default="",
                         help="Pre-built image URI (skip docker build). Required with --version v7.")
     parser.add_argument("--model-type", default="research_cnn",
@@ -366,6 +456,12 @@ Examples:
             print("ERROR: --version v7 requires --image <phase20 image URI>", file=sys.stderr)
             sys.exit(2)
         submit_v7_job(args.image, dry_run=args.dry_run)
+        return
+
+    # Phase 22 v8 preset — locked config, us-east1, field recordings
+    if args.version == "v8":
+        image_uri = args.image or GCR_BASE_IMAGE_V2
+        submit_v8_job(image_uri, dry_run=args.dry_run)
         return
 
     # Build and push Docker image
