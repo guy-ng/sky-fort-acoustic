@@ -12,6 +12,7 @@ Generated: 2026-04-08
 |---|---|---|---|---|
 | models/efficientat_mn10_v6.pt | 17019638 | 2026-04-06 10:48 | c8828b5d452c19c11f78a7cd5cb5caabc87339aa6c12656f3be9920587be21eb | v6 (Phase 20) |
 | models/efficientat_mn10.pt | 17020041 | 2026-04-05 10:34 | 1b9a5162f0e8f0c93dc96ad358003a05ff4fc7407e599e0d65a32866e9bf7b5a | Pre-v6 checkpoint (does NOT match v6 -- different size and hash) |
+| models/efficientat_mn10_v8.pt | 16986726 | 2026-04-13 | 02839a1d102fe7ca3116739160d7d9c97e9a025d73dbe7d6cb9afd147a877071 | v8 (Phase 22) — fine-tuned from v6, 1.0s window contract, val_acc=0.994 |
 | models/efficientat_mn10_v7.pt | 17019638 | 2026-04-08 07:56 | 421ea22c403470c0e0e8cc79a0b9135e880e439a686b4aea36e30160129eb807 | v7 (regressed -- see .planning/debug/efficientat-v7-regression-vs-v6.md) |
 | models/efficientat_mn10_v5.pt | 17019638 | 2026-04-06 04:08 | (same size as v6, separate checkpoint) | v5 (pre-v6) |
 | models/efficientat_mn10_v3.pt | 17019638 | 2026-04-05 20:09 | (same size as v6, separate checkpoint) | v3 |
