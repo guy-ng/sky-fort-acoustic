@@ -132,12 +132,20 @@ def main() -> None:
     os.environ["ACOUSTIC_TRAINING_MODEL_TYPE"] = model_type
     os.environ["ACOUSTIC_TRAINING_CHECKPOINT_PATH"] = "/tmp/models/best_model.pt"
 
-    # Download pretrained weights from GCS if specified (for EfficientAT)
-    if pretrained_gcs and model_type == "efficientat_mn10":
+    # Download pretrained weights from GCS if specified (for EfficientAT).
+    # Phase 22: when fine-tuning from a trained checkpoint (v6), do NOT
+    # overwrite PRETRAINED_WEIGHTS — it already points to the v6 .pt file
+    # baked into the Docker image. The GCS pretrained (mn10_as.pt, 527-class
+    # AudioSet head) is only needed for from-scratch training.
+    finetune_from_trained = os.environ.get("ACOUSTIC_TRAINING_FINETUNE_FROM_TRAINED", "").lower() == "true"
+    if pretrained_gcs and model_type == "efficientat_mn10" and not finetune_from_trained:
         logger.info("[SETUP] Downloading pretrained EfficientAT weights...")
         local_pretrained = "/tmp/pretrained/mn10_as.pt"
         download_from_gcs(pretrained_gcs, local_pretrained)
         os.environ["ACOUSTIC_TRAINING_PRETRAINED_WEIGHTS"] = local_pretrained
+    elif finetune_from_trained:
+        logger.info("[SETUP] Fine-tune mode: using PRETRAINED_WEIGHTS=%s (skipping GCS download)",
+                    os.environ.get("ACOUSTIC_TRAINING_PRETRAINED_WEIGHTS", "NOT SET"))
 
     # Import training modules after setting env vars
     logger.info("[SETUP] Loading training configuration...")
