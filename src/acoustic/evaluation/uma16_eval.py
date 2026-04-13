@@ -23,6 +23,7 @@ from acoustic.classification.efficientat.window_contract import (
     EFFICIENTAT_SEGMENT_SAMPLES,
     EFFICIENTAT_TARGET_SR,
 )
+from acoustic.classification.preprocessing import _rms_normalize
 
 _log = logging.getLogger(__name__)
 
@@ -102,6 +103,10 @@ def evaluate_on_uma16(
         probs: list[float] = []
         for i in range(num_segs):
             chunk = t[i * seg : (i + 1) * seg]
+            # RMS-normalize to match train/serve domain (D-34, target=0.1).
+            # Without this, field recordings with peaks up to 27x full-scale
+            # produce a completely different mel spectrogram than training data.
+            chunk = _rms_normalize(chunk, target=0.1)
             # Go through the INFERENCE code path — this is the whole point
             p = classifier.predict(chunk)
             probs.append(float(p))

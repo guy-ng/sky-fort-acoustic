@@ -84,15 +84,10 @@ def main() -> int:
     from acoustic.classification.efficientat.classifier import EfficientATClassifier
 
     _log.info("Loading classifier from %s", args.checkpoint)
-    try:
-        clf = EfficientATClassifier.load(str(args.checkpoint))  # adapt to real API
-    except AttributeError:
-        # Fallback: whatever construction API exists — adapt at implementation time
-        _log.error(
-            "EfficientATClassifier.load(path) not available — "
-            "adapt scripts/promote_efficientat.py to the real factory"
-        )
-        return 2
+    import acoustic.classification.efficientat  # noqa: F401 — register model
+    from acoustic.classification.ensemble import load_model
+
+    clf = load_model("efficientat_mn10", str(args.checkpoint))
 
     _log.info("Running UMA-16 evaluation on manifest %s", args.manifest)
     metrics = evaluate_on_uma16(
