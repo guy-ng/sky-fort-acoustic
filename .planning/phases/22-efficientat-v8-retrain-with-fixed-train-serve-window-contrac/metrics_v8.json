@@ -1,0 +1,29 @@
+{
+  "version": "v8",
+  "phase": 22,
+  "date": "2026-04-13",
+  "promotion_result": "REJECTED",
+  "dads_val_acc": 0.994,
+  "dads_val_loss": 0.0016,
+  "dads_f1": 0.996,
+  "real_TPR": 0.034,
+  "real_FPR": 0.0,
+  "gate_tpr_min": 0.80,
+  "gate_fpr_max": 0.05,
+  "gate_passed": false,
+  "v6_comparison": {
+    "v6_mean_drone_prob": 0.62,
+    "v8_mean_drone_prob": 0.12,
+    "v6_segments_above_0.5": "6/10 sample",
+    "v8_segments_above_0.5": "3/10 sample",
+    "conclusion": "v6 dramatically outperforms v8 on real UMA-16 audio despite v8 having higher DADS val_acc"
+  },
+  "root_cause": "Fine-tuning from v6 on augmented DADS + small field dataset overfits to DADS distribution. v8 loses v6's real-device detection ability while improving on the synthetic DADS benchmark.",
+  "per_file": [
+    {"name": "20260408_091054_136dc5.wav", "class": "drone", "segments": 61, "detections": 6, "mean_prob": 0.166},
+    {"name": "20260408_092615_1a055f.wav", "class": "drone", "segments": 218, "detections": 5, "mean_prob": 0.119},
+    {"name": "20260408_091724_bb0ed8.wav", "class": "drone", "segments": 52, "detections": 1, "mean_prob": 0.137},
+    {"name": "20260408_084222_44dc5c.wav", "class": "drone", "segments": 21, "detections": 0, "mean_prob": 0.021},
+    {"name": "20260408_090757_1c50e9.wav", "class": "background", "segments": 104, "detections": 0, "mean_prob": 0.063}
+  ]
+}
