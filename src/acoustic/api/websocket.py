@@ -37,13 +37,16 @@ async def ws_heatmap(websocket: WebSocket) -> None:
     monitor: DeviceMonitor = websocket.app.state.device_monitor
     status_queue = monitor.subscribe()
 
-    # Send handshake with grid dimensions
+    # Send handshake with grid dimensions.
+    # Height is halved because pipeline crops to el >= 0 (planar array fold).
+    full_el = int((2 * settings.el_range / settings.el_resolution) + 1)
+    half_el = full_el // 2 + 1  # el=0 through el=+el_range
     handshake = HeatmapHandshake(
         width=int((2 * settings.az_range / settings.az_resolution) + 1),
-        height=int((2 * settings.el_range / settings.el_resolution) + 1),
+        height=half_el,
         az_min=-settings.az_range,
         az_max=settings.az_range,
-        el_min=-settings.el_range,
+        el_min=0.0,
         el_max=settings.el_range,
     )
     await websocket.send_json(handshake.model_dump())
@@ -75,6 +78,8 @@ async def ws_heatmap(websocket: WebSocket) -> None:
                     current_map = pipeline.latest_map
                     if current_map is not None and id(current_map) != last_map_id:
                         last_map_id = id(current_map)
+                        # Map is (n_az, n_el_half). .T gives (n_el_half, n_az) row-major.
+                        # Row 0 = el=0 (horizon), last row = el=+el_max.
                         frame = current_map.T.astype(np.float32).tobytes()
                         await websocket.send_bytes(frame)
                 except (WebSocketDisconnect, RuntimeError):
@@ -230,6 +235,64 @@ async def ws_recording(websocket: WebSocket) -> None:
             await asyncio.sleep(0.1)  # 10Hz for level meter
     except (WebSocketDisconnect, RuntimeError):
         logger.debug("Recording WebSocket client disconnected")
+
+
+@router.websocket("/ws/spectrum")
+async def ws_spectrum(websocket: WebSocket) -> None:
+    """Stream frequency band energy levels at ~10 Hz.
+
+    Protocol: sends JSON {"bands": [{"name": str, "fmin": int, "fmax": int, "db": float}, ...]}
+    """
+    await websocket.accept()
+    try:
+        while True:
+            pipeline = websocket.app.state.pipeline
+            spectrum = pipeline.latest_spectrum
+            if spectrum is not None:
+                await websocket.send_json(spectrum)
+            await asyncio.sleep(0.1)  # 10 Hz
+    except (WebSocketDisconnect, RuntimeError):
+        logger.debug("Spectrum WebSocket client disconnected")
+
+
+@router.websocket("/ws/bf-peaks")
+async def ws_bf_peaks(websocket: WebSocket) -> None:
+    """Stream beamforming peak detections at ~10 Hz.
+
+    Protocol: sends JSON with peak az/el degrees and power for each detected source.
+    """
+    await websocket.accept()
+    try:
+        while True:
+            pipeline = websocket.app.state.pipeline
+            peaks = pipeline.latest_peaks
+            if peaks:
+                peak_data = [
+                    {
+                        "az_deg": round(p.az_deg, 2),
+                        "el_deg": round(p.el_deg, 2),
+                        "power": round(p.power, 4),
+                        "threshold": round(p.threshold, 4),
+                    }
+                    for p in peaks
+                ]
+            else:
+                peak_data = []
+            primary = peaks[0] if peaks else None
+            await websocket.send_json({
+                "peaks": peak_data,
+                "primary": {
+                    "az_deg": round(primary.az_deg, 2),
+                    "el_deg": round(primary.el_deg, 2),
+                } if primary else None,
+                "mass_center": pipeline.latest_mass_center,
+                "raw_recording": pipeline.raw_recording_state,
+                "playback": pipeline.playback_state,
+                "target_recording": pipeline.target_recording_state,
+            })
+            await asyncio.sleep(0.1)  # 10 Hz
+    except (WebSocketDisconnect, RuntimeError):
+        logger.debug("BF-peaks WebSocket client disconnected")
 
 
 @router.websocket("/ws/sound-level")
