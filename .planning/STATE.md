@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-04-03)
 Phase: 20
 Plan: Not started
 Status: Ready to execute
-Last activity: 2026-04-10 -- Phase 19 planning complete
+Last activity: 2026-04-17 - Completed quick task 260417-bgv: Add API record button to generate JSON file with timestamped target locations
 
 ## Performance Metrics
 
@@ -153,6 +153,7 @@ None yet.
 | 260407-jx8 | Fix WindowedHFDroneDataset assertion on non-uniform DADS clips | 2026-04-07 | 7ea498a | [260407-jx8-fix-windowedhfdronedataset-assertion-on-](./quick/260407-jx8-fix-windowedhfdronedataset-assertion-on-/) |
 | 260407-ls3 | Fix WindowedHFDroneDataset to return 32 kHz raw audio for EfficientAT v7 | 2026-04-07 | f007e91 | [260407-ls3-fix-windowedhfdronedataset-to-return-32-](./quick/260407-ls3-fix-windowedhfdronedataset-to-return-32-/) |
 | 260407-nir | Fix WeightedRandomSampler to cover all windows in sliding-window path | 2026-04-07 | 9809d3f | [260407-nir-fix-weightedrandomsampler-to-use-dataset](./quick/260407-nir-fix-weightedrandomsampler-to-use-dataset/) |
+| 260417-bgv | Add API record button to generate JSON file with timestamped target locations | 2026-04-17 | a7f0767 | [260417-bgv-add-api-record-button-to-generate-json-f](./quick/260417-bgv-add-api-record-button-to-generate-json-f/) |
 
 ## Session Continuity
 
