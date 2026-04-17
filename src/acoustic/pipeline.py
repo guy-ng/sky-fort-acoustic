@@ -110,6 +110,8 @@ class BeamformingPipeline:
         self._el_size = int((2 * settings.el_range / settings.el_resolution) + 1)
         self.latest_map: np.ndarray | None = None
         self.latest_peak: PeakDetection | None = None
+        self.latest_mass_center: dict | None = None
+        self._srp_accumulator: np.ndarray | None = None  # temporal smoothing
         self._running = False
         self._thread: threading.Thread | None = None
         self._last_process_time: float | None = None
@@ -147,6 +149,9 @@ class BeamformingPipeline:
         # Multi-peak storage (Phase 18 will consume the list)
         self.latest_peaks: list[PeakDetection] = []
 
+        # Spectrum analyzer: band energies computed per chunk
+        self.latest_spectrum: dict | None = None
+
         # CNN classification integration (optional)
         self._cnn_worker = cnn_worker
         self._state_machine = state_machine
@@ -173,6 +178,12 @@ class BeamformingPipeline:
         self._detection_session: DetectionSession | None = None
         self._detection_lock = threading.Lock()
 
+        # Target location recording
+        self._target_recording: bool = False
+        self._target_recording_id: str | None = None
+        self._target_recording_start: float | None = None
+        self._target_recording_frames: list[dict] = []
+
     def process_chunk(self, chunk: np.ndarray) -> list[PeakDetection]:
         """Run beamforming on audio chunk, gated by CNN detection state.
 
@@ -185,8 +196,10 @@ class BeamformingPipeline:
         now = time.monotonic()
 
         # Demand-driven gate (BF-16): check CNN state
-        # If no state machine, always run beamforming (backward compat)
-        if self._state_machine is not None:
+        # bf_always_on bypasses CNN gating — beamforming runs on every chunk
+        if self._settings.bf_always_on:
+            bf_should_run = True
+        elif self._state_machine is not None:
             from acoustic.classification.state_machine import DetectionState
 
             cnn_active = self._state_machine.state == DetectionState.CONFIRMED
@@ -222,14 +235,76 @@ class BeamformingPipeline:
             fmin=self._settings.bf_freq_min,
             fmax=self._settings.bf_freq_max,
         )
-        # VIZ-02: Functional beamforming for sidelobe suppression (D-01, D-07)
-        max_val = srp_map.max()
-        if max_val > 0:
-            fb_map = (srp_map / max_val) ** self._settings.bf_nu
+
+        # Fold elevation: planar array (z=0) has perfect +el/-el symmetry.
+        # Average the two halves for 3dB SNR gain, then keep only el >= 0.
+        n_el = srp_map.shape[1]
+        mid = n_el // 2
+        # Average symmetric pairs into the upper half (el >= 0)
+        for i in range(mid + 1):
+            if mid + i < n_el and mid - i >= 0:
+                srp_map[:, mid + i] = (srp_map[:, mid + i] + srp_map[:, mid - i]) * 0.5
+        # Crop to el >= 0 only (indices mid..end)
+        srp_map = srp_map[:, mid:]
+
+        # Temporal smoothing: EMA accumulator stabilizes the peak across frames.
+        # Without this, frame-to-frame noise causes the peak to jump randomly.
+        alpha = 0.3  # blend factor: 0.3 = 30% new frame, 70% history
+        if self._srp_accumulator is None or self._srp_accumulator.shape != srp_map.shape:
+            self._srp_accumulator = srp_map.copy()
+        else:
+            self._srp_accumulator = alpha * srp_map + (1 - alpha) * self._srp_accumulator
+
+        # Normalize to [0,1] using min-max on the smoothed map.
+        # Then apply moderate power exponent for contrast (nu).
+        smoothed = self._srp_accumulator
+        smin = smoothed.min()
+        smax = smoothed.max()
+        if smax > smin:
+            norm_map = (smoothed - smin) / (smax - smin)
+            # Apply functional beamforming exponent for contrast.
+            # Low nu (2-10) shows broad blobs; high nu (50+) sharpens to peaks.
+            nu = self._settings.bf_nu
+            fb_map = norm_map ** nu
             fb_map[fb_map < 1e-6] = 0.0
             self.latest_map = fb_map.astype(np.float32)
+
+            # Center of mass on the thresholded map
+            # Apply cos(el) correction: planar arrays (z=0) bias SRP power
+            # toward high elevation (broadside) because TDOAs shrink with
+            # increasing el. Weighting by cos(el) compensates.
+            el_cropped = self._el_grid[len(self._el_grid) // 2:]  # el >= 0
+            cos_el = np.cos(np.deg2rad(el_cropped))  # (n_el_half,)
+            weighted_map = fb_map * cos_el[np.newaxis, :]
+
+            mask = weighted_map > self._settings.bf_mass_threshold
+            if mask.any():
+                weights = weighted_map[mask]
+                az_indices, el_indices = np.where(mask)
+                # Map indices to degrees using the cropped grids
+                az_vals = self._az_grid[az_indices]
+                el_vals = el_cropped[el_indices] if len(el_cropped) > el_indices.max() else np.zeros_like(el_indices, dtype=float)
+                total_w = weights.sum()
+                com_az = float(np.sum(az_vals * weights) / total_w)
+                com_el = float(np.sum(el_vals * weights) / total_w)
+                # Weighted std dev as error estimation (±1σ around center)
+                az_var = float(np.sum(weights * (az_vals - com_az) ** 2) / total_w)
+                el_var = float(np.sum(weights * (el_vals - com_el) ** 2) / total_w)
+                az_std = float(np.sqrt(az_var))
+                el_std = float(np.sqrt(el_var))
+                self.latest_mass_center = {
+                    "az_deg": round(com_az, 1),
+                    "el_deg": round(com_el, 1),
+                    "az_min": round(com_az - az_std, 1),
+                    "az_max": round(com_az + az_std, 1),
+                    "el_min": round(com_el - el_std, 1),
+                    "el_max": round(com_el + el_std, 1),
+                }
+            else:
+                self.latest_mass_center = None
         else:
             self.latest_map = np.zeros_like(srp_map, dtype=np.float32)
+            self.latest_mass_center = None
 
         # BF-14: MCRA noise floor
         noise_floor = self._mcra.update(srp_map)
@@ -268,6 +343,11 @@ class BeamformingPipeline:
         """Background thread target: continuously read chunks and process them."""
         logger.info("Beamforming pipeline thread started")
         while self._running:
+            # Skip live audio while file playback is active
+            if getattr(self, "_playback_path", None) is not None:
+                ring_buffer.read()  # drain buffer to prevent overflow
+                time.sleep(0.01)
+                continue
             chunk = ring_buffer.read()
             if chunk is not None:
                 try:
@@ -275,9 +355,12 @@ class BeamformingPipeline:
                     if chunk.size > 0:
                         mono_raw = chunk.mean(axis=1)
                         self._latest_raw_rms = float(np.sqrt(np.mean(mono_raw.astype(np.float32) ** 2)))
+                        self._compute_spectrum(mono_raw)
                     # Forward to recording manager (passive observer)
                     if self._recording_manager is not None:
                         self._recording_manager.feed_chunk(chunk)
+                    # Feed raw 16ch recording if active
+                    self._feed_raw_recording(chunk)
                     peaks = self.process_chunk(chunk)
                     self._process_cnn(chunk, peaks)
                 except Exception:
@@ -439,6 +522,20 @@ class BeamformingPipeline:
         if self._tracker is not None:
             self._tracker.tick()
 
+        # Sample targets for target location recording
+        self._sample_targets()
+
+    def _sample_targets(self) -> None:
+        """Append current target snapshot if target recording is active."""
+        if not self._target_recording:
+            return
+        targets = self.latest_targets
+        if targets:
+            self._target_recording_frames.append({
+                "t": round(time.time(), 3),
+                "targets": targets,
+            })
+
     def start(self, ring_buffer: AudioRingBuffer) -> None:
         """Start the background beamforming thread."""
         if self._running:
@@ -455,6 +552,273 @@ class BeamformingPipeline:
         if self._thread is not None:
             self._thread.join(timeout=5.0)
             self._thread = None
+
+    # --- Spectrum analyzer ---------------------------------------------------
+
+    _SPECTRUM_BANDS = [
+        ("Sub-bass", 20, 60),
+        ("Bass", 60, 250),
+        ("Low-mid", 250, 500),
+        ("Mid", 500, 2000),
+        ("Upper-mid", 2000, 4000),
+        ("Presence", 4000, 6000),
+        ("Brilliance", 6000, 20000),
+    ]
+
+    def _compute_spectrum(self, mono: np.ndarray) -> None:
+        """Compute per-band energy from mono audio chunk via FFT."""
+        sr = self._settings.sample_rate
+        n = len(mono)
+        if n < 64:
+            return
+        window = np.hanning(n)
+        spectrum = np.abs(np.fft.rfft(mono.astype(np.float32) * window))
+        freqs = np.fft.rfftfreq(n, 1.0 / sr)
+        bands = []
+        for name, flo, fhi in self._SPECTRUM_BANDS:
+            mask = (freqs >= flo) & (freqs < fhi)
+            if mask.any():
+                energy = float(np.mean(spectrum[mask] ** 2))
+                db = float(10.0 * np.log10(max(energy, 1e-20)))
+            else:
+                db = -100.0
+            bands.append({"name": name, "fmin": flo, "fmax": fhi, "db": db})
+        self.latest_spectrum = {"bands": bands, "sample_rate": sr}
+
+    # --- Raw 16-channel recording --------------------------------------------
+
+    def start_raw_recording(self, output_dir: str = "data/raw_recordings") -> str:
+        """Start recording raw 16-channel 48kHz audio to a WAV file.
+
+        Returns the recording ID (filename stem). Auto-stops after 60s.
+        """
+        import uuid
+        from datetime import datetime
+        from pathlib import Path
+
+        rec_dir = Path(output_dir)
+        rec_dir.mkdir(parents=True, exist_ok=True)
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        rec_id = f"{ts}_{uuid.uuid4().hex[:6]}"
+        path = rec_dir / f"{rec_id}.wav"
+
+        import soundfile as sf
+        f = sf.SoundFile(
+            str(path), mode="w",
+            samplerate=self._settings.sample_rate,
+            channels=self._settings.num_channels,
+            format="WAV", subtype="FLOAT",
+        )
+        self._raw_rec_file = f
+        self._raw_rec_id = rec_id
+        self._raw_rec_path = path
+        self._raw_rec_start = time.monotonic()
+        self._raw_rec_max_seconds = 60.0
+        self._raw_rec_samples = 0
+        logger.info("Raw 16ch recording started: %s", path)
+        return rec_id
+
+    def stop_raw_recording(self) -> dict | None:
+        """Stop the current raw recording. Returns metadata or None."""
+        f = getattr(self, "_raw_rec_file", None)
+        if f is None:
+            return None
+        f.close()
+        duration = self._raw_rec_samples / self._settings.sample_rate
+        info = {
+            "id": self._raw_rec_id,
+            "path": str(self._raw_rec_path),
+            "duration_s": round(duration, 2),
+            "channels": self._settings.num_channels,
+            "sample_rate": self._settings.sample_rate,
+        }
+        logger.info("Raw 16ch recording stopped: %.1fs, %s", duration, self._raw_rec_path)
+        self._raw_rec_file = None
+        return info
+
+    @property
+    def raw_recording_state(self) -> dict:
+        """Return current raw recording state for WebSocket/REST."""
+        f = getattr(self, "_raw_rec_file", None)
+        if f is None:
+            return {"status": "idle"}
+        elapsed = time.monotonic() - self._raw_rec_start
+        remaining = max(0, self._raw_rec_max_seconds - elapsed)
+        return {
+            "status": "recording",
+            "id": self._raw_rec_id,
+            "elapsed_s": round(elapsed, 1),
+            "remaining_s": round(remaining, 1),
+        }
+
+    def _feed_raw_recording(self, chunk: np.ndarray) -> None:
+        """Write chunk to raw recording if active. Auto-stop at limit."""
+        f = getattr(self, "_raw_rec_file", None)
+        if f is None:
+            return
+        elapsed = time.monotonic() - self._raw_rec_start
+        if elapsed >= self._raw_rec_max_seconds:
+            self.stop_raw_recording()
+            return
+        f.write(chunk)
+        self._raw_rec_samples += chunk.shape[0]
+
+    # --- Target location recording -----------------------------------------------
+
+    def start_target_recording(self) -> str:
+        """Start recording target locations to a JSON file. Returns recording ID."""
+        from datetime import datetime
+
+        rec_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+        self._target_recording = True
+        self._target_recording_id = rec_id
+        self._target_recording_start = time.time()
+        self._target_recording_frames = []
+        logger.info("Target recording started: %s", rec_id)
+        return rec_id
+
+    def stop_target_recording(self) -> dict | None:
+        """Stop target recording and write JSON file. Returns metadata or None."""
+        if not self._target_recording:
+            return None
+        import json
+        from pathlib import Path
+
+        self._target_recording = False
+        rec_id = self._target_recording_id
+        started_at = self._target_recording_start or 0
+        stopped_at = time.time()
+        frames = self._target_recording_frames
+
+        out_dir = Path("data/target_recordings")
+        out_dir.mkdir(parents=True, exist_ok=True)
+        path = out_dir / f"{rec_id}.json"
+
+        payload = {
+            "id": rec_id,
+            "started_at": round(started_at, 3),
+            "stopped_at": round(stopped_at, 3),
+            "duration_s": round(stopped_at - started_at, 3),
+            "total_samples": len(frames),
+            "frames": frames,
+        }
+        with open(path, "w") as f:
+            json.dump(payload, f, indent=2)
+
+        logger.info("Target recording saved: %s (%d samples, %.1fs)", path, len(frames), stopped_at - started_at)
+        self._target_recording_frames = []
+        return {
+            "id": rec_id,
+            "status": "saved",
+            "path": str(path),
+            "total_samples": len(frames),
+            "duration_s": round(stopped_at - started_at, 3),
+        }
+
+    @property
+    def target_recording_state(self) -> dict:
+        """Return current target recording state for WebSocket/REST."""
+        if self._target_recording:
+            elapsed = time.time() - (self._target_recording_start or 0)
+            return {
+                "status": "recording",
+                "id": self._target_recording_id,
+                "elapsed_s": round(elapsed, 1),
+                "samples": len(self._target_recording_frames),
+            }
+        return {"status": "idle"}
+
+    # --- File playback --------------------------------------------------------
+
+    def start_file_playback(self, wav_path: str) -> None:
+        """Play a WAV file through the pipeline instead of live audio.
+
+        Spawns a thread that reads the file in real-time chunks and feeds them
+        through process_chunk, so the heatmap/spectrum/peaks update as if live.
+        """
+        self._playback_stop = False
+        self._playback_path = wav_path
+        self._srp_accumulator = None  # reset temporal smoothing
+        self._bandpass.reset(self._settings.num_channels)
+        self._playback_thread = threading.Thread(
+            target=self._playback_loop, args=(wav_path,), daemon=True
+        )
+        self._playback_thread.start()
+        logger.info("File playback started: %s", wav_path)
+
+    def stop_file_playback(self) -> None:
+        """Stop current file playback."""
+        self._playback_stop = True
+        t = getattr(self, "_playback_thread", None)
+        if t is not None:
+            t.join(timeout=3.0)
+            self._playback_thread = None
+        self._playback_path = None
+        logger.info("File playback stopped")
+
+    @property
+    def playback_state(self) -> dict:
+        """Return current playback state."""
+        path = getattr(self, "_playback_path", None)
+        if path is None:
+            return {"status": "idle"}
+        return {"status": "playing", "path": path}
+
+    def _playback_loop(self, wav_path: str) -> None:
+        """Read WAV file in real-time chunks and process through pipeline."""
+        import soundfile as sf
+
+        chunk_samples = self._settings.chunk_samples
+        sr = self._settings.sample_rate
+        chunk_duration = chunk_samples / sr
+
+        try:
+            with sf.SoundFile(wav_path, "r") as f:
+                file_sr = f.samplerate
+                file_ch = f.channels
+                if file_sr != sr:
+                    logger.warning("Playback SR mismatch: file=%d, pipeline=%d", file_sr, sr)
+
+                logger.info(
+                    "Playback: %dch %dHz, %d frames (%.1fs)",
+                    file_ch, file_sr, f.frames, f.frames / file_sr,
+                )
+
+                while not self._playback_stop:
+                    data = f.read(chunk_samples, dtype="float32")
+                    if data.size == 0:
+                        break  # EOF
+
+                    # Ensure shape is (samples, num_channels)
+                    if data.ndim == 1:
+                        data = np.tile(data[:, np.newaxis], (1, self._settings.num_channels))
+                    elif data.shape[1] != self._settings.num_channels:
+                        # Pad or trim channels
+                        if data.shape[1] < self._settings.num_channels:
+                            pad = np.zeros(
+                                (data.shape[0], self._settings.num_channels - data.shape[1]),
+                                dtype=np.float32,
+                            )
+                            data = np.hstack([data, pad])
+                        else:
+                            data = data[:, :self._settings.num_channels]
+
+                    try:
+                        mono_raw = data.mean(axis=1)
+                        self._latest_raw_rms = float(np.sqrt(np.mean(mono_raw.astype(np.float32) ** 2)))
+                        self._compute_spectrum(mono_raw)
+                        peaks = self.process_chunk(data)
+                        self._process_cnn(data, peaks)
+                    except Exception:
+                        logger.exception("Error processing playback chunk")
+
+                    time.sleep(chunk_duration)
+
+        except Exception:
+            logger.exception("Playback file error: %s", wav_path)
+        finally:
+            self._playback_path = None
+            logger.info("Playback finished: %s", wav_path)
 
     def clear_state(self) -> None:
         """Reset pipeline outputs to None (e.g. after device disconnect)."""
