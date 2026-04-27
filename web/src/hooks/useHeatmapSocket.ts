@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { HeatmapHandshake } from '../utils/types'
 
 interface UseHeatmapSocketOptions {
-  onFrame: (buffer: ArrayBuffer) => void
+  onFrame?: (buffer: ArrayBuffer) => void
 }
 
 interface UseHeatmapSocketResult {
@@ -70,7 +70,7 @@ export function useHeatmapSocket({ onFrame }: UseHeatmapSocketOptions): UseHeatm
 
       if (event.data instanceof ArrayBuffer) {
         handshakeDone = true
-        onFrameRef.current(event.data)
+        onFrameRef.current?.(event.data)
       }
     }
 

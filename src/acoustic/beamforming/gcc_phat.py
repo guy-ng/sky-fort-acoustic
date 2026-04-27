@@ -13,6 +13,7 @@ def prepare_fft(
     fs: int,
     fmin: float = 100.0,
     fmax: float = 2000.0,
+    max_tdoa_samples: int | None = None,
 ) -> tuple[np.ndarray, int, int, np.ndarray]:
     """Compute FFT once per microphone for all signals.
 
@@ -21,11 +22,15 @@ def prepare_fft(
         fs: sample rate in Hz
         fmin: lower frequency bound for band mask
         fmax: upper frequency bound for band mask
+        max_tdoa_samples: maximum TDOA in samples based on array geometry.
+            If provided, limits the correlation window to this range
+            (with 2x margin) instead of nfft//2. This focuses the
+            GCC-PHAT lookup on physically meaningful shifts.
 
     Returns:
         X: shape (n_mics, nfft//2+1) -- rfft of each channel
         nfft: FFT size (next power of 2 >= 2*n_samples)
-        max_shift: half FFT size
+        max_shift: usable half-window for correlation lookup
         band_mask: boolean mask selecting frequencies in [fmin, fmax]
     """
     n_mics, n_samples = signals.shape
@@ -45,7 +50,11 @@ def prepare_fft(
     freqs = np.fft.rfftfreq(nfft, d=1.0 / fs)
     band_mask = (freqs >= fmin) & (freqs <= fmax)
 
-    max_shift = nfft // 2
+    # max_shift: use array geometry when available, else full FFT
+    if max_tdoa_samples is not None:
+        max_shift = max(int(max_tdoa_samples * 2), 32)  # 2x margin, min 32
+    else:
+        max_shift = nfft // 2
 
     return X, nfft, max_shift, band_mask
 
@@ -75,12 +84,18 @@ def gcc_phat_from_fft(
     Xm_f = Xm * band_mask
     Xn_f = Xn * band_mask
 
-    # Cross-spectrum with PHAT weighting
+    # Cross-spectrum — plain GCC (no PHAT whitening).
+    # PHAT normalizes magnitude to 1, which works for high-SNR (indoor speech)
+    # but destroys the signal for low-SNR outdoor drone detection (~-80 dBFS).
+    # Plain GCC preserves signal energy and gives 3-6x better dynamic range
+    # on UMA-16v2 field recordings.
     R = Xm_f * np.conj(Xn_f)
-    R /= np.abs(R) + 1e-12
 
-    # Inverse FFT and rearrange to centered correlation
-    cc = np.fft.irfft(R, n=nfft)
-    cc = np.concatenate((cc[-max_shift:], cc[:max_shift]))
+    # Inverse FFT — full correlation
+    cc_full = np.fft.irfft(R, n=nfft)
+
+    # Extract centered window of ±max_shift samples
+    # cc_full[0] = zero lag, cc_full[1..] = positive lags, cc_full[-1..] = negative lags
+    cc = np.concatenate((cc_full[-max_shift:], cc_full[:max_shift]))
 
     return cc

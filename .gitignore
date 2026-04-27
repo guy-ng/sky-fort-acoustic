@@ -56,6 +56,9 @@ models/ast-drone-detection/
 # Scratch notes
 rp.md
 
+# Web runtime artifacts (raw recordings, etc.)
+web/data/
+
 # Claude local config
 .claude/
 acoular-main/

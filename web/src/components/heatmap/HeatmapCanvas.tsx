@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useImperativeHandle, useRef, forwardRef } from 'react'
-import { jetColormap } from '../../utils/colormap'
 import type { HeatmapHandshake } from '../../utils/types'
 
 export interface HeatmapCanvasHandle {
@@ -17,19 +16,6 @@ export const HeatmapCanvas = forwardRef<HeatmapCanvasHandle, HeatmapCanvasProps>
     const containerRef = useRef<HTMLDivElement>(null)
     const imageDataRef = useRef<ImageData | null>(null)
 
-    // Pre-build a lookup table for the jet colormap (256 entries)
-    const colormapLut = useRef<Uint8Array | null>(null)
-    if (!colormapLut.current) {
-      const lut = new Uint8Array(256 * 3)
-      for (let i = 0; i < 256; i++) {
-        const [r, g, b] = jetColormap(i / 255)
-        lut[i * 3] = r
-        lut[i * 3 + 1] = g
-        lut[i * 3 + 2] = b
-      }
-      colormapLut.current = lut
-    }
-
     // Resize canvas to match grid dimensions
     useEffect(() => {
       if (!gridInfo || !canvasRef.current) return
@@ -40,7 +26,7 @@ export const HeatmapCanvas = forwardRef<HeatmapCanvasHandle, HeatmapCanvasProps>
     }, [gridInfo])
 
     const renderFrame = useCallback((buffer: ArrayBuffer) => {
-      if (!gridInfo || !canvasRef.current || !imageDataRef.current || !colormapLut.current) return
+      if (!gridInfo || !canvasRef.current || !imageDataRef.current) return
 
       const floats = new Float32Array(buffer)
       const { width, height } = gridInfo
@@ -48,19 +34,18 @@ export const HeatmapCanvas = forwardRef<HeatmapCanvasHandle, HeatmapCanvasProps>
 
       if (floats.length < expectedLen) return
 
-      // Backend sends pre-normalized [0,1] values (dB + origin suppression + top-dB masking)
       const pixels = imageDataRef.current.data
-      const lut = colormapLut.current
 
       for (let i = 0; i < expectedLen; i++) {
         const v = floats[i]
-        // Backend owns contrast via functional beamforming (D-08) -- direct LUT mapping
-        const lutIdx = Math.round(v * 255) * 3
         const pixIdx = i * 4
-        pixels[pixIdx] = lut[lutIdx]
-        pixels[pixIdx + 1] = lut[lutIdx + 1]
-        pixels[pixIdx + 2] = lut[lutIdx + 2]
-        pixels[pixIdx + 3] = 255
+        // Dark background, red where there's sound energy
+        // v is [0,1] — 0 = no energy, 1 = peak
+        const r = Math.round(v * 255)
+        pixels[pixIdx] = r          // red channel = signal strength
+        pixels[pixIdx + 1] = 0      // no green
+        pixels[pixIdx + 2] = 0      // no blue
+        pixels[pixIdx + 3] = 255    // fully opaque
       }
 
       const ctx = canvasRef.current.getContext('2d')
@@ -74,16 +59,15 @@ export const HeatmapCanvas = forwardRef<HeatmapCanvasHandle, HeatmapCanvasProps>
       get canvas() { return canvasRef.current },
     }), [renderFrame])
 
-    // Fit canvas as a square within the container
+    // Fit canvas within the container
     useEffect(() => {
       if (!containerRef.current) return
       const observer = new ResizeObserver(() => {
         if (!canvasRef.current || !containerRef.current) return
         const { clientWidth, clientHeight } = containerRef.current
-        const size = Math.min(clientWidth, clientHeight)
         const canvas = canvasRef.current
-        canvas.style.width = `${size}px`
-        canvas.style.height = `${size}px`
+        canvas.style.width = `${clientWidth}px`
+        canvas.style.height = `${clientHeight}px`
       })
       observer.observe(containerRef.current)
       return () => observer.disconnect()

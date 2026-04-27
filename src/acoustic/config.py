@@ -25,9 +25,11 @@ class AcousticSettings(BaseSettings):
     freq_min: float = 100.0
     freq_max: float = 2000.0
 
-    # Beamforming frequency band (BF-10, BF-11) - upgraded from 100-2000 Hz
-    bf_freq_min: float = 500.0
-    bf_freq_max: float = 4000.0
+    # Beamforming frequency band.
+    # UMA-16v2 spatial aliasing limit: 4083 Hz (broadside), 2888 Hz (diagonal).
+    # Drone rotor fundamentals: 100-500 Hz. Wider band = more signal at distance.
+    bf_freq_min: float = 100.0
+    bf_freq_max: float = 8000.0
     bf_filter_order: int = 4
 
     # Multi-peak detection (BF-13)
@@ -35,8 +37,14 @@ class AcousticSettings(BaseSettings):
     bf_max_peaks: int = 5
     bf_peak_threshold: float = 3.0
 
-    # VIZ-02: Functional beamforming exponent for sidelobe suppression
-    bf_nu: float = 100.0
+    # VIZ-02: Functional beamforming exponent for contrast.
+    # Low values (2-10) show broad directional blobs — good for low-SNR outdoor.
+    # High values (50+) sharpen to single peaks — good for high-SNR indoor.
+    bf_nu: float = 4.0
+
+    # Mass center threshold: pixels below this fraction of max are excluded
+    # from the center-of-mass calculation. Higher = tighter focus.
+    bf_mass_threshold: float = 0.1
 
     # MCRA noise estimation (BF-14)
     bf_mcra_alpha_s: float = 0.8
@@ -45,6 +53,7 @@ class AcousticSettings(BaseSettings):
     bf_mcra_min_window: int = 50
 
     # Demand-driven activation (BF-16)
+    bf_always_on: bool = True  # True = beamforming runs independently of CNN state
     bf_holdoff_seconds: float = 5.0
 
     # Direction of Arrival (Phase 18)

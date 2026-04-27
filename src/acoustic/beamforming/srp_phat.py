@@ -46,8 +46,20 @@ def srp_phat_2d(
     dirs = build_steering_vectors_2d(az_grid_deg, el_grid_deg)
     n_dirs = dirs.shape[0]
 
-    # FFT once per mic
-    X, nfft, max_shift, band_mask = prepare_fft(signals, fs, fmin, fmax)
+    # Compute max physical TDOA from array geometry
+    # Find the largest baseline (distance between any two mics)
+    max_baseline = 0.0
+    for i in range(n_mics):
+        for j in range(i + 1, n_mics):
+            d = np.linalg.norm(mic_positions[:, i] - mic_positions[:, j])
+            if d > max_baseline:
+                max_baseline = d
+    max_tdoa_samples = int(np.ceil(max_baseline / c * fs)) + 1
+
+    # FFT once per mic, with physically bounded correlation window
+    X, nfft, max_shift, band_mask = prepare_fft(
+        signals, fs, fmin, fmax, max_tdoa_samples=max_tdoa_samples,
+    )
 
     # Accumulate SRP power for each direction
     srp = np.zeros(n_dirs, dtype=np.float64)
