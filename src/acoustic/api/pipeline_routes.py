@@ -26,9 +26,9 @@ async def rescan_device(request: Request) -> dict:
     """Force a fresh scan of connected audio input devices.
 
     Resets PortAudio to clear any stale CoreAudio / ALSA device cache, then
-    re-queries the system for available inputs. Returns the active device that
-    would be chosen right now (UMA-16v2 first, first fallback input otherwise)
-    plus the full list of input devices.
+    re-queries the system for available inputs. Returns the UMA-16v2 if
+    connected (the only device beamforming supports) plus the full list of
+    input devices for visibility.
 
     The background DeviceMonitor will also observe the refreshed state on its
     next poll (within ~3s), so this endpoint is primarily a way for the UI to
@@ -77,7 +77,6 @@ async def rescan_device(request: Request) -> dict:
             "index": active.index,
             "name": active.name,
             "channels": active.channels,
-            "is_fallback": bool(getattr(active, "is_fallback", False)),
         }
 
     logger.info(
@@ -172,21 +171,6 @@ async def start_detection(body: PipelineStartRequest, request: Request):
             status_code=409,
             content={"message": "Detection session already running. Stop it first."},
         )
-
-    # Device-specific gain cap. Only fallback devices that publish a
-    # `recommended_gain` (e.g. ReSpeaker raw mic 1) get clamped — the UMA-16v2
-    # path is untouched and the user-provided gain still applies as-is.
-    device_info = getattr(request.app.state, "device_info", None)
-    if device_info is not None and device_info.recommended_gain is not None:
-        if body.gain > device_info.recommended_gain:
-            logger.warning(
-                "Clamping requested gain %.1f → %.1f for fallback device '%s' "
-                "(UMA-tuned gain clips on this mic)",
-                body.gain,
-                device_info.recommended_gain,
-                device_info.name,
-            )
-            body.gain = device_info.recommended_gain
 
     # Validate model file exists
     if not Path(body.model_path).is_file():

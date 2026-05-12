@@ -100,36 +100,15 @@ def _create_hardware_capture(
     settings: AcousticSettings,
     device_index: int | str,
     monitor: DeviceMonitor | None = None,
-    channels: int | None = None,
-    mic_channels: tuple[int, ...] | None = None,
-    highpass_hz: float | None = None,
-    lowpass_hz: float | None = None,
 ) -> AudioCapture:
-    """Create and start a new AudioCapture for the given device.
-
-    ``channels`` overrides ``settings.num_channels`` so fallback devices with
-    fewer than 16 input channels can still open a stream. Pass the value from
-    ``DeviceInfo.channels`` whenever the device may not be the UMA-16v2.
-
-    ``mic_channels`` (when given) selects specific 0-indexed channels from
-    the device stream instead of forwarding all of them — used to skip
-    on-board DSP channels (e.g. ReSpeaker XMOS firmware exposes channel 0
-    as the AGC/AEC/beamformer output and the raw mics on channels 1-4).
-
-    ``highpass_hz`` (when set) enables a streaming Butterworth high-pass on
-    the captured audio — used to scrub mains hum on small USB mics whose
-    power isolation is worse than the UMA-16's.
-    """
+    """Create and start a new AudioCapture for the given UMA-16v2 device."""
     capture = AudioCapture(
         device=device_index,
         fs=settings.sample_rate,
-        channels=channels if channels is not None else settings.num_channels,
+        channels=settings.num_channels,
         chunk_samples=settings.chunk_samples,
         ring_chunks=settings.ring_chunks,
         on_stream_finished=monitor.notify_stream_abort if monitor else None,
-        mic_channels=mic_channels,
-        highpass_hz=highpass_hz,
-        lowpass_hz=lowpass_hz,
     )
     if monitor:
         monitor.set_frame_time_getter(lambda: capture.last_frame_time)
@@ -206,10 +185,6 @@ async def _initial_scan_task(app: FastAPI) -> None:
                     settings,
                     device_info.index,
                     monitor,
-                    channels=1 if device_info.is_fallback else None,
-                    mic_channels=device_info.mic_channels,
-                    highpass_hz=device_info.highpass_hz,
-                    lowpass_hz=device_info.lowpass_hz,
                 )
             except Exception as exc:
                 logger.warning("Failed to create capture: %s — will retry", exc)
@@ -276,10 +251,6 @@ async def _reconnect_loop(
                 settings,
                 device_info.index,
                 monitor,
-                channels=1 if device_info.is_fallback else None,
-                mic_channels=device_info.mic_channels,
-                highpass_hz=device_info.highpass_hz,
-                lowpass_hz=device_info.lowpass_hz,
             )
         except Exception as exc:
             logger.warning("Failed to create capture: %s — will retry", exc)
@@ -481,22 +452,11 @@ async def lifespan(app: FastAPI):
         capture.start()
         pipeline.start(capture.ring)
     elif device_info is not None:
-        if device_info.is_fallback:
-            logger.warning(
-                "Starting with FALLBACK hardware capture (mono, detection-only): device=%s name=%s",
-                device_info.index,
-                device_info.name,
-            )
-        else:
-            logger.info("Starting with hardware audio capture (device=%s)", device_info.index)
+        logger.info("Starting with UMA-16v2 hardware capture (device=%s)", device_info.index)
         capture = _create_hardware_capture(
             settings,
             device_info.index,
             device_monitor,
-            channels=1 if device_info.is_fallback else None,
-            mic_channels=device_info.mic_channels,
-            highpass_hz=device_info.highpass_hz,
-            lowpass_hz=device_info.lowpass_hz,
         )
         pipeline.start(capture.ring)
     else:
